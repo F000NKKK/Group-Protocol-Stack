@@ -600,11 +600,15 @@ pub unsafe extern "C" fn gtp_client_send(
 /// `payload_received` event. Returns a JSON object of the form
 /// `{"status":"new|duplicate|error", ...}`.
 ///
+/// `current_epoch` is the receiver node's current epoch — the client uses
+/// it to auto-reset its idempotency state when the epoch advances.
+///
 /// # Safety
 /// `pt_ptr` MUST be valid for `pt_len` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gtp_client_accept(
     ch: i32,
+    current_epoch: u64,
     pt_ptr: *const u8,
     pt_len: usize,
 ) -> *mut c_char {
@@ -622,7 +626,7 @@ pub unsafe extern "C" fn gtp_client_accept(
         text: Option<String>,
         reason: Option<String>,
     }
-    let out = match c.accept(pt) {
+    let out = match c.accept(pt, current_epoch) {
         Ok(GtpAccept::New(m)) => Out {
             status: "new",
             sender: Some(m.sender_id),
@@ -821,11 +825,15 @@ pub extern "C" fn gsp_client_send(
 
 /// Accepts a GSP signal payload.
 ///
+/// `current_epoch` is the receiver node's current epoch — the client uses
+/// it to auto-reset its dedup state when the epoch advances.
+///
 /// # Safety
 /// `pt_ptr` MUST be valid for `pt_len` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gsp_client_accept(
     ch: i32,
+    current_epoch: u64,
     pt_ptr: *const u8,
     pt_len: usize,
 ) -> *mut c_char {
@@ -845,7 +853,7 @@ pub unsafe extern "C" fn gsp_client_accept(
         request_id: Option<u32>,
         reason: Option<String>,
     }
-    let out = match c.accept(pt) {
+    let out = match c.accept(pt, current_epoch) {
         Ok(GspAccept { signal, sender_id, role_claim, request_id }) => Out {
             status: "new",
             signal: Some(signal.name()),

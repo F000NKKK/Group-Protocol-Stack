@@ -53,9 +53,13 @@ export class GtpClient {
         return unpackOutbound(buf, "gtp_client_send");
     }
 
-    /** Accept a plaintext payload delivered by the GBP layer. */
-    accept(plaintext: Buffer): GtpAcceptResult {
-        const ptr = N.gtp_client_accept(this.handle, plaintext, plaintext.length) as number;
+    /**
+     * Accept a plaintext payload delivered by the GBP layer.
+     * `currentEpoch` lets the client auto-reset its idempotency state
+     * when the epoch advances.
+     */
+    accept(plaintext: Buffer, currentEpoch: bigint | number): GtpAcceptResult {
+        const ptr = N.gtp_client_accept(this.handle, BigInt(currentEpoch), plaintext, plaintext.length) as number;
         return parseAccept(N.takeCString(ptr));
     }
 

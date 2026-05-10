@@ -93,10 +93,14 @@ class GspClient:
         )
         return _unpack(buf, "gsp_client_send")
 
-    def accept(self, plaintext: bytes) -> GspAcceptResult:
-        """Accept a plaintext payload delivered by the GBP layer."""
+    def accept(self, plaintext: bytes, current_epoch: int) -> GspAcceptResult:
+        """Accept a plaintext payload delivered by the GBP layer.
+
+        ``current_epoch`` lets the client auto-reset its dedup state
+        when the epoch advances.
+        """
         def call(ptr, length):
-            return _n.gsp_client_accept(self._handle, ptr, length)
+            return _n.gsp_client_accept(self._handle, current_epoch, ptr, length)
         ptr = _n.call_with_bytes(plaintext, call)
         return GspAcceptResult._parse(_n.take_cstring(ptr))
 

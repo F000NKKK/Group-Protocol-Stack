@@ -77,9 +77,13 @@ export class GspClient {
         return unpackOutbound(buf, "gsp_client_send");
     }
 
-    /** Accept a plaintext payload delivered by the GBP layer. */
-    accept(plaintext: Buffer): GspAcceptResult {
-        const ptr = N.gsp_client_accept(this.handle, plaintext, plaintext.length) as number;
+    /**
+     * Accept a plaintext payload delivered by the GBP layer.
+     * `currentEpoch` lets the client auto-reset its dedup state when the
+     * epoch advances.
+     */
+    accept(plaintext: Buffer, currentEpoch: bigint | number): GspAcceptResult {
+        const ptr = N.gsp_client_accept(this.handle, BigInt(currentEpoch), plaintext, plaintext.length) as number;
         return parseAccept(N.takeCString(ptr));
     }
 

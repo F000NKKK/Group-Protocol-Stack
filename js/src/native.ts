@@ -106,7 +106,7 @@ export const gtp_client_reset = lib.func("void gtp_client_reset(int32_t)");
 export const gtp_client_send = lib.func(
     "GbpBuffer gtp_client_send(int32_t, int32_t, int32_t, uint32_t, uint64_t, void *, size_t)"
 );
-export const gtp_client_accept = lib.func("void *gtp_client_accept(int32_t, void *, size_t)");
+export const gtp_client_accept = lib.func("void *gtp_client_accept(int32_t, uint64_t, void *, size_t)");
 
 // GAP client
 export const gap_client_create = lib.func("int32_t gap_client_create()");
@@ -124,7 +124,7 @@ export const gsp_client_reset = lib.func("void gsp_client_reset(int32_t)");
 export const gsp_client_send = lib.func(
     "GbpBuffer gsp_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t)"
 );
-export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, void *, size_t)");
+export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t)");
 
 /** Copy a returned ``GbpBuffer`` into a ``Buffer`` and free it. */
 export function takeBuffer(buf: GbpBuffer): Buffer {

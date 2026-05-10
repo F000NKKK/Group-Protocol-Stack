@@ -74,10 +74,14 @@ class GtpClient:
         buf = _n.call_with_bytes(data, call)
         return _unpack(buf, "gtp_client_send")
 
-    def accept(self, plaintext: bytes) -> GtpAcceptResult:
-        """Accept a plaintext payload delivered by the GBP layer."""
+    def accept(self, plaintext: bytes, current_epoch: int) -> GtpAcceptResult:
+        """Accept a plaintext payload delivered by the GBP layer.
+
+        ``current_epoch`` lets the client auto-reset its idempotency set
+        when the epoch advances.
+        """
         def call(ptr, length):
-            return _n.gtp_client_accept(self._handle, ptr, length)
+            return _n.gtp_client_accept(self._handle, current_epoch, ptr, length)
         ptr = _n.call_with_bytes(plaintext, call)
         return GtpAcceptResult._parse(_n.take_cstring(ptr))
 

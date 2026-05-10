@@ -12,3 +12,4 @@ C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\obj\Release\net8.0\refi
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\obj\Release\net8.0\GBPStack.xml
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\obj\Release\net8.0\GBPStack.pdb
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\obj\Release\net8.0\ref\GBPStack.dll
+C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net8.0\runtimes\win-x64\native\gbp_stack.dll

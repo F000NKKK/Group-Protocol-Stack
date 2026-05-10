@@ -155,8 +155,12 @@
         <member name="M:GBPStack.GspClient.Send(GBPStack.GroupNode,GBPStack.MlsContext,System.UInt32,GBPStack.SignalType,System.UInt32,System.UInt32)">
             <summary>Sends a signal.</summary>
         </member>
-        <member name="M:GBPStack.GspClient.Accept(System.Byte[])">
-            <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
+        <member name="M:GBPStack.GspClient.Accept(System.Byte[],System.UInt64)">
+            <summary>
+            Accepts a plaintext payload delivered by the GBP layer.
+            <paramref name="currentEpoch"/> lets the client auto-reset its dedup
+            state when the epoch advances.
+            </summary>
         </member>
         <member name="M:GBPStack.GspClient.Reset">
             <summary>Clears the request-id deduplication set. Intended for use after an epoch change.</summary>
@@ -165,10 +169,10 @@
             <inheritdoc />
         </member>
         <member name="T:GBPStack.GspAcceptResult">
-            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[])"/>.</summary>
+            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
         </member>
         <member name="M:GBPStack.GspAcceptResult.#ctor(System.String,System.String,System.Nullable{GBPStack.SignalType},System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.String)">
-            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[])"/>.</summary>
+            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
         </member>
         <member name="T:GBPStack.GtpClient">
             <summary>
@@ -185,8 +189,12 @@
         <member name="M:GBPStack.GtpClient.Send(GBPStack.GroupNode,GBPStack.MlsContext,System.UInt32,System.UInt64,System.String)">
             <summary>Sends a text message to <paramref name="target"/>.</summary>
         </member>
-        <member name="M:GBPStack.GtpClient.Accept(System.Byte[])">
-            <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
+        <member name="M:GBPStack.GtpClient.Accept(System.Byte[],System.UInt64)">
+            <summary>
+            Accepts a plaintext payload delivered by the GBP layer.
+            <paramref name="currentEpoch"/> lets the client auto-reset its
+            idempotency state when the epoch advances.
+            </summary>
         </member>
         <member name="M:GBPStack.GtpClient.Reset">
             <summary>Clears the idempotency state. Intended for use after an epoch change.</summary>
@@ -195,10 +203,10 @@
             <inheritdoc />
         </member>
         <member name="T:GBPStack.GtpAcceptResult">
-            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[])"/>.</summary>
+            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
         </member>
         <member name="M:GBPStack.GtpAcceptResult.#ctor(System.String,System.Nullable{System.UInt32},System.Nullable{System.UInt64},System.String,System.String)">
-            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[])"/>.</summary>
+            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
         </member>
         <member name="T:GBPStack.AudioFrame">
             <summary>One frame held by <see cref="T:GBPStack.JitterBuffer"/>.</summary>

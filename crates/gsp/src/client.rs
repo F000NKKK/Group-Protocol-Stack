@@ -42,6 +42,11 @@ pub struct GspAccept {
 /// Tracks `request_id` deduplication, the current membership set and the
 /// mute-list. Membership is updated atomically when JOIN, LEAVE, MUTE or
 /// UNMUTE signals are accepted.
+///
+/// The client observes the current group epoch on every [`GspClient::send`]
+/// or [`GspClient::accept`] call and automatically clears its
+/// `request_id` deduplication set when the epoch advances. Callers may also
+/// drive a reset explicitly via [`GspClient::reset`].
 #[derive(Default)]
 pub struct GspClient {
     seen_requests: HashSet<u32>,
@@ -49,6 +54,7 @@ pub struct GspClient {
     pub muted: HashSet<MemberId>,
     /// Current membership set, driven by JOIN / LEAVE.
     pub members: HashSet<MemberId>,
+    current_epoch: Option<u64>,
 }
 
 impl GspClient {
@@ -67,6 +73,7 @@ impl GspClient {
         role_claim: u32,
         request_id: u32,
     ) -> Result<OutboundFrame, GspError> {
+        self.sync_epoch(node.current_epoch);
         let mut sig = GspSignal::bare(signal as u32, request_id, node.member_id);
         sig.role_claim = role_claim;
         let stream_id = node.member_stream_id(3);
@@ -82,7 +89,12 @@ impl GspClient {
 
     /// Accepts a signal payload, applies the state effects defined in GSP §5
     /// and returns the decoded [`GspAccept`].
-    pub fn accept(&mut self, plaintext: &[u8]) -> Result<GspAccept, GspError> {
+    ///
+    /// `current_epoch` is the receiver node's current epoch — passing it lets
+    /// the client auto-reset its `request_id` deduplication set when the
+    /// epoch advances.
+    pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GspAccept, GspError> {
+        self.sync_epoch(current_epoch);
         let s = GspSignal::from_cbor(plaintext)?;
         let signal = SignalType::try_from(s.signal_type).map_err(GspError::UnknownSignal)?;
         if !self.seen_requests.insert(s.request_id) {
@@ -112,9 +124,19 @@ impl GspClient {
         })
     }
 
-    /// Clears the request-id deduplication set. Intended for use after an
-    /// epoch change.
+    /// Synchronises the client's view of the group epoch and resets the
+    /// `request_id` deduplication set when the epoch has advanced. Called
+    /// automatically by [`GspClient::send`] and [`GspClient::accept`].
+    pub fn sync_epoch(&mut self, epoch: u64) {
+        if Some(epoch) != self.current_epoch {
+            self.seen_requests.clear();
+            self.current_epoch = Some(epoch);
+        }
+    }
+
+    /// Clears the request-id deduplication set unconditionally.
     pub fn reset(&mut self) {
         self.seen_requests.clear();
+        self.current_epoch = None;
     }
 }

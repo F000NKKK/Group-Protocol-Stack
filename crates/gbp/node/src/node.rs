@@ -247,8 +247,9 @@ impl GroupNode {
 
     /// Feeds wire bytes to the node.
     ///
-    /// Performs the §6.2 validation pipeline, opens the AEAD payload, runs
-    /// the replay window check and either:
+    /// Performs the §6.2 validation pipeline (version → group_id → epoch →
+    /// payload_size → transition_id → replay), opens the AEAD payload and
+    /// either:
     /// * dispatches the parsed control message internally (for
     ///   `StreamType::Control`), or
     /// * surfaces an [`Event::PayloadReceived`] (for application streams).
@@ -259,7 +260,11 @@ impl GroupNode {
         seal: &mut S,
         wire: &[u8],
     ) -> Result<Vec<Event>, NodeError> {
-        let frame = match GbpFrame::from_cbor(wire) {
+        // Decode without payload-size validation — we want a malformed v!=1
+        // frame to surface as `ERR_UNSUPPORTED_VERSION`, not as
+        // `ERR_PAYLOAD_SIZE_MISMATCH`. Validation runs in deliver_frame, in
+        // the order required by §6.2.
+        let frame = match GbpFrame::decode(wire) {
             Ok(f) => f,
             Err(e) => {
                 self.emit_err_named(
@@ -277,6 +282,8 @@ impl GroupNode {
     }
 
     fn deliver_frame<S: Sealer>(&mut self, seal: &mut S, frame: GbpFrame) -> Result<(), NodeError> {
+        // §6.2 order: version → group_id → epoch → payload_size →
+        // transition_id (when CRITICAL) → replay.
         if frame.version != 1 {
             self.emit_err_spec(codes::UNSUPPORTED_VERSION, "version != 1");
             return Ok(());
@@ -291,6 +298,16 @@ impl GroupNode {
                 format!("got {}, expected {}", frame.epoch, self.current_epoch),
             );
             self.trigger_resync();
+            return Ok(());
+        }
+        if let Err(e) = frame.validate_payload_size() {
+            self.emit_err_named(
+                codes::DECRYPT_FAILED,
+                ErrorClass::Schema,
+                false,
+                false,
+                format!("payload size: {e}"),
+            );
             return Ok(());
         }
         let flags = GbpFlags::from_bits(frame.flags);

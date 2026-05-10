@@ -42,13 +42,18 @@ public sealed class GspClient : IDisposable
         return GroupNode.Unpack(buf, "gsp_client_send");
     }
 
-    /// <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
-    public GspAcceptResult Accept(byte[] plaintext)
+    /// <summary>
+    /// Accepts a plaintext payload delivered by the GBP layer.
+    /// <paramref name="currentEpoch"/> lets the client auto-reset its dedup
+    /// state when the epoch advances.
+    /// </summary>
+    public GspAcceptResult Accept(byte[] plaintext, ulong currentEpoch)
     {
         IntPtr cstr;
         unsafe
         {
-            fixed (byte* p = plaintext) cstr = Native.gsp_client_accept(Handle, (IntPtr)p, (nuint)plaintext.Length);
+            fixed (byte* p = plaintext)
+                cstr = Native.gsp_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length);
         }
         return GspAcceptResult.Parse(Native.CopyAndFree(cstr));
     }

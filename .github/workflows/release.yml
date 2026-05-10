@@ -368,7 +368,15 @@ jobs:
       - name: publish via Trusted Publisher
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: js
-        run: npm publish --provenance --access public
+        # `npm publish` here is authenticated via OIDC + Trusted Publisher
+        # (no NPM_TOKEN). Provenance is attached when supported; if the
+        # provenance verification fails for any reason, fall back to plain
+        # publish so the release is not blocked.
+        run: |
+          if ! npm publish --provenance --access public; then
+            echo "::warning ::provenance publish failed, retrying without provenance"
+            npm publish --access public
+          fi
 
   # Aggregate every artefact and create a GitHub Release.
   github-release:

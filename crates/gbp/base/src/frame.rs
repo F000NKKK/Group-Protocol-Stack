@@ -79,13 +79,37 @@ impl GbpFrame {
         buf
     }
 
-    /// Decodes a CBOR-encoded frame and validates `payload_size`.
+    /// Decodes a CBOR-encoded frame **and** validates `payload_size`.
+    ///
+    /// The order of all §6.2 checks (`version`, `group_id`, `epoch`,
+    /// `payload_size`, `transition_id`, `sequence_no`) is what governs which
+    /// error a malformed frame produces. Most callers should use
+    /// [`GroupNode::on_wire`](https://docs.rs/gbp-node) which decodes via
+    /// [`GbpFrame::decode`] and runs the full pipeline. This convenience
+    /// wrapper exists for tests and ad-hoc tooling that want both decode
+    /// and the length check in one shot.
     pub fn from_cbor(data: &[u8]) -> Result<Self, CodecError> {
-        let f: Self = ciborium::from_reader(data).map_err(|e| CodecError::Decode(e.to_string()))?;
-        if f.payload_size as usize != f.encrypted_payload.len() {
+        let f = Self::decode(data)?;
+        f.validate_payload_size()?;
+        Ok(f)
+    }
+
+    /// Decodes a CBOR-encoded frame **without** running any §6.2 checks.
+    ///
+    /// Use [`GbpFrame::validate_payload_size`] (and the higher-priority
+    /// version / group_id / epoch checks at the calling layer) before
+    /// trusting the result.
+    pub fn decode(data: &[u8]) -> Result<Self, CodecError> {
+        ciborium::from_reader(data).map_err(|e| CodecError::Decode(e.to_string()))
+    }
+
+    /// Returns `Ok(())` if `payload_size` equals the actual payload length,
+    /// `Err(CodecError::PayloadSizeMismatch)` otherwise.
+    pub fn validate_payload_size(&self) -> Result<(), CodecError> {
+        if self.payload_size as usize != self.encrypted_payload.len() {
             return Err(CodecError::PayloadSizeMismatch);
         }
-        Ok(f)
+        Ok(())
     }
 
     /// Returns the typed `StreamType`, or `CodecError::UnknownEnumValue` for

@@ -38,9 +38,15 @@ pub enum GtpAccept {
 ///
 /// Tracks the set of already-seen `(sender_id, message_id)` pairs to enforce
 /// the idempotency contract of GTP §5.
+///
+/// The client observes the current group epoch on every [`GtpClient::send`]
+/// or [`GtpClient::accept`] call and automatically clears its idempotency
+/// set when the epoch advances. Callers may also drive a reset explicitly
+/// via [`GtpClient::reset`].
 #[derive(Default)]
 pub struct GtpClient {
     seen: HashSet<(MemberId, u64)>,
+    current_epoch: Option<u64>,
 }
 
 impl GtpClient {
@@ -61,6 +67,7 @@ impl GtpClient {
         message_id: u64,
         text: &str,
     ) -> Result<OutboundFrame, GtpError> {
+        self.sync_epoch(node.current_epoch);
         let msg = GtpMessage::plain(node.member_id, message_id, text);
         let stream_id = node.member_stream_id(1);
         let of = node.send_payload(
@@ -75,10 +82,14 @@ impl GtpClient {
     }
 
     /// Accepts a plaintext payload delivered by the GBP layer
-    /// (`Event::PayloadReceived`). Returns either [`GtpAccept::New`] or
-    /// [`GtpAccept::Duplicate`]. Returns [`GtpError::Decode`] if the
-    /// plaintext does not decode as a valid GTP message.
-    pub fn accept(&mut self, plaintext: &[u8]) -> Result<GtpAccept, GtpError> {
+    /// (`Event::PayloadReceived`).
+    ///
+    /// `current_epoch` is the receiver node's current epoch — passing it lets
+    /// the client auto-reset its idempotency set when the epoch advances.
+    /// Returns either [`GtpAccept::New`] or [`GtpAccept::Duplicate`], or
+    /// [`GtpError::Decode`] if the plaintext is not a valid GTP message.
+    pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GtpAccept, GtpError> {
+        self.sync_epoch(current_epoch);
         let m = GtpMessage::from_cbor(plaintext)?;
         let key = (m.sender_id, m.message_id);
         if !self.seen.insert(key) {
@@ -87,8 +98,19 @@ impl GtpClient {
         Ok(GtpAccept::New(m))
     }
 
-    /// Clears the idempotency set. Intended for use after an epoch change.
+    /// Synchronises the client's view of the group epoch and resets
+    /// idempotency state when the epoch has advanced. Called automatically
+    /// by [`GtpClient::send`] and [`GtpClient::accept`].
+    pub fn sync_epoch(&mut self, epoch: u64) {
+        if Some(epoch) != self.current_epoch {
+            self.seen.clear();
+            self.current_epoch = Some(epoch);
+        }
+    }
+
+    /// Clears the idempotency set unconditionally.
     pub fn reset(&mut self) {
         self.seen.clear();
+        self.current_epoch = None;
     }
 }

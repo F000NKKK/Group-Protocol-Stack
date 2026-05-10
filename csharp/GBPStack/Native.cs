@@ -114,7 +114,7 @@ internal static class Native
         IntPtr textPtr, nuint textLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr gtp_client_accept(int ch, IntPtr ptPtr, nuint ptLen);
+    public static extern IntPtr gtp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern int gap_client_create();
@@ -147,7 +147,7 @@ internal static class Native
         int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr gsp_client_accept(int ch, IntPtr ptPtr, nuint ptLen);
+    public static extern IntPtr gsp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gbp_frame_encode_v(

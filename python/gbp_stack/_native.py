@@ -120,7 +120,7 @@ gtp_client_send = _bind(
     GbpBuffer,
     [c_int32, c_int32, c_int32, c_uint32, c_uint64, c_void_p, c_size_t],
 )
-gtp_client_accept = _bind("gtp_client_accept", c_void_p, [c_int32, c_void_p, c_size_t])
+gtp_client_accept = _bind("gtp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
 
 gap_client_create = _bind("gap_client_create", c_int32, [])
 gap_client_destroy = _bind("gap_client_destroy", None, [c_int32])
@@ -142,7 +142,7 @@ gsp_client_send = _bind(
     GbpBuffer,
     [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32],
 )
-gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_void_p, c_size_t])
+gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
 
 
 def take_buffer(buf: GbpBuffer) -> bytes:
