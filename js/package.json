@@ -1,0 +1,54 @@
+{
+  "name": "@voluntas-progressus/gbp-stack",
+  "version": "0.2.0",
+  "description": "Node.js bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420).",
+  "keywords": [
+    "mls",
+    "rfc9420",
+    "e2ee",
+    "group-messaging",
+    "chat",
+    "voice",
+    "signaling",
+    "cryptography",
+    "ffi"
+  ],
+  "license": "Apache-2.0",
+  "author": "Group Protocol Stack contributors",
+  "homepage": "https://github.com/F000NKKK/Group-Protocol-Stack#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F000NKKK/Group-Protocol-Stack.git",
+    "directory": "js"
+  },
+  "bugs": {
+    "url": "https://github.com/F000NKKK/Group-Protocol-Stack/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "commonjs",
+  "files": [
+    "dist/**/*",
+    "native/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "koffi": "^2.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -228,3 +228,163 @@ jobs:
         with:
           packages-dir: dist-merged
           skip-existing: true
+
+  # crates.io publishing via OIDC Trusted Publishing.
+  # Configure the publisher at https://crates.io/me — Trusted Publishing tab — with:
+  #   owner = F000NKKK, repository = Group-Protocol-Stack,
+  #   workflow = release.yml, environment = crates-io.
+  # Register one publisher per crate (gbp-core, gbp-protocol, gbp-mls,
+  # gbp-transport, gbp-node, gtp-protocol, gap-protocol, gsp-protocol,
+  # gbp-stack, gbp-stack-ffi, gbp-cli) before the first publish.
+  publish-crates:
+    name: publish to crates.io
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/gbp-stack
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: get crates.io token (OIDC)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: publish in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -e
+          publish() {
+            local p="$1"
+            echo "::group::publish $p"
+            local out
+            if out=$(cargo publish -p "$p" 2>&1); then
+              echo "$out"
+              echo "::endgroup::"
+              sleep 30
+              return 0
+            fi
+            echo "$out"
+            echo "::endgroup::"
+            if echo "$out" | grep -q "already exists on crates.io"; then
+              echo "skip: $p (already published)"
+              return 0
+            fi
+            return 1
+          }
+          for p in gbp-core gbp-protocol gbp-mls gbp-transport gbp-node \
+                   gtp-protocol gap-protocol gsp-protocol \
+                   gbp-stack gbp-stack-ffi gbp-cli; do
+            publish "$p"
+          done
+
+  # Build and publish the npm package. Authentication uses npm Trusted
+  # Publishing (OIDC). Configure the publisher at
+  # https://www.npmjs.com/settings/<user>/trusted-publishers with:
+  #   package = @voluntas-progressus/gbp-stack, owner = F000NKKK,
+  #   repo    = Group-Protocol-Stack, workflow = release.yml,
+  #   environment = npm.
+  pack-npm:
+    name: npm
+    needs: build-native
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@voluntas-progressus/gbp-stack
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: upgrade npm (OIDC requires >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: native-artifacts
+          pattern: native-*
+
+      - name: stage native/<rid>/
+        run: |
+          mkdir -p js/native
+          for d in native-artifacts/native-*; do
+            rid=$(basename "$d" | sed 's/^native-//')
+            mkdir -p "js/native/$rid"
+            cp "$d"/* "js/native/$rid/"
+          done
+          ls -la js/native
+
+      - name: install + build + pack
+        working-directory: js
+        run: |
+          npm ci || npm install
+          npm run build
+          npm pack
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarball
+          path: js/*.tgz
+
+      - name: publish via Trusted Publisher
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: js
+        run: npm publish --provenance --access public
+
+  # Aggregate every artefact and create a GitHub Release.
+  github-release:
+    name: github release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [pack-nuget, build-wheels, build-sdist, publish-pypi, publish-crates, pack-npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: stage release files
+        run: |
+          mkdir -p release
+          # NuGet packages
+          if [ -d artifacts/nupkg ]; then cp -r artifacts/nupkg/* release/ || true; fi
+          # Python wheels + sdist
+          find artifacts -maxdepth 2 -type d -name 'wheel-*' -exec sh -c 'cp -r "$1"/*.whl release/' _ {} \;
+          if [ -d artifacts/sdist ]; then cp artifacts/sdist/*.tar.gz release/ || true; fi
+          # npm tarball
+          if [ -d artifacts/npm-tarball ]; then cp artifacts/npm-tarball/*.tgz release/ || true; fi
+          # Native binaries (zipped per RID for convenience)
+          for d in artifacts/native-*; do
+            rid=$(basename "$d" | sed 's/^native-//')
+            (cd "$d" && zip -r "../../release/gbp-stack-$rid.zip" .)
+          done
+          ls -la release
+      - name: detect prerelease
+        id: pre
+        shell: bash
+        run: |
+          # SemVer pre-release: tag carries a `-` suffix
+          # (e.g. v1.0.0-rc1, v1.0.0-beta.2). Plain MAJOR.MINOR.PATCH = stable.
+          tag="${GITHUB_REF#refs/tags/}"
+          if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          prerelease: ${{ steps.pre.outputs.prerelease == 'true' }}
