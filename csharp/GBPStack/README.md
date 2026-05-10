@@ -39,7 +39,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-dotnet add package GBPStack --version 1.0.0-rc4
+dotnet add package GBPStack --version 1.0.0-rc6.
 ```
 
 ## Quick start
