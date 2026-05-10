@@ -42,7 +42,11 @@ function Update-File([string]$path, [scriptblock]$transform) {
         Write-Host "  no change: $path" -ForegroundColor DarkGray
         return
     }
-    Set-Content -Path $full -Value $new -Encoding utf8 -NoNewline
+    # Write UTF-8 *without* BOM. PowerShell 5.1's `Set-Content -Encoding utf8`
+    # silently emits a BOM that Python's tomllib (and other strict parsers)
+    # refuse to read.
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($full, $new, $utf8NoBom)
     Write-Host "  updated:   $path" -ForegroundColor Green
 }
 

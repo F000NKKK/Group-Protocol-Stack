@@ -1,4 +1,4 @@
-﻿"""Python bindings for the Group Protocol Stack.
+"""Python bindings for the Group Protocol Stack.
 
 This package exposes a high-level Python API on top of the native
 ``gbp_stack`` shared library:

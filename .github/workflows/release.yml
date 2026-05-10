@@ -74,9 +74,9 @@ jobs:
           path: out/${{ matrix.artifact }}
           if-no-files-found: error
 
-  # 2. Assemble the NuGet package with every native runtime bundled.
+  # 2a. Assemble the NuGet package with every native runtime bundled.
   pack-nuget:
-    name: nuget
+    name: nuget pack
     needs: build-native
     runs-on: windows-latest
     steps:
@@ -116,16 +116,38 @@ jobs:
           name: nupkg
           path: nupkg/*
 
-      - name: publish to nuget.org
-        if: startsWith(github.ref, 'refs/tags/v')
+  # 2b. Publish the .nupkg to nuget.org. nuget.org does not yet support
+  # OIDC trusted publishing, so this still needs an API key. The dedicated
+  # ``nuget`` environment lets you scope the secret + add protection rules.
+  publish-nuget:
+    name: nuget publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: pack-nuget
+    runs-on: ubuntu-latest
+    environment:
+      name: nuget
+      url: https://www.nuget.org/packages/GBPStack
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+          path: nupkg
+      - name: push to nuget.org
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        shell: pwsh
+        shell: bash
         run: |
-          if (-not $env:NUGET_API_KEY) { Write-Host "NUGET_API_KEY not set; skipping publish"; exit 0 }
-          Get-ChildItem nupkg/*.nupkg | ForEach-Object {
-            dotnet nuget push $_.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
-          }
+          if [ -z "$NUGET_API_KEY" ]; then echo "NUGET_API_KEY not set; skipping"; exit 0; fi
+          for f in nupkg/*.nupkg; do
+            dotnet nuget push "$f" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
 
   # 3. Build a per-platform Python wheel that bundles the matching native
   #    library, plus an sdist.
@@ -345,7 +367,7 @@ jobs:
   github-release:
     name: github release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [pack-nuget, build-wheels, build-sdist, publish-pypi, publish-crates, pack-npm]
+    needs: [publish-nuget, build-wheels, build-sdist, publish-pypi, publish-crates, pack-npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write
