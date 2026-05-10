@@ -24,6 +24,25 @@ package — `npm install @voluntas-progressus/gbp-stack` works out of the box.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Sub-protocol toolkits
+
+Beyond the protocol clients, the package ships ready-made helpers:
+
+* `MessageHistory` + `Watermark` — bounded GTP message log + per-sender
+  high-water mark for serving and consuming resync requests.
+* `JitterBuffer` — bounded GAP reorder window keyed by `mediaSourceId`,
+  with `push`, `popInOrder`, `popForce` and late-frame detection.
+* `RoleRegistry` + `Permissions` — bind numeric role ids to permission
+  bit-masks and check them with `require` / `has`.
+* `CapabilitiesNegotiator` — track per-member advertisements and query the
+  `intersection()`, `union()`, `groupSupports()` and `missing()` views.
+
+## Install
+
+```sh
+npm install @voluntas-progressus/gbp-stack@1.0.0-rc4
+```
+
 ## Quick start
 
 ```ts
