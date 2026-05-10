@@ -145,11 +145,16 @@ fn process_message_on_existing_member_advances_epoch() {
     let v_carol = validated_kp(&alice, &carol_kp_bytes);
     let (commit2, _welcome_c) = alice.invite_full(&[v_carol]).unwrap();
 
-    // Bob, an existing member, applies the commit and his epoch advances.
+    // Bob, an existing member, stages the commit. Per the deferred-merge
+    // contract his MLS epoch does NOT advance until finalize_pending_commit
+    // (which the demo client invokes on EXECUTE_TRANSITION).
     assert_eq!(bob.epoch(), 1);
     let kind = bob.process_message(&commit2).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(bob.epoch(), 2);
+    assert_eq!(bob.epoch(), 1, "staged but not merged");
+
+    bob.finalize_pending_commit().unwrap();
+    assert_eq!(bob.epoch(), 2, "finalize merges the staged commit");
 
     alice.finalize_pending_commit().unwrap();
     assert_eq!(alice.epoch(), 2);

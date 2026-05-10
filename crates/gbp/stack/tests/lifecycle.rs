@@ -133,9 +133,10 @@ fn full_lifecycle_two_joins_one_leave() {
     carol.mls.accept_welcome(&welcome2).unwrap();
     carol.finish_join(3, 2);
 
-    // Bob is an existing member: PREPARE delivers commit, he applies it,
-    // his MLS epoch advances to 2. PREPARE is sealed under epoch 1 (where
-    // Alice still is at the time of send) — Bob is on 1 → can decrypt.
+    // Bob is an existing member: PREPARE delivers commit, he stages it.
+    // PREPARE is sealed under epoch 1 (where everyone still is at this
+    // moment) — Bob can decrypt. His MLS epoch must NOT advance until
+    // finalize on EXECUTE.
     let prepare2 = alice
         .node
         .send_control(&mut alice.mls, 0, ControlOpcode::PrepareTransition, 2, 10, commit2.clone())
@@ -148,9 +149,10 @@ fn full_lifecycle_two_joins_one_leave() {
     assert_eq!(prepare_args, commit2);
     let kind = bob.mls.process_message(&prepare_args).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(bob.mls.epoch(), 2);
+    assert_eq!(bob.mls.epoch(), 1, "deferred merge — staged but not advanced");
 
-    // Now finalize on Alice and EXECUTE everywhere.
+    // Now finalize on Alice and EXECUTE everywhere — recipients then merge
+    // their staged commit too.
     alice.mls.finalize_pending_commit().unwrap();
     let exec2 = alice
         .node
@@ -158,7 +160,9 @@ fn full_lifecycle_two_joins_one_leave() {
         .unwrap();
     alice.node.apply_transition(2);
     let _ = bob.node.on_wire(&mut bob.mls, &exec2.wire).unwrap();
+    bob.mls.finalize_pending_commit().unwrap();
     let _ = carol.node.on_wire(&mut carol.mls, &exec2.wire).unwrap();
+    carol.mls.finalize_pending_commit().unwrap();
     assert_eq!(alice.node.last_transition_id, 2);
     assert_eq!(bob.node.last_transition_id, 2);
     assert_eq!(carol.node.last_transition_id, 2);
@@ -206,7 +210,7 @@ fn full_lifecycle_two_joins_one_leave() {
     }).expect("carol saw PREPARE");
     let kind = carol.mls.process_message(&p3args).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(carol.mls.epoch(), 3);
+    assert_eq!(carol.mls.epoch(), 2, "deferred merge — still on 2 until EXECUTE");
 
     // Bob also forwards through DS. RFC 9420 §12.3: a removee processing
     // the commit MAY succeed locally — openmls signals he was removed and
@@ -223,6 +227,7 @@ fn full_lifecycle_two_joins_one_leave() {
         .unwrap();
     alice.node.apply_transition(3);
     let _ = carol.node.on_wire(&mut carol.mls, &exec3.wire).unwrap();
+    carol.mls.finalize_pending_commit().unwrap();
     assert_eq!(alice.node.last_transition_id, 3);
     assert_eq!(carol.node.last_transition_id, 3);
     assert_eq!(alice.node.current_epoch, 3);

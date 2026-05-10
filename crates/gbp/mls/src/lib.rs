@@ -106,6 +106,13 @@ pub struct MlsContext {
     pub credential: CredentialWithKey,
     /// Member identity (opaque application-defined bytes).
     pub identity: Vec<u8>,
+    /// Staged commit produced by [`MlsContext::process_message`] but not
+    /// yet merged. Held until [`MlsContext::finalize_pending_commit`] (on
+    /// EXECUTE_TRANSITION) so that the local epoch only advances together
+    /// with the rest of the group, never earlier — otherwise this side's
+    /// READY frame would be sealed under an epoch the coordinator can't
+    /// open.
+    pub pending_staged: Option<StagedCommit>,
 }
 
 impl MlsContext {
@@ -144,6 +151,7 @@ impl MlsContext {
                 group,
                 credential: credential_with_key,
                 identity: identity.to_vec(),
+                pending_staged: None,
             },
             kp_bundle,
         ))
@@ -218,20 +226,33 @@ impl MlsContext {
             .map_err(|e| MlsError::OpenMls(format!("commit serialize: {e:?}")))
     }
 
-    /// Merges any pending commit produced by [`MlsContext::invite_full`] or
-    /// [`MlsContext::remove_members`]. Idempotent: if no commit is pending,
-    /// returns Ok.
+    /// Merges any pending commit. Handles both:
+    /// * a self-issued commit produced by [`MlsContext::invite_full`] /
+    ///   [`MlsContext::remove_members`] (merged via `merge_pending_commit`);
+    /// * a staged commit deposited by [`MlsContext::process_message`]
+    ///   (merged via `merge_staged_commit`, consumed from
+    ///   [`MlsContext::pending_staged`]).
+    ///
+    /// Idempotent: if there is nothing to merge, returns Ok. Called from
+    /// the GBP control plane in response to `EXECUTE_TRANSITION`.
     pub fn finalize_pending_commit(&mut self) -> Result<(), MlsError> {
-        self.group
-            .merge_pending_commit(&self.provider)
-            .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))
+        if let Some(staged) = self.pending_staged.take() {
+            self.group
+                .merge_staged_commit(&self.provider, staged)
+                .map_err(|e| MlsError::OpenMls(format!("merge_staged: {e:?}")))?;
+        }
+        // merge_pending_commit errors if there's nothing to merge — for
+        // members that only received a commit (no self-issued one) that's
+        // expected, so swallow the error. Self-issued commits are merged
+        // via this path on the coordinator side.
+        let _ = self.group.merge_pending_commit(&self.provider);
+        Ok(())
     }
 
-    /// Discards any pending commit produced by [`MlsContext::invite_full`]
-    /// or [`MlsContext::remove_members`] without applying it. Used on
-    /// `ABORT_TRANSITION` so the coordinator returns to the pre-commit MLS
-    /// state.
+    /// Discards any pending commit (self-issued and/or staged) without
+    /// applying it. Used on `ABORT_TRANSITION`.
     pub fn clear_pending_commit(&mut self) -> Result<(), MlsError> {
+        self.pending_staged = None;
         self.group
             .clear_pending_commit(self.provider.storage())
             .map_err(|e| MlsError::OpenMls(format!("clear: {e:?}")))?;
@@ -241,6 +262,13 @@ impl MlsContext {
     /// Applies a Commit (or staged Proposal) message to the group. Existing
     /// members invoke this after receiving the Commit broadcast embedded in
     /// `PREPARE_TRANSITION` args.
+    ///
+    /// IMPORTANT: a Commit is staged but **not** merged here. It must be
+    /// merged via [`MlsContext::finalize_pending_commit`] in response to the
+    /// matching `EXECUTE_TRANSITION`, so that this side's MLS epoch
+    /// advances together with the rest of the group — never earlier.
+    /// Calling this twice without an intervening finalize/clear discards
+    /// the previously staged commit (the second call wins).
     pub fn process_message(&mut self, msg_bytes: &[u8]) -> Result<ProcessedKind, MlsError> {
         let msg_in = MlsMessageIn::tls_deserialize_exact_bytes(msg_bytes)
             .map_err(|e| MlsError::OpenMls(format!("msg parse: {e:?}")))?;
@@ -259,9 +287,7 @@ impl MlsContext {
             .map_err(|e| MlsError::OpenMls(format!("process: {e:?}")))?;
         match processed.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged) => {
-                self.group
-                    .merge_staged_commit(&self.provider, *staged)
-                    .map_err(|e| MlsError::OpenMls(format!("merge_staged: {e:?}")))?;
+                self.pending_staged = Some(*staged);
                 Ok(ProcessedKind::Commit)
             }
             ProcessedMessageContent::ApplicationMessage(_) => Ok(ProcessedKind::Application),
