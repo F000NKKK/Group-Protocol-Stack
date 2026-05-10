@@ -1,4 +1,10 @@
-﻿## 1.0.1 (2026-05-10)
+﻿## 1.1.0 (2026-05-10)
+
+_No conventional commits found in this range._
+
+---
+
+## 1.0.1 (2026-05-10)
 
 _No conventional commits found in this range._
 
@@ -47,6 +53,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
