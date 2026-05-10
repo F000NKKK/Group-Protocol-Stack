@@ -88,6 +88,11 @@ pub enum Event {
         opcode: ControlOpcode,
         /// `transition_id` carried by the message.
         transition_id: TransitionId,
+        /// `request_id` echoed by ACK / NACK responders.
+        request_id: u32,
+        /// Opcode-specific args (CBOR or opaque bytes; e.g. the MLS Commit
+        /// embedded in `PREPARE_TRANSITION`).
+        args: Vec<u8>,
     },
     /// An error was raised.
     Error {
@@ -311,14 +316,6 @@ impl GroupNode {
             return Ok(());
         }
         let flags = GbpFlags::from_bits(frame.flags);
-        if flags.has(GbpFlags::CRITICAL) && frame.transition_id != self.last_transition_id {
-            self.emit_err_spec(
-                codes::TRANSITION_MISMATCH,
-                format!("got tid={}, expected {}", frame.transition_id, self.last_transition_id),
-            );
-            return Ok(());
-        }
-
         let st = match frame.stream_type_typed() {
             Ok(st) => st,
             Err(_) => {
@@ -326,6 +323,22 @@ impl GroupNode {
                 return Ok(());
             }
         };
+
+        // §6.2 transition_id ordering: CRITICAL frames on application streams
+        // MUST equal `last_transition_id`. Control-stream frames are exempt
+        // from this check and validated per-opcode inside `handle_control`,
+        // because PREPARE_TRANSITION legitimately carries `last + 1` and
+        // EXECUTE / ACK carry `pending_transition_id`.
+        if st != StreamType::Control
+            && flags.has(GbpFlags::CRITICAL)
+            && frame.transition_id != self.last_transition_id
+        {
+            self.emit_err_spec(
+                codes::TRANSITION_MISMATCH,
+                format!("got tid={}, expected {}", frame.transition_id, self.last_transition_id),
+            );
+            return Ok(());
+        }
 
         let key = (st, frame.stream_id);
         let hw = self.in_hw.get(&key).copied().unwrap_or(0);
@@ -383,6 +396,37 @@ impl GroupNode {
                 return;
             }
         };
+        // Per-opcode TransitionID validation (§5 of gbp-control-plane).
+        let tid_ok = match opcode {
+            // PREPARE introduces last+1; receiver simply records it as pending.
+            // Re-issuing a PREPARE for an already-pending tid is allowed; a
+            // smaller-or-equal tid that is not strictly newer is rejected.
+            ControlOpcode::PrepareTransition => {
+                c.transition_id > self.last_transition_id
+                    && (self.pending_transition_id == 0
+                        || self.pending_transition_id == c.transition_id)
+            }
+            // READY / EXECUTE / ABORT must reference the pending tid.
+            ControlOpcode::ReadyForTransition
+            | ControlOpcode::ExecuteTransition
+            | ControlOpcode::AbortTransition => {
+                self.pending_transition_id != 0
+                    && c.transition_id == self.pending_transition_id
+            }
+            // Digest / capability / ack / nack: tid is informational, no
+            // ordering constraint at the GBP layer.
+            _ => true,
+        };
+        if !tid_ok {
+            self.emit_err_spec(
+                codes::TRANSITION_MISMATCH,
+                format!(
+                    "control tid={} not valid for {:?} (last={}, pending={})",
+                    c.transition_id, opcode, self.last_transition_id, self.pending_transition_id
+                ),
+            );
+            return;
+        }
         match opcode {
             ControlOpcode::PrepareTransition => {
                 self.pending_transition_id = c.transition_id;
@@ -409,6 +453,8 @@ impl GroupNode {
             from: c.sender_id,
             opcode,
             transition_id: c.transition_id,
+            request_id: c.request_id,
+            args: c.args.to_vec(),
         });
     }
 

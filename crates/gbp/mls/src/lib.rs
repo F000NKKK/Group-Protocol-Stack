@@ -64,6 +64,21 @@ pub fn label_for(st: StreamType) -> StreamLabel {
     }
 }
 
+/// Categorises an MLS message processed via
+/// [`MlsContext::process_message`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessedKind {
+    /// A Commit message was applied to the group; epoch advanced.
+    Commit,
+    /// An Application message was decrypted (not used by this stack — GBP
+    /// carries application data outside MLS application messages).
+    Application,
+    /// A Proposal-only message was staged.
+    Proposal,
+    /// An external message that did not advance the group.
+    External,
+}
+
 /// Errors raised by the MLS / AEAD layer.
 #[derive(Debug, thiserror::Error)]
 pub enum MlsError {
@@ -134,20 +149,90 @@ impl MlsContext {
         ))
     }
 
-    /// Adds members via an Add commit and returns the TLS-serialised
-    /// `Welcome` message that the invitee must consume with
+    /// Result of [`MlsContext::invite`]: the Commit message that existing
+    /// members must apply via [`MlsContext::process_message`], plus the
+    /// Welcome that the new joiner must apply via
     /// [`MlsContext::accept_welcome`].
-    pub fn invite(&mut self, key_packages: &[KeyPackage]) -> Result<Vec<u8>, MlsError> {
-        let (_commit, welcome, _gi) = self
+    ///
+    /// RFC 9420 §11/§12.4 — Welcome is for the joiner only; existing members
+    /// MUST receive the Commit to advance their epoch.
+    pub fn invite_full(
+        &mut self,
+        key_packages: &[KeyPackage],
+    ) -> Result<(Vec<u8>, Vec<u8>), MlsError> {
+        let (commit, welcome, _gi) = self
             .group
             .add_members(&self.provider, &self.signer, key_packages)
             .map_err(|e| MlsError::OpenMls(format!("add_members: {e:?}")))?;
         self.group
             .merge_pending_commit(&self.provider)
             .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))?;
-        welcome
+        let commit_bytes = commit
             .tls_serialize_detached()
-            .map_err(|e| MlsError::OpenMls(format!("welcome serialize: {e:?}")))
+            .map_err(|e| MlsError::OpenMls(format!("commit serialize: {e:?}")))?;
+        let welcome_bytes = welcome
+            .tls_serialize_detached()
+            .map_err(|e| MlsError::OpenMls(format!("welcome serialize: {e:?}")))?;
+        Ok((commit_bytes, welcome_bytes))
+    }
+
+    /// Backwards-compatible thin wrapper around [`MlsContext::invite_full`]
+    /// returning only the Welcome bytes. New code SHOULD prefer
+    /// [`MlsContext::invite_full`] and route the Commit to existing members.
+    pub fn invite(&mut self, key_packages: &[KeyPackage]) -> Result<Vec<u8>, MlsError> {
+        Ok(self.invite_full(key_packages)?.1)
+    }
+
+    /// Removes members identified by their MLS LeafIndex via a Remove commit
+    /// and returns the TLS-serialised Commit message that remaining members
+    /// must apply via [`MlsContext::process_message`].
+    ///
+    /// RFC 9420 §12.3.
+    pub fn remove_members(&mut self, leaf_indices: &[u32]) -> Result<Vec<u8>, MlsError> {
+        let leaves: Vec<LeafNodeIndex> =
+            leaf_indices.iter().copied().map(LeafNodeIndex::new).collect();
+        let (commit, _welcome_opt, _gi) = self
+            .group
+            .remove_members(&self.provider, &self.signer, &leaves)
+            .map_err(|e| MlsError::OpenMls(format!("remove_members: {e:?}")))?;
+        self.group
+            .merge_pending_commit(&self.provider)
+            .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))?;
+        commit
+            .tls_serialize_detached()
+            .map_err(|e| MlsError::OpenMls(format!("commit serialize: {e:?}")))
+    }
+
+    /// Applies a Commit (or staged Proposal) message to the group. Existing
+    /// members invoke this after receiving the Commit broadcast embedded in
+    /// `PREPARE_TRANSITION` args.
+    pub fn process_message(&mut self, msg_bytes: &[u8]) -> Result<ProcessedKind, MlsError> {
+        let msg_in = MlsMessageIn::tls_deserialize_exact_bytes(msg_bytes)
+            .map_err(|e| MlsError::OpenMls(format!("msg parse: {e:?}")))?;
+        let protocol_msg = match msg_in.extract() {
+            MlsMessageBodyIn::PublicMessage(m) => ProtocolMessage::from(m),
+            MlsMessageBodyIn::PrivateMessage(m) => ProtocolMessage::from(m),
+            other => {
+                return Err(MlsError::OpenMls(format!(
+                    "expected protocol message, got {other:?}"
+                )));
+            }
+        };
+        let processed = self
+            .group
+            .process_message(&self.provider, protocol_msg)
+            .map_err(|e| MlsError::OpenMls(format!("process: {e:?}")))?;
+        match processed.into_content() {
+            ProcessedMessageContent::StagedCommitMessage(staged) => {
+                self.group
+                    .merge_staged_commit(&self.provider, *staged)
+                    .map_err(|e| MlsError::OpenMls(format!("merge_staged: {e:?}")))?;
+                Ok(ProcessedKind::Commit)
+            }
+            ProcessedMessageContent::ApplicationMessage(_) => Ok(ProcessedKind::Application),
+            ProcessedMessageContent::ProposalMessage(_) => Ok(ProcessedKind::Proposal),
+            ProcessedMessageContent::ExternalJoinProposalMessage(_) => Ok(ProcessedKind::External),
+        }
     }
 
     /// Replaces the local group with the one described by the given

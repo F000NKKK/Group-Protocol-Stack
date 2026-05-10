@@ -23,11 +23,12 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 
 Terms used in this document:
 - GroupID: globally unique group identifier.
-- MemberID: unique participant identifier in GroupID scope.
+- MemberID: unique participant identifier in GroupID scope. The DS assigns MemberID monotonically in the order each member is admitted to the group; assigned values are NEVER reused after a member leaves. Each MemberID MUST correspond 1:1 with the member's MLS LeafIndex at the moment of admission. After an MLS Remove, the freed LeafIndex MAY be reused by future MLS adds, but the corresponding GBP MemberID MUST NOT be — implementations MUST keep a mapping table for the lifetime of the group.
 - Epoch: MLS generation for active traffic secrets.
-- TransitionID: monotonic identifier for protocol/epoch transition.
+- TransitionID: monotonic identifier for protocol/epoch transition. TransitionID is global per-GroupID, not per-Coordinator; on coordinator handover the new Coordinator MUST continue the existing sequence.
 - AS: Authentication Service.
-- DS: Delivery Service.
+- DS: Delivery Service. The DS provides a canonical receive order for control messages by tagging each forwarded frame with a per-DS monotonic sequence; in P2P fallback (no DS) the Coordinator's local accept order serves as the canonical order.
+- Coordinator: the single Active member authorized to issue PREPARE/EXECUTE/ABORT for a given epoch. See `gbp-control-plane.md` §5.1.
 
 ## 3. Architecture and Trust Model
 GBP runs over QUIC [RFC9000] with TLS 1.3 [RFC8446] and MLS [RFC9420].
@@ -114,11 +115,15 @@ Rules:
 
 ## 8. Commit Ordering and Tie-Break
 If multiple commits are received for the same epoch window:
-1. Prefer the first valid commit by DS receive order.
+1. Prefer the first valid commit by DS receive order. "DS receive order" is defined as the per-DS monotonic forwarding sequence; in P2P fallback the Coordinator's local accept order is used.
 2. Break ties by lowest committer MemberID.
 3. Discard all non-winning commits for that TransitionID.
 
 Clients MUST process only one winning commit per TransitionID.
+
+The Coordinator is the sole legitimate committer per `gbp-control-plane.md` §5.1, so under normal operation tie-break only fires during coordinator-handover races (two members claiming the role simultaneously). Implementations MUST detect such collisions and resolve them per the rules above before any application traffic in the new epoch.
+
+Coordinators MUST NOT enqueue more than one outstanding transition. Membership change requests received while a transition is in flight MUST be queued in FIFO order and processed as separate transitions, each with its own `transition_id`. Batching multiple proposals into one MLS commit is permitted within a single transition.
 
 ## 9. Replay and Duplicate Handling
 GBP does not fully prevent insider replay.

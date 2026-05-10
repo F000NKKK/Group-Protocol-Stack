@@ -26,7 +26,7 @@
 use gbp_stack::core::{ControlOpcode, NodeState, SignalType, StreamType};
 use gbp_stack::{
     DeliveredPayload, ErrorObject, Event, GapAccept, GapClient, GbpFrame, GroupNode, GspAccept,
-    GspClient, GtpAccept, GtpClient, MlsContext, OutboundFrame, StreamLabel,
+    GspClient, GtpAccept, GtpClient, MlsContext, OutboundFrame, ProcessedKind, StreamLabel,
 };
 use openmls::prelude::tls_codec::Serialize as _;
 use openmls::prelude::*;
@@ -317,6 +317,112 @@ pub unsafe extern "C" fn gbp_mls_invite(h: i32, kp_ptr: *const u8, kp_len: usize
         Err(e) => {
             set_last_error(e);
             GbpBuffer::empty()
+        }
+    }
+}
+
+/// Invites the given KeyPackage and returns BOTH the MLS Commit (which the
+/// caller MUST broadcast to existing members so they can advance their MLS
+/// epoch) and the Welcome (which the caller MUST unicast to the new joiner).
+///
+/// Buffer layout: `[u32-LE commit_len | commit_bytes | welcome_bytes]`. The
+/// total length minus 4 minus `commit_len` is the welcome length.
+///
+/// # Safety
+/// `kp_ptr` MUST be valid for `kp_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_mls_invite_full(
+    h: i32,
+    kp_ptr: *const u8,
+    kp_len: usize,
+) -> GbpBuffer {
+    clear_last_error();
+    let bytes = unsafe { std::slice::from_raw_parts(kp_ptr, kp_len) };
+    let mut map = mls().map.lock().unwrap();
+    let Some(ctx) = map.get_mut(&h) else {
+        set_last_error("invalid MLS handle");
+        return GbpBuffer::empty();
+    };
+    let kp_in = match KeyPackageIn::tls_deserialize_exact_bytes(bytes) {
+        Ok(v) => v,
+        Err(e) => {
+            set_last_error(format!("kp parse: {e:?}"));
+            return GbpBuffer::empty();
+        }
+    };
+    let validated = match kp_in.validate(ctx.provider.crypto(), ProtocolVersion::Mls10) {
+        Ok(v) => v,
+        Err(e) => {
+            set_last_error(format!("kp validate: {e:?}"));
+            return GbpBuffer::empty();
+        }
+    };
+    match ctx.invite_full(&[validated]) {
+        Ok((commit, welcome)) => {
+            let mut out = Vec::with_capacity(4 + commit.len() + welcome.len());
+            out.extend_from_slice(&(commit.len() as u32).to_le_bytes());
+            out.extend_from_slice(&commit);
+            out.extend_from_slice(&welcome);
+            GbpBuffer::from_vec(out)
+        }
+        Err(e) => {
+            set_last_error(e);
+            GbpBuffer::empty()
+        }
+    }
+}
+
+/// Removes the member at the given MLS LeafIndex and returns the
+/// TLS-serialised Commit. Caller MUST broadcast the Commit to remaining
+/// members so they advance their MLS epoch.
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_mls_remove(h: i32, leaf_index: u32) -> GbpBuffer {
+    clear_last_error();
+    let mut map = mls().map.lock().unwrap();
+    let Some(ctx) = map.get_mut(&h) else {
+        set_last_error("invalid MLS handle");
+        return GbpBuffer::empty();
+    };
+    match ctx.remove_members(&[leaf_index]) {
+        Ok(commit) => GbpBuffer::from_vec(commit),
+        Err(e) => {
+            set_last_error(e);
+            GbpBuffer::empty()
+        }
+    }
+}
+
+/// Applies a Commit (or staged Proposal) message to the local MLS group.
+/// Returns:
+///   1 — Commit applied (epoch advanced)
+///   2 — Application message (no-op for GBP)
+///   3 — Proposal staged
+///   4 — External message (no group state change)
+///   0 — failure (see `gbp_last_error`).
+///
+/// # Safety
+/// `msg_ptr` MUST be valid for `msg_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_mls_process_message(
+    h: i32,
+    msg_ptr: *const u8,
+    msg_len: usize,
+) -> u32 {
+    clear_last_error();
+    let bytes = unsafe { std::slice::from_raw_parts(msg_ptr, msg_len) };
+    let mut map = mls().map.lock().unwrap();
+    let Some(ctx) = map.get_mut(&h) else {
+        set_last_error("invalid MLS handle");
+        return 0;
+    };
+    match ctx.process_message(bytes) {
+        Ok(ProcessedKind::Commit) => 1,
+        Ok(ProcessedKind::Application) => 2,
+        Ok(ProcessedKind::Proposal) => 3,
+        Ok(ProcessedKind::External) => 4,
+        Err(e) => {
+            set_last_error(e);
+            0
         }
     }
 }
@@ -957,6 +1063,8 @@ enum EventDto<'a> {
         opcode: &'a str,
         opcode_code: u16,
         transition_id: u32,
+        request_id: u32,
+        args_b64: String,
     },
     Error {
         code: u16,
@@ -1026,11 +1134,13 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             flags: *flags,
             plaintext_b64: b64(plaintext),
         },
-        Event::Control { from, opcode, transition_id } => EventDto::Control {
+        Event::Control { from, opcode, transition_id, request_id, args } => EventDto::Control {
             from: *from,
             opcode: opcode.name(),
             opcode_code: *opcode as u16,
             transition_id: *transition_id,
+            request_id: *request_id,
+            args_b64: b64(args),
         },
         Event::Error { code, class, retryable, fatal, reason } => EventDto::Error {
             code: *code,

@@ -67,12 +67,20 @@ Rules:
 - Repeated fatal failures MUST move to `SUSPENDED`.
 
 ## 6. Timeout Semantics
-Endpoints MUST implement:
-- `T_prepare_max`
-- `T_ready_max`
-- `T_execute_max`
+Endpoints MUST implement the following timers. Default values are normative for interoperable deployments; deployment policy MAY tighten them but MUST NOT loosen without an explicit downgrade negotiation.
 
-Timeout expiration MUST trigger deterministic fallback policy.
+| Timer | Default | Owner | Started on | Expires when |
+|---|---|---|---|---|
+| `T_prepare_max` | 5 s | Coordinator | issuing `PREPARE_TRANSITION` | quorum of `READY_FOR_TRANSITION` not yet reached |
+| `T_ready_max` | 5 s | Member | receiving `PREPARE_TRANSITION` | local commit/welcome processing not finished |
+| `T_execute_max` | 10 s | Member | sending `READY_FOR_TRANSITION` | `EXECUTE_TRANSITION` not received |
+| `T_quorum_grace` | 2 s | Coordinator | `T_prepare_max` expiry | extra slack before declaring quorum failure |
+| `T_coordinator_grace` | 10 s | Member | observing Coordinator silence | Coordinator handover may be claimed |
+
+Timeout expiration MUST trigger the following deterministic fallback:
+- **`T_prepare_max + T_quorum_grace` on Coordinator**: send `ABORT_TRANSITION` with `reason_code = ERR_READY_TIMEOUT`. Coordinator MAY re-issue PREPARE on the next epoch, omitting any member that the transport has reported unreachable.
+- **`T_ready_max` on Member**: drop the local pending transition (return to `T_IDLE`). The member MUST NOT send `READY_FOR_TRANSITION` retroactively. If the member subsequently observes `EXECUTE_TRANSITION` for a tid it never readied, it MUST enter `RESYNCING` and request a digest.
+- **`T_execute_max` on Member**: assume the Coordinator failed. Trigger `RESYNCING`; if the Coordinator is confirmed lost (transport closed), participate in coordinator handover per `gbp-control-plane.md` §5.1.
 
 ## 7. IANA Considerations
 No additional IANA actions.

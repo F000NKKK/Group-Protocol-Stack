@@ -52,6 +52,11 @@ ErrorObject {
 - `0x0006 ERR_DECRYPT_FAILED`
 - `0x0007 ERR_COMMIT_INVALID`
 - `0x0008 ERR_STREAM_POLICY_VIOLATION`
+- `0x0010 ERR_PREPARE_TIMEOUT`        ; Coordinator timed out waiting for READY quorum
+- `0x0011 ERR_READY_TIMEOUT`          ; Member timed out before completing local commit processing
+- `0x0012 ERR_EXECUTE_TIMEOUT`        ; Member timed out waiting for EXECUTE_TRANSITION after READY
+- `0x0013 ERR_COORDINATOR_GONE`       ; Coordinator transport lost; handover required
+- `0x0014 ERR_DIGEST_MISMATCH`        ; member_set_root_hash mismatch on Resync
 
 ## 6. Initial GAP Codes
 - `0x1001 ERR_GAP_BAD_SOURCE_ID`

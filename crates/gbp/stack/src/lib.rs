@@ -49,7 +49,7 @@ pub use gbp_core::{
     TransitionState, codes,
 };
 
-pub use gbp_mls::{MlsContext, StreamLabel, label_for};
+pub use gbp_mls::{MlsContext, ProcessedKind, StreamLabel, label_for};
 
 pub use gbp_node::{DeliveredPayload, Event, GroupNode, NodeError, OutboundFrame, Sealer};
 
