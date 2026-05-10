@@ -26,6 +26,7 @@
 
     <!-- Pack every native binary that was placed under runtimes/<rid>/native/. -->
     <None Include="$(NativeRuntimesDir)\**\*"
+          Exclude="$(NativeRuntimesDir)\**\.*;$(NativeRuntimesDir)\**\*.gitignore"
           Pack="true"
           PackagePath="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
