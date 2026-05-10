@@ -149,13 +149,19 @@ impl MlsContext {
         ))
     }
 
-    /// Result of [`MlsContext::invite`]: the Commit message that existing
-    /// members must apply via [`MlsContext::process_message`], plus the
-    /// Welcome that the new joiner must apply via
+    /// Result of [`MlsContext::invite_full`]: the Commit message that
+    /// existing members must apply via [`MlsContext::process_message`],
+    /// plus the Welcome that the new joiner must apply via
     /// [`MlsContext::accept_welcome`].
     ///
     /// RFC 9420 §11/§12.4 — Welcome is for the joiner only; existing members
     /// MUST receive the Commit to advance their epoch.
+    ///
+    /// IMPORTANT: this call **does not** merge the pending commit. The
+    /// caller MUST call [`MlsContext::finalize_pending_commit`] only after
+    /// they are confident the Commit/Welcome have been distributed (e.g.
+    /// the GBP coordinator has observed READY quorum). If the distribution
+    /// fails, call [`MlsContext::clear_pending_commit`] to roll back.
     pub fn invite_full(
         &mut self,
         key_packages: &[KeyPackage],
@@ -164,9 +170,6 @@ impl MlsContext {
             .group
             .add_members(&self.provider, &self.signer, key_packages)
             .map_err(|e| MlsError::OpenMls(format!("add_members: {e:?}")))?;
-        self.group
-            .merge_pending_commit(&self.provider)
-            .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))?;
         let commit_bytes = commit
             .tls_serialize_detached()
             .map_err(|e| MlsError::OpenMls(format!("commit serialize: {e:?}")))?;
@@ -176,31 +179,63 @@ impl MlsContext {
         Ok((commit_bytes, welcome_bytes))
     }
 
-    /// Backwards-compatible thin wrapper around [`MlsContext::invite_full`]
-    /// returning only the Welcome bytes. New code SHOULD prefer
-    /// [`MlsContext::invite_full`] and route the Commit to existing members.
+    /// Backwards-compatible wrapper. Builds the Commit, eagerly merges, and
+    /// returns only the Welcome bytes. Kept for callers that distribute the
+    /// Commit out-of-band and don't need atomic abort semantics.
     pub fn invite(&mut self, key_packages: &[KeyPackage]) -> Result<Vec<u8>, MlsError> {
-        Ok(self.invite_full(key_packages)?.1)
+        let (_commit, welcome) = self.invite_full(key_packages)?;
+        self.finalize_pending_commit()?;
+        Ok(welcome)
     }
 
     /// Removes members identified by their MLS LeafIndex via a Remove commit
     /// and returns the TLS-serialised Commit message that remaining members
     /// must apply via [`MlsContext::process_message`].
     ///
+    /// Like [`MlsContext::invite_full`], the caller is responsible for
+    /// calling [`MlsContext::finalize_pending_commit`] after successful
+    /// distribution, or [`MlsContext::clear_pending_commit`] on failure.
     /// RFC 9420 §12.3.
     pub fn remove_members(&mut self, leaf_indices: &[u32]) -> Result<Vec<u8>, MlsError> {
+        // Validate indices against the current group size up front so the
+        // caller gets a clear error rather than an opaque openmls failure.
+        let group_size = self.group.members().count() as u32;
+        for &idx in leaf_indices {
+            if idx >= group_size {
+                return Err(MlsError::OpenMls(format!(
+                    "leaf_index {idx} out of range (group size {group_size})"
+                )));
+            }
+        }
         let leaves: Vec<LeafNodeIndex> =
             leaf_indices.iter().copied().map(LeafNodeIndex::new).collect();
         let (commit, _welcome_opt, _gi) = self
             .group
             .remove_members(&self.provider, &self.signer, &leaves)
             .map_err(|e| MlsError::OpenMls(format!("remove_members: {e:?}")))?;
-        self.group
-            .merge_pending_commit(&self.provider)
-            .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))?;
         commit
             .tls_serialize_detached()
             .map_err(|e| MlsError::OpenMls(format!("commit serialize: {e:?}")))
+    }
+
+    /// Merges any pending commit produced by [`MlsContext::invite_full`] or
+    /// [`MlsContext::remove_members`]. Idempotent: if no commit is pending,
+    /// returns Ok.
+    pub fn finalize_pending_commit(&mut self) -> Result<(), MlsError> {
+        self.group
+            .merge_pending_commit(&self.provider)
+            .map_err(|e| MlsError::OpenMls(format!("merge: {e:?}")))
+    }
+
+    /// Discards any pending commit produced by [`MlsContext::invite_full`]
+    /// or [`MlsContext::remove_members`] without applying it. Used on
+    /// `ABORT_TRANSITION` so the coordinator returns to the pre-commit MLS
+    /// state.
+    pub fn clear_pending_commit(&mut self) -> Result<(), MlsError> {
+        self.group
+            .clear_pending_commit(self.provider.storage())
+            .map_err(|e| MlsError::OpenMls(format!("clear: {e:?}")))?;
+        Ok(())
     }
 
     /// Applies a Commit (or staged Proposal) message to the group. Existing

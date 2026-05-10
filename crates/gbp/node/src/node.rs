@@ -221,6 +221,13 @@ impl GroupNode {
 
     /// Sends a control plane message on Stream 0. Wrapper around
     /// [`GroupNode::send_payload`].
+    ///
+    /// Side effect: when the coordinator originates a `PREPARE_TRANSITION`,
+    /// it must locally adopt the same `pending_transition_id` so that the
+    /// inbound READY / EXECUTE validation matrix in `handle_control` lines
+    /// up. Without this, the coordinator never matches its own pending tid
+    /// against the remote READY frames it expects, and the handshake never
+    /// completes.
     pub fn send_control<S: Sealer>(
         &mut self,
         seal: &mut S,
@@ -245,6 +252,20 @@ impl GroupNode {
                 | ControlOpcode::ExecuteTransition
         ) {
             flags |= GbpFlags::CRITICAL;
+        }
+        // Sender-side state mirroring (matches what `handle_control` does on
+        // the receiver side). We only update on PREPARE/EXECUTE/ABORT — READY
+        // is purely an ack carrying the existing pending tid.
+        match opcode {
+            ControlOpcode::PrepareTransition => {
+                self.pending_transition_id = transition_id;
+                self.transition_state = TransitionState::TPrepared;
+            }
+            ControlOpcode::AbortTransition => {
+                self.pending_transition_id = 0;
+                self.transition_state = TransitionState::TAborted;
+            }
+            _ => {}
         }
         let stream_id = self.member_stream_id(0);
         self.send_payload(seal, target, StreamType::Control, stream_id, flags, &ctl.to_cbor())
