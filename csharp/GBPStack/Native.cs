@@ -64,6 +64,14 @@ internal static class Native
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
+    public static extern bool gbp_mls_finalize_commit(int handle);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static extern bool gbp_mls_clear_pending_commit(int handle);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.U1)]
     public static extern bool gbp_mls_accept_welcome(int handle, IntPtr welcomePtr, nuint welcomeLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]

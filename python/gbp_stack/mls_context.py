@@ -108,6 +108,17 @@ class MlsContext:
             raise OSError(f"process_message: {_n.last_error()}")
         return kinds[code]
 
+    def finalize_commit(self) -> None:
+        """Merge any pending commit produced by :meth:`invite_full` or
+        :meth:`remove_member`. Idempotent."""
+        if not _n.gbp_mls_finalize_commit(self._handle):
+            raise OSError(f"finalize_commit: {_n.last_error()}")
+
+    def clear_pending_commit(self) -> None:
+        """Discard any pending commit without applying it (used on ABORT)."""
+        if not _n.gbp_mls_clear_pending_commit(self._handle):
+            raise OSError(f"clear_pending_commit: {_n.last_error()}")
+
     def accept_welcome(self, welcome: bytes) -> None:
         """Replace the local group with the one described by ``welcome``."""
         def call(ptr, length):

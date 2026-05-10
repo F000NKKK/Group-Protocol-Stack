@@ -427,6 +427,44 @@ pub unsafe extern "C" fn gbp_mls_process_message(
     }
 }
 
+/// Merges any pending commit produced by `gbp_mls_invite_full` or
+/// `gbp_mls_remove`. Returns `true` on success, `false` on failure.
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_mls_finalize_commit(h: i32) -> bool {
+    clear_last_error();
+    let mut map = mls().map.lock().unwrap();
+    let Some(ctx) = map.get_mut(&h) else {
+        set_last_error("invalid MLS handle");
+        return false;
+    };
+    match ctx.finalize_pending_commit() {
+        Ok(()) => true,
+        Err(e) => {
+            set_last_error(e);
+            false
+        }
+    }
+}
+
+/// Discards any pending commit without applying it. Used on
+/// `ABORT_TRANSITION` to roll back to the pre-commit MLS state.
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_mls_clear_pending_commit(h: i32) -> bool {
+    clear_last_error();
+    let mut map = mls().map.lock().unwrap();
+    let Some(ctx) = map.get_mut(&h) else {
+        set_last_error("invalid MLS handle");
+        return false;
+    };
+    match ctx.clear_pending_commit() {
+        Ok(()) => true,
+        Err(e) => {
+            set_last_error(e);
+            false
+        }
+    }
+}
+
 /// Replaces the local group with the one described by the given Welcome.
 ///
 /// # Safety

@@ -107,6 +107,21 @@ export class MlsContext {
         }
     }
 
+    /**
+     * Merge any pending commit produced by {@link MlsContext.inviteFull} or
+     * {@link MlsContext.removeMember}. Idempotent.
+     */
+    finalizeCommit(): void {
+        const ok = N.gbp_mls_finalize_commit(this.handle) as boolean;
+        if (!ok) throw new Error(`finalize_commit: ${N.lastError()}`);
+    }
+
+    /** Discard any pending commit without applying it (used on ABORT). */
+    clearPendingCommit(): void {
+        const ok = N.gbp_mls_clear_pending_commit(this.handle) as boolean;
+        if (!ok) throw new Error(`clear_pending_commit: ${N.lastError()}`);
+    }
+
     /** Replace the local group with the one described by the Welcome. */
     acceptWelcome(welcome: Buffer): void {
         const ok = N.gbp_mls_accept_welcome(this.handle, welcome, welcome.length) as boolean;

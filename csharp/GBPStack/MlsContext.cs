@@ -77,15 +77,25 @@ public sealed class MlsContext : IDisposable
     /// existing members) and Welcome (unicast to the new joiner). RFC 9420 §11/§12.4
     /// requires existing members to apply the Commit to advance their epoch.
     /// </summary>
+    /// <remarks>
+    /// Does NOT merge the pending commit. Call <see cref="FinalizeCommit"/> after
+    /// the Commit/Welcome have been distributed (e.g. coordinator observed quorum
+    /// READY) or <see cref="ClearPendingCommit"/> on abort.
+    /// </remarks>
     public InviteResult InviteFull(byte[] keyPackage)
     {
         var buf = Native.WithBytes(keyPackage, (p, l) => Native.gbp_mls_invite_full(Handle, p, l));
         if (buf.IsEmpty) throw new InvalidOperationException($"invite_full: {Native.LastError()}");
         var bytes = Native.CopyAndFree(buf);
         if (bytes.Length < 4) throw new InvalidOperationException("invite_full: truncated buffer");
-        var commitLen = (int)BitConverter.ToUInt32(bytes, 0);
-        if (commitLen < 0 || 4 + commitLen > bytes.Length)
-            throw new InvalidOperationException("invite_full: bad commit_len");
+        // Read as uint32 first; reject anything that would overflow Int32 OR run
+        // past the end of the returned buffer. The order matters: validate the
+        // signed cast BEFORE arithmetic with bytes.Length.
+        uint commitLenU = BitConverter.ToUInt32(bytes, 0);
+        if (commitLenU > int.MaxValue || commitLenU > (uint)(bytes.Length - 4))
+            throw new InvalidOperationException(
+                $"invite_full: bad commit_len {commitLenU} (buf.len={bytes.Length})");
+        int commitLen = (int)commitLenU;
         var commit = new byte[commitLen];
         Buffer.BlockCopy(bytes, 4, commit, 0, commitLen);
         var welcomeLen = bytes.Length - 4 - commitLen;
@@ -95,9 +105,33 @@ public sealed class MlsContext : IDisposable
     }
 
     /// <summary>
+    /// Merges any pending commit produced by <see cref="InviteFull"/> or
+    /// <see cref="RemoveMember"/>. Idempotent.
+    /// </summary>
+    public void FinalizeCommit()
+    {
+        if (!Native.gbp_mls_finalize_commit(Handle))
+            throw new InvalidOperationException($"finalize_commit: {Native.LastError()}");
+    }
+
+    /// <summary>
+    /// Discards any pending commit without applying it. Used on
+    /// <c>ABORT_TRANSITION</c>.
+    /// </summary>
+    public void ClearPendingCommit()
+    {
+        if (!Native.gbp_mls_clear_pending_commit(Handle))
+            throw new InvalidOperationException($"clear_pending_commit: {Native.LastError()}");
+    }
+
+    /// <summary>
     /// Removes the member at the given MLS LeafIndex and returns the Commit
     /// that remaining members must apply via <see cref="ProcessMessage"/>.
     /// </summary>
+    /// <remarks>
+    /// Does NOT merge the pending commit. Call <see cref="FinalizeCommit"/> after
+    /// distribution succeeds or <see cref="ClearPendingCommit"/> on abort.
+    /// </remarks>
     public byte[] RemoveMember(uint leafIndex)
     {
         var buf = Native.gbp_mls_remove(Handle, leafIndex);

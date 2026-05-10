@@ -94,6 +94,10 @@ gbp_mls_remove = _bind("gbp_mls_remove", GbpBuffer, [c_int32, c_uint32])
 gbp_mls_process_message = _bind(
     "gbp_mls_process_message", c_uint32, [c_int32, c_void_p, c_size_t]
 )
+gbp_mls_finalize_commit = _bind("gbp_mls_finalize_commit", c_bool, [c_int32])
+gbp_mls_clear_pending_commit = _bind(
+    "gbp_mls_clear_pending_commit", c_bool, [c_int32]
+)
 gbp_mls_accept_welcome = _bind(
     "gbp_mls_accept_welcome", c_bool, [c_int32, c_void_p, c_size_t]
 )
