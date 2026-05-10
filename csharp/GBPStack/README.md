@@ -23,6 +23,25 @@ library `gbp_stack` for every supported runtime identifier:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Sub-protocol toolkits
+
+Beyond the protocol clients, the package ships ready-made helpers:
+
+* `MessageHistory` + `Watermark` — bounded GTP message log + per-sender
+  high-water mark for serving and consuming resync requests.
+* `JitterBuffer` — bounded GAP reorder window keyed by `MediaSourceId`,
+  with `Push`, `PopInOrder`, `PopForce` and late-frame detection.
+* `RoleRegistry` + `Permissions` — bind numeric role ids to permission
+  bit-masks and check them with `Require` / `Has`.
+* `CapabilitiesNegotiator` — track per-member advertisements and query the
+  `Intersection`, `Union`, `GroupSupports` and `Missing` views.
+
+## Install
+
+```sh
+dotnet add package GBPStack --version 1.0.0-rc4
+```
+
 ## Quick start
 
 ```csharp

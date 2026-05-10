@@ -22,6 +22,25 @@ under `gbp_stack/_native/<rid>/`.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Sub-protocol toolkits
+
+Beyond the protocol clients, the package ships ready-made helpers:
+
+* `MessageHistory` + `Watermark` — bounded GTP message log + per-sender
+  high-water mark for serving and consuming resync requests.
+* `JitterBuffer` — bounded GAP reorder window keyed by `media_source_id`,
+  with `push`, `pop_in_order`, `pop_force` and late-frame detection.
+* `RoleRegistry` + `Permissions` — bind numeric role ids to permission
+  bit-masks and check them with `require` / `has`.
+* `CapabilitiesNegotiator` — track per-member advertisements and query the
+  `intersection`, `union`, `group_supports` and `missing` views.
+
+## Install
+
+```sh
+pip install gbp-stack==1.0.0-rc4
+```
+
 ## Quick start
 
 ```python
