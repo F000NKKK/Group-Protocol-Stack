@@ -59,14 +59,15 @@ impl Member {
             bundle,
         )
     }
-    fn finish_join(&mut self, member_id: u32, expected_tid: u32) {
-        // Bootstrap one epoch below mls.epoch so that the next
-        // apply_transition lands us on the same epoch the rest of the
-        // group is on after their own EXECUTE.
+    fn finish_join(&mut self, member_id: u32, arrival_tid: u32) {
+        // Welcome is delivered post-EXECUTE, so the joiner bootstraps and
+        // then symbolically applies the admission transition to land in
+        // the same (epoch, last_tid) as the rest of the group.
         let mls_epoch = self.mls.epoch();
         self.node = GroupNode::new(member_id, self.mls.group_id_16());
         self.node
-            .bootstrap_as_joiner(mls_epoch.saturating_sub(1), expected_tid);
+            .bootstrap_as_joiner(mls_epoch.saturating_sub(1), 0);
+        self.node.apply_transition(arrival_tid);
     }
 }
 
@@ -129,14 +130,9 @@ fn full_lifecycle_two_joins_one_leave() {
     let (commit2, welcome2) = alice.mls.invite_full(&[v_carol]).unwrap();
     assert_eq!(alice.mls.epoch(), 1, "still pre-merge for tid=2");
 
-    // Carol accepts welcome (mls.epoch=2), arms GBP for tid=2.
-    carol.mls.accept_welcome(&welcome2).unwrap();
-    carol.finish_join(3, 2);
-
-    // Bob is an existing member: PREPARE delivers commit, he stages it.
-    // PREPARE is sealed under epoch 1 (where everyone still is at this
-    // moment) — Bob can decrypt. His MLS epoch must NOT advance until
-    // finalize on EXECUTE.
+    // Bob is an existing member: PREPARE delivers commit. He stages it
+    // (deferred merge) and stays on epoch 1 so his READY is decryptable
+    // by Alice (also on 1).
     let prepare2 = alice
         .node
         .send_control(&mut alice.mls, 0, ControlOpcode::PrepareTransition, 2, 10, commit2.clone())
@@ -151,18 +147,21 @@ fn full_lifecycle_two_joins_one_leave() {
     assert_eq!(kind, ProcessedKind::Commit);
     assert_eq!(bob.mls.epoch(), 1, "deferred merge — staged but not advanced");
 
-    // Now finalize on Alice and EXECUTE everywhere — recipients then merge
-    // their staged commit too.
-    alice.mls.finalize_pending_commit().unwrap();
+    // EXECUTE while Alice's MLS is still on epoch 1 — encryption is under
+    // the old epoch so Bob can decrypt and apply.
     let exec2 = alice
         .node
         .send_control(&mut alice.mls, 0, ControlOpcode::ExecuteTransition, 2, 11, vec![])
         .unwrap();
     alice.node.apply_transition(2);
+    alice.mls.finalize_pending_commit().unwrap();
     let _ = bob.node.on_wire(&mut bob.mls, &exec2.wire).unwrap();
     bob.mls.finalize_pending_commit().unwrap();
-    let _ = carol.node.on_wire(&mut carol.mls, &exec2.wire).unwrap();
-    carol.mls.finalize_pending_commit().unwrap();
+
+    // Carol receives the Welcome AFTER the transition is fully applied
+    // group-wide; she bootstraps directly at the post-transition state.
+    carol.mls.accept_welcome(&welcome2).unwrap();
+    carol.finish_join(3, 2);
     assert_eq!(alice.node.last_transition_id, 2);
     assert_eq!(bob.node.last_transition_id, 2);
     assert_eq!(carol.node.last_transition_id, 2);
@@ -210,7 +209,7 @@ fn full_lifecycle_two_joins_one_leave() {
     }).expect("carol saw PREPARE");
     let kind = carol.mls.process_message(&p3args).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(carol.mls.epoch(), 2, "deferred merge — still on 2 until EXECUTE");
+    assert_eq!(carol.mls.epoch(), 2, "deferred merge — still on 2 until finalize");
 
     // Bob also forwards through DS. RFC 9420 §12.3: a removee processing
     // the commit MAY succeed locally — openmls signals he was removed and
@@ -220,12 +219,12 @@ fn full_lifecycle_two_joins_one_leave() {
     // application frames (the actual forward-secrecy guarantee).
     let _ = bob.mls.process_message(&p3args);
 
-    alice.mls.finalize_pending_commit().unwrap();
     let exec3 = alice
         .node
         .send_control(&mut alice.mls, 0, ControlOpcode::ExecuteTransition, 3, 21, vec![])
         .unwrap();
     alice.node.apply_transition(3);
+    alice.mls.finalize_pending_commit().unwrap();
     let _ = carol.node.on_wire(&mut carol.mls, &exec3.wire).unwrap();
     carol.mls.finalize_pending_commit().unwrap();
     assert_eq!(alice.node.last_transition_id, 3);
