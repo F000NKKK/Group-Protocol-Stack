@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gbp-stack"
-version = "1.1.1"
+version = "1.1.2"
 description = "Python bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420)."
 readme = "README.md"
 requires-python = ">=3.9"
