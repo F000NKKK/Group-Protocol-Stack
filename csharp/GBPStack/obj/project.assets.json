@@ -14,7 +14,7 @@
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
-    "version": "0.2.0",
+    "version": "1.0.0-rc4",
     "restore": {
       "projectUniqueName": "C:\\Users\\Admin\\source\\repos\\GBPStackDemo\\csharp\\GBPStack\\GBPStack.csproj",
       "projectName": "GBPStack",

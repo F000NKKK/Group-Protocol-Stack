@@ -5,7 +5,7 @@
   },
   "projects": {
     "C:\\Users\\Admin\\source\\repos\\GBPStackDemo\\csharp\\GBPStack\\GBPStack.csproj": {
-      "version": "0.2.0",
+      "version": "1.0.0-rc4",
       "restore": {
         "projectUniqueName": "C:\\Users\\Admin\\source\\repos\\GBPStackDemo\\csharp\\GBPStack\\GBPStack.csproj",
         "projectName": "GBPStack",

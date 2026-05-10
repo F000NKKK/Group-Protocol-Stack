@@ -13,14 +13,12 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Group Protocol Stack contributors")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyCopyrightAttribute("© 2026 Group Protocol Stack contributors")]
-[assembly: System.Reflection.AssemblyDescriptionAttribute(("Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encry" +
-    "pted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the" +
-    " native runtime library (gbp_stack) for win-x64."))]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("0.2.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.2.0+93a1c9effbb4dd1e02af82ae8c87c1157433e1e4")]
+[assembly: System.Reflection.AssemblyDescriptionAttribute(@"Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for every supported runtime identifier (win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64) Р Р†Р вЂљРІР‚Сњ works out of the box on every supported platform.")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0-rc4+a5823e9073b69ebce68b54ba193abf2bd61d2636")]
 [assembly: System.Reflection.AssemblyProductAttribute("GBPStack")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GBPStack")]
-[assembly: System.Reflection.AssemblyVersionAttribute("0.2.0.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Reflection.AssemblyMetadataAttribute("RepositoryUrl", "https://github.com/F000NKKK/Group-Protocol-Stack")]
 
 // Создано классом WriteCodeFragment MSBuild.

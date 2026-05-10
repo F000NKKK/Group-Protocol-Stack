@@ -4,6 +4,36 @@
         <name>GBPStack</name>
     </assembly>
     <members>
+        <member name="T:GBPStack.CapabilitiesNegotiator">
+            <summary>
+            Per-member capability advertisement plus intersection / union queries
+            for negotiating optional features (codecs, extensions, version flags).
+            </summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.Advertise(System.UInt32,System.Collections.Generic.IEnumerable{System.String})">
+            <summary>Records an advertisement (replaces any prior one).</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.Forget(System.UInt32)">
+            <summary>Removes a member's advertisement.</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.CapabilitiesOf(System.UInt32)">
+            <summary>Returns the current advertisement for <paramref name="memberId"/>.</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.GroupSupports(System.String)">
+            <summary>True if every advertised member supports <paramref name="capability"/>.</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.Intersection">
+            <summary>Intersection — capabilities every member advertises (safe-to-use set).</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.Union">
+            <summary>Union — every capability advertised by any member.</summary>
+        </member>
+        <member name="M:GBPStack.CapabilitiesNegotiator.Missing(System.String)">
+            <summary>Members that did not advertise <paramref name="capability"/>.</summary>
+        </member>
+        <member name="P:GBPStack.CapabilitiesNegotiator.Count">
+            <summary>Number of members that advertised something.</summary>
+        </member>
         <member name="T:GBPStack.GapClient">
             <summary>
             Group Audio Protocol client. Maintains a per-source <c>rtp_sequence</c>
@@ -170,6 +200,96 @@
         <member name="M:GBPStack.GtpAcceptResult.#ctor(System.String,System.Nullable{System.UInt32},System.Nullable{System.UInt64},System.String,System.String)">
             <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[])"/>.</summary>
         </member>
+        <member name="T:GBPStack.AudioFrame">
+            <summary>One frame held by <see cref="T:GBPStack.JitterBuffer"/>.</summary>
+        </member>
+        <member name="M:GBPStack.AudioFrame.#ctor(System.UInt32,System.UInt32,System.Byte[])">
+            <summary>One frame held by <see cref="T:GBPStack.JitterBuffer"/>.</summary>
+        </member>
+        <member name="T:GBPStack.JitterPushOutcome">
+            <summary>Outcome of <see cref="M:GBPStack.JitterBuffer.Push(GBPStack.AudioFrame)"/>.</summary>
+        </member>
+        <member name="F:GBPStack.JitterPushOutcome.Accepted">
+            <summary>Buffered successfully.</summary>
+        </member>
+        <member name="F:GBPStack.JitterPushOutcome.Late">
+            <summary>Dropped — older than the next-expected sequence.</summary>
+        </member>
+        <member name="F:GBPStack.JitterPushOutcome.Evicted">
+            <summary>Buffered, evicting the oldest queued frame to make room.</summary>
+        </member>
+        <member name="T:GBPStack.JitterPushResult">
+            <summary>Result returned by <see cref="M:GBPStack.JitterBuffer.Push(GBPStack.AudioFrame)"/>.</summary>
+        </member>
+        <member name="M:GBPStack.JitterPushResult.#ctor(GBPStack.JitterPushOutcome,GBPStack.AudioFrame)">
+            <summary>Result returned by <see cref="M:GBPStack.JitterBuffer.Push(GBPStack.AudioFrame)"/>.</summary>
+        </member>
+        <member name="T:GBPStack.JitterBuffer">
+            <summary>
+            Bounded reorder window for GAP audio frames. Hold them briefly so the
+            decoder consumes them in <c>rtp_sequence</c> order, drop late arrivals.
+            </summary>
+        </member>
+        <member name="M:GBPStack.JitterBuffer.Push(GBPStack.AudioFrame)">
+            <summary>Inserts a frame.</summary>
+        </member>
+        <member name="M:GBPStack.JitterBuffer.PopInOrder(System.UInt32)">
+            <summary>Pops the next frame in order, or <c>null</c> if the head is from the future.</summary>
+        </member>
+        <member name="M:GBPStack.JitterBuffer.PopForce(System.UInt32)">
+            <summary>Pops the next frame regardless of contiguity (skips gaps).</summary>
+        </member>
+        <member name="M:GBPStack.JitterBuffer.LengthFor(System.UInt32)">
+            <summary>Number of frames buffered for <paramref name="mediaSourceId"/>.</summary>
+        </member>
+        <member name="M:GBPStack.JitterBuffer.Clear">
+            <summary>Drops every queued frame.</summary>
+        </member>
+        <member name="T:GBPStack.MessageEntry">
+            <summary>One entry in <see cref="T:GBPStack.MessageHistory"/>.</summary>
+        </member>
+        <member name="M:GBPStack.MessageEntry.#ctor(System.UInt32,System.UInt64,System.String)">
+            <summary>One entry in <see cref="T:GBPStack.MessageHistory"/>.</summary>
+        </member>
+        <member name="T:GBPStack.MessageHistory">
+            <summary>
+            Bounded ring-buffer of recent GTP messages. Used for serving resync
+            requests from re-joining peers.
+            </summary>
+        </member>
+        <member name="P:GBPStack.MessageHistory.Count">
+            <summary>Number of messages currently buffered.</summary>
+        </member>
+        <member name="M:GBPStack.MessageHistory.Push(GBPStack.MessageEntry)">
+            <summary>Records a message. Returns <c>true</c> if newly added.</summary>
+        </member>
+        <member name="M:GBPStack.MessageHistory.Contains(System.UInt32,System.UInt64)">
+            <summary>Returns <c>true</c> if <c>(senderId, messageId)</c> is present.</summary>
+        </member>
+        <member name="M:GBPStack.MessageHistory.Since(GBPStack.Watermark)">
+            <summary>Returns every message produced after the given watermark.</summary>
+        </member>
+        <member name="M:GBPStack.MessageHistory.SinceForSender(System.UInt32,System.UInt64)">
+            <summary>Returns messages from a single sender newer than <paramref name="sinceMessageId"/>.</summary>
+        </member>
+        <member name="M:GBPStack.MessageHistory.Clear">
+            <summary>Drops every message in the buffer.</summary>
+        </member>
+        <member name="T:GBPStack.Watermark">
+            <summary>Per-sender high-water mark of accepted GTP <c>message_id</c>s.</summary>
+        </member>
+        <member name="M:GBPStack.Watermark.Observe(System.UInt32,System.UInt64)">
+            <summary>Records that <paramref name="messageId"/> from <paramref name="senderId"/> has been observed.</summary>
+        </member>
+        <member name="M:GBPStack.Watermark.LastSeen(System.UInt32)">
+            <summary>Last seen <c>message_id</c> from <paramref name="senderId"/>, or <c>null</c>.</summary>
+        </member>
+        <member name="M:GBPStack.Watermark.Snapshot">
+            <summary>Iterates every known sender with its last <c>message_id</c>.</summary>
+        </member>
+        <member name="M:GBPStack.Watermark.Clear">
+            <summary>Drops every entry.</summary>
+        </member>
         <member name="T:GBPStack.MlsContext">
             <summary>
             Managed wrapper around an MLS (RFC 9420) context owned by the native library.
@@ -212,6 +332,53 @@
         </member>
         <member name="T:GBPStack.Native.GbpBuffer">
             <summary>FFI buffer triple <c>(ptr, len, cap)</c>. Released via <see cref="M:GBPStack.Native.gbp_buffer_free(GBPStack.Native.GbpBuffer)"/>.</summary>
+        </member>
+        <member name="T:GBPStack.Permissions">
+            <summary>
+            Application-defined permission bits for GSP roles.
+            </summary>
+        </member>
+        <member name="T:GBPStack.RoleSpec">
+            <summary>Role definition in <see cref="T:GBPStack.RoleRegistry"/>.</summary>
+        </member>
+        <member name="M:GBPStack.RoleSpec.#ctor(System.UInt32,System.String,GBPStack.Permissions)">
+            <summary>Role definition in <see cref="T:GBPStack.RoleRegistry"/>.</summary>
+        </member>
+        <member name="T:GBPStack.RoleException">
+            <summary>Errors thrown by <see cref="T:GBPStack.RoleRegistry"/>.</summary>
+        </member>
+        <member name="T:GBPStack.RoleRegistry">
+            <summary>
+            Bidirectional mapping of role ids to <see cref="T:GBPStack.RoleSpec"/>s plus an
+            assignment table tracking each member's current role.
+            </summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.Define(GBPStack.RoleSpec)">
+            <summary>Registers a role (replaces any existing one with the same id).</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.DefineRole(System.UInt32,System.String,GBPStack.Permissions)">
+            <summary>Convenience: defines a role from primitive components.</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.Role(System.UInt32)">
+            <summary>Looks up a role by id.</summary>
+        </member>
+        <member name="P:GBPStack.RoleRegistry.Roles">
+            <summary>Iterates every defined role.</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.Assign(System.UInt32,System.UInt32)">
+            <summary>Assigns a role to a member.</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.RoleOf(System.UInt32)">
+            <summary>Returns the role currently assigned to <paramref name="memberId"/>, if any.</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.PermissionsOf(System.UInt32)">
+            <summary>Effective permissions of <paramref name="memberId"/> (None if unassigned).</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.Require(System.UInt32,GBPStack.Permissions)">
+            <summary>Throws <see cref="T:GBPStack.RoleException"/> if the member lacks the required permissions.</summary>
+        </member>
+        <member name="M:GBPStack.RoleRegistry.Has(System.UInt32,GBPStack.Permissions)">
+            <summary>Returns <c>true</c> when the member has every bit in <paramref name="mask"/>.</summary>
         </member>
     </members>
 </doc>

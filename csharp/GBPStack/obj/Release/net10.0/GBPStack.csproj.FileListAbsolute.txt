@@ -1,4 +1,3 @@
-C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net10.0\gbp_stack.dll
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net10.0\GBPStack.deps.json
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net10.0\GBPStack.dll
 C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net10.0\GBPStack.pdb
