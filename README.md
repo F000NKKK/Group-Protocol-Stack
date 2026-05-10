@@ -1,6 +1,7 @@
 # Group Protocol Stack
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![release](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/release.yml/badge.svg)](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/release.yml)
 
 A layered, end-to-end encrypted group-messaging protocol family built on top
 of [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420). One base

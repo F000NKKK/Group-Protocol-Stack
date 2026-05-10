@@ -34,7 +34,7 @@ jobs:
             artifact: libgbp_stack.so
             cross: true
           - rid: osx-x64
-            os: macos-13
+            os: macos-latest
             target: x86_64-apple-darwin
             artifact: libgbp_stack.dylib
           - rid: osx-arm64
@@ -149,7 +149,7 @@ jobs:
             os: ubuntu-latest
             plat: manylinux2014_aarch64
           - rid: osx-x64
-            os: macos-13
+            os: macos-latest
             plat: macosx_11_0_x86_64
           - rid: osx-arm64
             os: macos-latest
