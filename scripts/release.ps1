@@ -134,9 +134,12 @@ try {
 
     $current = Get-CurrentVersion
     if ($PSCmdlet.ParameterSetName -eq 'Version') {
-        $next = $Version.TrimStart('v')
+        $next = $Version.TrimStart('v').Trim().TrimEnd('.')
     } else {
         $next = Step-Version $current $Bump
+    }
+    if ($next -notmatch '^\d+\.\d+\.\d+(-rc\d+)?$') {
+        throw "next version '$next' is not a clean SemVer (expected MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-rcN)"
     }
     if ($next -eq $current) { throw "next version equals current ($current); nothing to do" }
 
@@ -153,19 +156,15 @@ try {
     Update-Changelog $entry
     Write-Host "CHANGELOG.md updated"
 
-    # 3. Commit + tag
-    git add `
-        Cargo.toml `
-        csharp/GBPStack/GBPStack.csproj `
-        python/pyproject.toml `
-        python/gbp_stack/__init__.py `
-        js/package.json `
-        CHANGELOG.md
+    # 3. Commit (manifests + every README touched by bump-version) + tag.
+    #    Test-Clean above guarantees the only dirty paths are ours, so -A is safe
+    #    and picks up README files that bump-version.ps1 rewrites.
+    git add -A
     git commit -m "chore(release): $next"
     git tag -a "v$next" -m "Release v$next"
     Write-Host "Committed and tagged v$next"
 
-    # 4. Push
+    # 4. Push commit then tag (tag last so CI sees the final commit under v$next).
     if ($NoPush) {
         Write-Host "Skipping push (-NoPush). When ready: git push && git push origin v$next" -ForegroundColor Yellow
     } else {

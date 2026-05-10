@@ -33,6 +33,14 @@ $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
     throw "Version '$Version' is not a valid SemVer string"
 }
+if ($Version.EndsWith('.')) {
+    throw "Version '$Version' has a trailing dot"
+}
+
+# PyPI / pyproject.toml requires PEP 440. SemVer's `1.0.0-rc1` is not PEP 440;
+# the canonical equivalent is `1.0.0rc1` (no hyphen). Stable versions are
+# unchanged.
+$PythonVersion = $Version -replace '-(rc|a|b|alpha|beta)(\d+)$', '$1$2'
 
 $root = Split-Path $PSScriptRoot -Parent
 function Update-File([string]$path, [scriptblock]$transform) {
@@ -78,18 +86,18 @@ Update-File 'csharp/GBPStack/GBPStack.csproj' {
         "<Version>$Version</Version>")
 }
 
-# ---- Python (PyPI) -----------------------------------------------------------
+# ---- Python (PyPI) — PEP 440 form (no hyphen before rc/a/b) ------------------
 Update-File 'python/pyproject.toml' {
     param($s)
     return [regex]::Replace($s,
         '(?m)^(version\s*=\s*")[^"]+(")',
-        "`${1}$Version`${2}")
+        "`${1}$PythonVersion`${2}")
 }
 Update-File 'python/gbp_stack/__init__.py' {
     param($s)
     return [regex]::Replace($s,
         '(?m)^(__version__\s*=\s*")[^"]+(")',
-        "`${1}$Version`${2}")
+        "`${1}$PythonVersion`${2}")
 }
 
 # ---- JS / TS (npm) -----------------------------------------------------------
@@ -138,10 +146,10 @@ foreach ($r in $readmes) {
             '(GBPStack\s+--version\s+)[0-9A-Za-z.+-]+',
             "`${1}$Version")
 
-        # PyPI: `pip install gbp-stack==X.Y.Z`
+        # PyPI: `pip install gbp-stack==X.Y.Z` (PEP 440 form)
         $s = [regex]::Replace($s,
             '(pip\s+install\s+gbp-stack==)[0-9A-Za-z.+-]+',
-            "`${1}$Version")
+            "`${1}$PythonVersion")
 
         # npm: `@voluntas-progressus/gbp-stack@X.Y.Z`
         $s = [regex]::Replace($s,
