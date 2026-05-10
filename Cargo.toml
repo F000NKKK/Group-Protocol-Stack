@@ -15,7 +15,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.1"
+version = "1.0.0-rc1"
 edition = "2024"
 rust-version = "1.92"
 license = "Apache-2.0"
@@ -28,18 +28,18 @@ keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
 categories = ["cryptography", "network-programming"]
 
 [workspace.dependencies]
-# Internal вЂ” base layer
-gbp-core      = { path = "crates/gbp/core",      version = "0.2.1" }
-gbp-protocol  = { path = "crates/gbp/base",      version = "0.2.1" }
-gbp-mls       = { path = "crates/gbp/mls",       version = "0.2.1" }
-gbp-transport = { path = "crates/gbp/transport", version = "0.2.1" }
-gbp-node      = { path = "crates/gbp/node",      version = "0.2.1" }
-gbp-stack     = { path = "crates/gbp/stack",     version = "0.2.1" }
+# Internal РІР‚вЂќ base layer
+gbp-core      = { path = "crates/gbp/core",      version = "1.0.0-rc1" }
+gbp-protocol  = { path = "crates/gbp/base",      version = "1.0.0-rc1" }
+gbp-mls       = { path = "crates/gbp/mls",       version = "1.0.0-rc1" }
+gbp-transport = { path = "crates/gbp/transport", version = "1.0.0-rc1" }
+gbp-node      = { path = "crates/gbp/node",      version = "1.0.0-rc1" }
+gbp-stack     = { path = "crates/gbp/stack",     version = "1.0.0-rc1" }
 
-# Internal вЂ” sub-protocols
-gtp-protocol = { path = "crates/gtp", version = "0.2.1" }
-gap-protocol = { path = "crates/gap", version = "0.2.1" }
-gsp-protocol = { path = "crates/gsp", version = "0.2.1" }
+# Internal РІР‚вЂќ sub-protocols
+gtp-protocol = { path = "crates/gtp", version = "1.0.0-rc1" }
+gap-protocol = { path = "crates/gap", version = "1.0.0-rc1" }
+gsp-protocol = { path = "crates/gsp", version = "1.0.0-rc1" }
 
 # External
 openmls                  = "0.8"

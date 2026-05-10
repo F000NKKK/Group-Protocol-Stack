@@ -3,9 +3,9 @@
 This package exposes a high-level Python API on top of the native
 ``gbp_stack`` shared library:
 
-* :class:`MlsContext` вЂ” RFC 9420 MLS context.
-* :class:`GroupNode` вЂ” GBP-layer group node (the IP-like base).
-* :class:`GtpClient`, :class:`GapClient`, :class:`GspClient` вЂ” sub-protocol
+* :class:`MlsContext` РІР‚вЂќ RFC 9420 MLS context.
+* :class:`GroupNode` РІР‚вЂќ GBP-layer group node (the IP-like base).
+* :class:`GtpClient`, :class:`GapClient`, :class:`GspClient` РІР‚вЂќ sub-protocol
   clients (text, audio, signalling).
 
 See :func:`version` for the underlying library version and the project
@@ -37,4 +37,4 @@ __all__ = [
     "version",
 ]
 
-__version__ = "0.2.1"
+__version__ = "1.0.0-rc1"
