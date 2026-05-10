@@ -43,7 +43,13 @@ ErrorObject {
 - `0xF000-0xFFFF` Private use
 
 ## 5. Начальные коды
-Используются начальные наборы кодов из EN-версии документа.
+Используются начальные наборы кодов из EN-версии документа. Полный список в `gbp-errors-registry.md`. Дополнительно к базовым `0x0001..0x0008` определены коды для control-plane таймаутов:
+
+- `0x0010 ERR_PREPARE_TIMEOUT` — Координатор не дождался quorum READY
+- `0x0011 ERR_READY_TIMEOUT` — Member не успел применить commit/welcome за `T_ready_max`
+- `0x0012 ERR_EXECUTE_TIMEOUT` — Member не дождался EXECUTE_TRANSITION после READY
+- `0x0013 ERR_COORDINATOR_GONE` — transport Координатора потерян, требуется handover
+- `0x0014 ERR_DIGEST_MISMATCH` — несовпадение `member_set_root_hash` при Resync
 
 ## 6. Retryability/Fatality
 Каждый код MUST иметь явно заданные признаки retryable/fatal.
