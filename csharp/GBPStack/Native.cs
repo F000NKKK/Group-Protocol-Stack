@@ -86,7 +86,7 @@ internal static class Native
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool gbp_node_bootstrap_joiner(int handle, ulong epoch);
+    public static extern bool gbp_node_bootstrap_joiner(int handle, ulong epoch, uint expectedFirstTid);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern uint gbp_node_state(int handle);

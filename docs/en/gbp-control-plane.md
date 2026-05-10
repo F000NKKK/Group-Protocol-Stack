@@ -81,6 +81,37 @@ Receivers MUST atomically apply `node.apply_transition(tid)`: increment `current
 ### 5.7 Abort
 Coordinator or policy engine sends `ABORT_TRANSITION` with `args.reason_code`. Receivers MUST discard pending transition state, roll back any locally-staged MLS commit (or recover via Resync if not possible), and return to `T_IDLE`.
 
+## 5b. Per-Opcode TransitionID Validation Matrix
+Receivers MUST validate `c.transition_id` against local FSM state for each opcode according to the table below. Frames that fail validation MUST be rejected with `ERR_TRANSITION_MISMATCH` (`0x0004`) and MUST NOT advance state.
+
+| Opcode | Required relation |
+|---|---|
+| `0x0001 PREPARE_TRANSITION` | `c.tid > last_tid` AND (`pending_tid == 0` OR `pending_tid == c.tid`). Re-issue of a still-pending PREPARE for the same tid is permitted (idempotency). |
+| `0x0002 READY_FOR_TRANSITION` | `pending_tid != 0` AND `c.tid == pending_tid` |
+| `0x0003 EXECUTE_TRANSITION` | `pending_tid != 0` AND `c.tid == pending_tid` |
+| `0x0004 ABORT_TRANSITION` | `pending_tid != 0` AND `c.tid == pending_tid` |
+| `0x0005 GROUP_STATE_DIGEST_REQUEST` | informational; no constraint |
+| `0x0006 GROUP_STATE_DIGEST_RESPONSE` | informational; no constraint |
+| `0x0007 REPORT_INVALID_COMMIT` | informational; no constraint |
+| `0x0008 CAPABILITIES_ADVERTISE` | informational; no constraint |
+| `0x0009 ACK` / `0x000A NACK` | echoes `request_id`; tid is informational |
+
+The CRITICAL flag (`0x0010`) MUST NOT be applied to control-stream frames at the §6.2 ordering check; control-stream tid is validated in this table instead. Application-stream frames retain the CRITICAL check from `gbp_rfc.md` §6.2.
+
+Sender-side state mirroring: when the Coordinator originates a `PREPARE_TRANSITION`, it MUST locally set `pending_transition_id = c.tid` and `transition_state = T_PREPARED` so that subsequent inbound READY frames satisfy the matrix above. Likewise on `ABORT_TRANSITION`: clear `pending_transition_id`, set `transition_state = T_ABORTED`.
+
+## 5c. Control Message Argument Schemas (informative)
+The `args` field of `GBPControl` is an opcode-specific blob. The reference implementation surfaces it to callers as `args_b64` in the control event and expects the following layouts:
+
+- **`PREPARE_TRANSITION`**: raw TLS-serialised MLS Commit message. Recipients pass it directly to `mls.process_message(args)`.
+- **`READY_FOR_TRANSITION`**: empty.
+- **`EXECUTE_TRANSITION`**: empty (the local `apply_transition(tid)` is sufficient).
+- **`ABORT_TRANSITION`**: optional CBOR `{ "reason_code": uint }`.
+- **`GROUP_STATE_DIGEST_REQUEST` / `GROUP_STATE_DIGEST_RESPONSE`**: CBOR maps per §6.3.
+- **`REPORT_INVALID_COMMIT`**: CBOR map per §6.1.
+- **`CAPABILITIES_ADVERTISE`**: CBOR map `{ "version": uint, "features": [tstr], ? "coordinator_claim": bool }`.
+- **`ACK` / `NACK`**: CBOR map echoing `request_id`; NACK additionally carries the `ErrorObject` (see `gbp-errors-registry.md` §2).
+
 ## 6. Recovery Procedures
 
 ### 6.1 Invalid Commit Recovery

@@ -35,23 +35,32 @@ Step  Actor          Action
 ----  -----          ------
  1    Coordinator    Validate trigger and identify target leaf_index in MLS tree.
  2    Coordinator    mls.remove_members([leaf_index]) -> commit_bytes
-                     Coordinator's MLS state advances locally to new epoch.
+                     Stages a pending commit. MLS epoch does NOT advance yet
+                     (RFC 9420 §12 requires explicit merge via finalize).
  3    Coordinator    Compute next_tid = last_transition_id + 1.
  4    Coordinator    Broadcast PREPARE_TRANSITION to all remaining Active members
-                     (target = 0), args = { commit: commit_bytes, removed: target }.
-                     The departing member is NOT a recipient.
- 5    Each remaining Apply commit via mls.process_message(commit_bytes); MLS state
-      member         advances. Send READY_FOR_TRANSITION (target = coordinator_id).
+                     (target = 0), args = commit_bytes. The frame is sealed
+                     under the pre-merge epoch — recipients can decrypt and
+                     apply via mls.process_message. The departing member is
+                     NOT a recipient.
+ 5    Each remaining Apply commit via mls.process_message(commit_bytes); MLS
+      member         epoch advances on this side. Send READY_FOR_TRANSITION
+                     (target = coordinator_id).
  6    Coordinator    On READY quorum within T_ready_max + T_quorum_grace:
-                     broadcast EXECUTE_TRANSITION (target = 0).
-                     On timeout: broadcast ABORT_TRANSITION; retry as new tid.
+                     a) mls.finalize_pending_commit() — coordinator's MLS
+                        epoch now matches recipients';
+                     b) broadcast EXECUTE_TRANSITION (target = 0). Sealed
+                        under the post-merge epoch. On timeout instead:
+                        mls.clear_pending_commit() (rollback), broadcast
+                        ABORT_TRANSITION, retry as new tid.
  7    Each remaining apply_transition(next_tid) -> current_epoch++,
       member         last_transition_id = next_tid, replay window cleared.
  8    Coordinator    Same as step 7 locally.
  9    Departed       MAY observe PREPARE_TRANSITION transit through DS. It MUST NOT
       member         attempt to participate. Its own MLS state does not advance.
                      Application traffic frames it sends post-step 8 will be
-                     rejected by remaining members with ERR_DECRYPT_FAILED.
+                     rejected by remaining members with ERR_DECRYPT_FAILED
+                     (non-fatal, dropped silently).
 ```
 
 ## 5. Concurrent Leaves

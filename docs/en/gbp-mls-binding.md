@@ -62,8 +62,10 @@ A joiner that receives a Welcome MUST:
 1. `mls.accept_welcome(welcome_bytes)` — sets up MLS group at the post-commit epoch.
 2. Read `mls.epoch()` and `mls.group_id()` from the resulting state.
 3. Construct GBP node with `gbp_node_create(member_id, group_id_16)`.
-4. Call `gbp_node_bootstrap_joiner(epoch=0)` — the GBP node's `current_epoch` starts at 0 and advances only via the upcoming `EXECUTE_TRANSITION`. The MLS epoch returned in step 2 is informational only at this point; it WILL be matched after the joiner emits READY and receives EXECUTE for the same TransitionID that admitted them.
-5. Wait for `PREPARE_TRANSITION` carrying the joiner's own admission Commit. The Coordinator MUST send this even though the joiner already has the post-commit state from Welcome — the joiner's GBP layer needs the explicit transition record to advance `current_epoch` and `last_transition_id`.
+4. Call `gbp_node_bootstrap_joiner(epoch=0, expected_first_tid=T)` where `T` is the `transition_id` of the invite that admitted them. This pre-arms `pending_transition_id = T` and `transition_state = T_PREPARED` so that the very next `EXECUTE_TRANSITION` (which carries `tid = T`) passes the per-opcode validation matrix in §11. **Without** this pre-arm, the joiner's `pending_transition_id == 0` would cause `handle_control` to reject the EXECUTE with `ERR_TRANSITION_MISMATCH`. Pass `expected_first_tid = 0` only if the joiner recovered out-of-band and is already epoch-current.
+5. Do **not** expect the joiner to receive a decryptable PREPARE_TRANSITION. The PREPARE that the Coordinator broadcasts is sealed under the pre-Welcome MLS epoch (existing members are still on that epoch when they need to apply the embedded Commit). The joiner has already advanced past that epoch via `accept_welcome` and therefore lacks the AEAD keys; any such frame surfaces as `ERR_DECRYPT_FAILED` with `fatal=false` and is silently dropped. The next frame the joiner can decrypt is `EXECUTE_TRANSITION`, broadcast after the Coordinator's `finalize_pending_commit()` on the now-shared epoch.
+
+The Coordinator's transition_id `T` MUST be transmitted to the joiner together with the Welcome (in the demo: as a side-channel field on the `welcome` envelope). The MLS Welcome itself does not carry the GBP transition id.
 
 ## 7. Coordinator State After Invite
 The Coordinator that calls `mls.invite`:

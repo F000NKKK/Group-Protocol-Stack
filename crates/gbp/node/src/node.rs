@@ -170,10 +170,21 @@ impl GroupNode {
     }
 
     /// Drives the node from `IDLE` to `ACTIVE` as a joiner.
-    pub fn bootstrap_as_joiner(&mut self, epoch: u64) {
+    ///
+    /// `expected_first_tid` lets the joiner pre-arm its pending transition
+    /// state so that the very next `EXECUTE_TRANSITION` (which will arrive
+    /// without a preceding PREPARE the joiner could decrypt — that PREPARE
+    /// was sealed under the pre-Welcome epoch) is accepted by
+    /// `handle_control`'s tid-validation matrix. Pass `0` if the joiner
+    /// recovered out-of-band and is already current.
+    pub fn bootstrap_as_joiner(&mut self, epoch: u64, expected_first_tid: u32) {
         self.transition(NodeState::Connecting);
         self.transition(NodeState::EstablishingGroup);
         self.current_epoch = epoch;
+        if expected_first_tid > 0 {
+            self.pending_transition_id = expected_first_tid;
+            self.transition_state = TransitionState::TPrepared;
+        }
         self.transition(NodeState::Active);
     }
 
@@ -378,11 +389,17 @@ impl GroupNode {
         let plain = match seal.open(st, frame.sequence_no, &frame.encrypted_payload) {
             Ok(p) => p,
             Err(e) => {
+                // Non-fatal: a frame addressed under a different MLS epoch
+                // (e.g. PREPARE_TRANSITION reaching a fresh joiner that has
+                // already accepted the post-commit Welcome) cannot be
+                // decrypted, but that's expected and the node MUST keep
+                // running to receive the subsequent EXECUTE frame on the
+                // shared post-merge epoch.
                 self.emit_err_named(
                     codes::DECRYPT_FAILED,
                     ErrorClass::Crypto,
-                    false,
-                    true,
+                    true,   // retryable: caller may resync via digest
+                    false,  // non-fatal
                     format!("aead open: {e}"),
                 );
                 return Ok(());
@@ -606,7 +623,7 @@ mod tests {
         let mut alice = GroupNode::new(1, group_id());
         let mut bob = GroupNode::new(2, group_id());
         alice.bootstrap_as_creator(1);
-        bob.bootstrap_as_joiner(1);
+        bob.bootstrap_as_joiner(1, 0);
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
         let f = alice
@@ -624,7 +641,7 @@ mod tests {
         let mut alice = GroupNode::new(1, group_id());
         let mut bob = GroupNode::new(2, group_id());
         alice.bootstrap_as_creator(1);
-        bob.bootstrap_as_joiner(1);
+        bob.bootstrap_as_joiner(1, 0);
         alice.current_epoch = 2;
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
@@ -640,7 +657,7 @@ mod tests {
         let mut alice = GroupNode::new(1, group_id());
         let mut bob = GroupNode::new(2, group_id());
         alice.bootstrap_as_creator(1);
-        bob.bootstrap_as_joiner(1);
+        bob.bootstrap_as_joiner(1, 0);
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
         let f = alice
@@ -653,5 +670,162 @@ mod tests {
         }).expect("payload");
         assert_eq!(pr.stream_type, StreamType::Text);
         assert_eq!(pr.plaintext, b"payload");
+    }
+
+    // ---- Control-plane handshake -----------------------------------------
+
+    fn drain_errs(events: &[Event]) -> Vec<u16> {
+        events.iter().filter_map(|e| match e {
+            Event::Error { code, .. } => Some(*code),
+            _ => None,
+        }).collect()
+    }
+
+    fn drain_controls(events: &[Event]) -> Vec<(ControlOpcode, TransitionId)> {
+        events.iter().filter_map(|e| match e {
+            Event::Control { opcode, transition_id, .. } => Some((*opcode, *transition_id)),
+            _ => None,
+        }).collect()
+    }
+
+    #[test]
+    fn prepare_transition_sets_pending_on_sender_and_receiver() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut peer = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        peer.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        // Coordinator sends PREPARE for tid=1
+        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 100, b"commit-blob".to_vec()).unwrap();
+        assert_eq!(coord.pending_transition_id, 1, "sender mirrors pending");
+        assert_eq!(coord.transition_state, TransitionState::TPrepared);
+        let evs = peer.on_wire(&mut s, &f.wire).unwrap();
+        assert_eq!(peer.pending_transition_id, 1, "receiver records pending");
+        assert!(drain_errs(&evs).is_empty(), "no error: {:?}", drain_errs(&evs));
+        let ctls = drain_controls(&evs);
+        assert_eq!(ctls, vec![(ControlOpcode::PrepareTransition, 1)]);
+    }
+
+    #[test]
+    fn ready_with_wrong_tid_is_rejected() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut peer = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        peer.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        peer.on_wire(&mut s, &f.wire).unwrap();
+        // Peer fakes a READY for the wrong tid
+        let bogus = peer.send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 7, 1, vec![]).unwrap();
+        let evs = coord.on_wire(&mut s, &bogus.wire).unwrap();
+        let errs = drain_errs(&evs);
+        assert!(errs.contains(&codes::TRANSITION_MISMATCH), "got {:?}", errs);
+    }
+
+    #[test]
+    fn execute_advances_epoch_and_clears_pending() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut peer = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        peer.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        peer.on_wire(&mut s, &prep.wire).unwrap();
+        // Coordinator broadcasts EXECUTE; both sides apply (coord locally, peer via on_wire)
+        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        coord.apply_transition(1);
+        let evs = peer.on_wire(&mut s, &exec.wire).unwrap();
+        assert_eq!(coord.last_transition_id, 1);
+        assert_eq!(coord.current_epoch, 1);
+        assert_eq!(peer.last_transition_id, 1);
+        assert_eq!(peer.current_epoch, 1);
+        assert_eq!(peer.pending_transition_id, 0);
+        assert!(evs.iter().any(|e| matches!(e, Event::EpochAdvanced { transition_id: 1, .. })));
+    }
+
+    #[test]
+    fn abort_clears_pending_no_advance() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut peer = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        peer.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        peer.on_wire(&mut s, &prep.wire).unwrap();
+        let abort = coord.send_control(&mut s, 0, ControlOpcode::AbortTransition, 1, 2, vec![]).unwrap();
+        peer.on_wire(&mut s, &abort.wire).unwrap();
+        assert_eq!(peer.pending_transition_id, 0);
+        assert_eq!(peer.current_epoch, 0);
+        assert_eq!(peer.transition_state, TransitionState::TAborted);
+        assert_eq!(coord.transition_state, TransitionState::TAborted);
+    }
+
+    #[test]
+    fn bootstrap_as_joiner_with_expected_tid_accepts_first_execute() {
+        let mut coord = GroupNode::new(1, group_id());
+        // Joiner pre-arms expected_first_tid=1 — typical post-Welcome state.
+        let mut joiner = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        joiner.bootstrap_as_joiner(0, 1);
+        assert_eq!(joiner.pending_transition_id, 1);
+        let mut s = PlainSealer;
+        // Coordinator must mirror its pending too — simulate by sending PREPARE
+        let _ = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        // EXECUTE should be accepted by the joiner without ever seeing PREPARE
+        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        let evs = joiner.on_wire(&mut s, &exec.wire).unwrap();
+        let errs = drain_errs(&evs);
+        assert!(errs.is_empty(), "expected clean apply, got errors {:?}", errs);
+        assert_eq!(joiner.last_transition_id, 1);
+        assert_eq!(joiner.current_epoch, 1);
+    }
+
+    #[test]
+    fn prepare_with_already_applied_tid_is_rejected() {
+        // After the coordinator has fully applied tid=1, a replay or
+        // late-coordinator PREPARE with the same tid must fail validation.
+        let mut coord = GroupNode::new(1, group_id());
+        coord.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        let _ = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        coord.apply_transition(1);
+        assert_eq!(coord.last_transition_id, 1);
+        assert_eq!(coord.pending_transition_id, 0);
+        // Forge a PREPARE with the same already-applied tid (epoch matches
+        // because we synthesise it locally with a peer node on the same
+        // post-apply epoch).
+        let mut peer = GroupNode::new(2, group_id());
+        peer.bootstrap_as_joiner(coord.current_epoch, 0);
+        let stale = peer.send_control(&mut s, 1, ControlOpcode::PrepareTransition, 1, 9, vec![]).unwrap();
+        let evs = coord.on_wire(&mut s, &stale.wire).unwrap();
+        let errs = drain_errs(&evs);
+        assert!(errs.contains(&codes::TRANSITION_MISMATCH), "expected TRANSITION_MISMATCH, got {:?}", errs);
+    }
+
+    #[test]
+    fn decrypt_failed_is_non_fatal() {
+        // Simulate a frame our open() can't unlock: a sealer that fails on `open`.
+        struct OpenFailSealer;
+        impl Sealer for OpenFailSealer {
+            fn seal(&mut self, _: StreamType, _: SequenceNo, p: &[u8]) -> Result<Vec<u8>, MlsError> { Ok(p.to_vec()) }
+            fn open(&mut self, _: StreamType, _: SequenceNo, _: &[u8]) -> Result<Vec<u8>, MlsError> { Err(MlsError::Aead("simulated".into())) }
+        }
+        let mut alice = GroupNode::new(1, group_id());
+        let mut bob = GroupNode::new(2, group_id());
+        alice.bootstrap_as_creator(1);
+        bob.bootstrap_as_joiner(1, 0);
+        let mut s = PlainSealer;
+        let sid = alice.member_stream_id(2);
+        let f = alice.send_payload(&mut s, 2, StreamType::Text, sid, GbpFlags::ordered_reliable_ack(), b"x").unwrap();
+        let mut fail = OpenFailSealer;
+        let evs = bob.on_wire(&mut fail, &f.wire).unwrap();
+        let err = evs.iter().find_map(|e| match e {
+            Event::Error { code, fatal, retryable, .. } => Some((*code, *fatal, *retryable)),
+            _ => None,
+        }).expect("error event");
+        assert_eq!(err.0, codes::DECRYPT_FAILED);
+        assert!(!err.1, "must be non-fatal");
+        assert!(err.2, "must be retryable");
+        assert_eq!(bob.state, NodeState::Active, "bob stays Active");
     }
 }

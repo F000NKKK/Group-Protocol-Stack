@@ -105,7 +105,9 @@ gbp_mls_accept_welcome = _bind(
 gbp_node_create = _bind("gbp_node_create", c_int32, [c_uint32, c_void_p])
 gbp_node_destroy = _bind("gbp_node_destroy", None, [c_int32])
 gbp_node_bootstrap_creator = _bind("gbp_node_bootstrap_creator", c_bool, [c_int32, c_uint64])
-gbp_node_bootstrap_joiner = _bind("gbp_node_bootstrap_joiner", c_bool, [c_int32, c_uint64])
+gbp_node_bootstrap_joiner = _bind(
+    "gbp_node_bootstrap_joiner", c_bool, [c_int32, c_uint64, c_uint32]
+)
 gbp_node_state = _bind("gbp_node_state", c_uint32, [c_int32])
 gbp_node_epoch = _bind("gbp_node_epoch", c_uint64, [c_int32])
 gbp_node_last_transition_id = _bind("gbp_node_last_transition_id", c_uint32, [c_int32])

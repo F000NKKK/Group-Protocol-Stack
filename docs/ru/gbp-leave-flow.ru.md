@@ -34,7 +34,8 @@ BCP 14 применяется.
 ---  -----          --------
  1   Координатор    Валидация триггера, определение target leaf_index в MLS-дереве.
  2   Координатор    mls.remove_members([leaf_index]) -> commit_bytes
-                    MLS-state Координатора локально продвигается на новую эпоху.
+                    Стейджит pending commit. MLS epoch ЕЩЁ НЕ продвигается
+                    (RFC 9420 §12 требует явного merge через finalize).
  3   Координатор    next_tid = last_transition_id + 1.
  4   Координатор    Broadcast PREPARE_TRANSITION всем оставшимся Active-членам
                     (target = 0), args = { commit: commit_bytes, removed: target }.
@@ -43,8 +44,12 @@ BCP 14 применяется.
      оставшийся     MLS-state продвигается. Отправить READY_FOR_TRANSITION
      member         (target = coordinator_id).
  6   Координатор    На quorum READY в окне T_ready_max + T_quorum_grace:
-                    broadcast EXECUTE_TRANSITION (target = 0).
-                    На timeout: broadcast ABORT_TRANSITION; retry с новым tid.
+                    a) mls.finalize_pending_commit() — MLS epoch Координатора
+                       теперь совпадает с recipients';
+                    b) broadcast EXECUTE_TRANSITION (target = 0). Запечатан
+                       под post-merge эпоху. На timeout вместо этого:
+                       mls.clear_pending_commit() (rollback), broadcast
+                       ABORT_TRANSITION, retry с новым tid.
  7   Каждый         apply_transition(next_tid) -> current_epoch++,
      оставшийся     last_transition_id = next_tid, replay window очищен.
      member

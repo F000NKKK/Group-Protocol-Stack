@@ -85,10 +85,13 @@ public sealed class GroupNode : IDisposable
             throw new InvalidOperationException(Native.LastError());
     }
 
-    /// <summary>Drives the node from <c>IDLE</c> to <c>ACTIVE</c> as a joiner.</summary>
-    public void BootstrapAsJoiner(ulong epoch)
+    /// <summary>Drives the node from <c>IDLE</c> to <c>ACTIVE</c> as a joiner.
+    /// <paramref name="expectedFirstTid"/> pre-arms pending transition state so the
+    /// next <c>EXECUTE_TRANSITION</c> is accepted; pass <c>0</c> if recovered
+    /// out-of-band.</summary>
+    public void BootstrapAsJoiner(ulong epoch, uint expectedFirstTid = 0)
     {
-        if (!Native.gbp_node_bootstrap_joiner(Handle, epoch))
+        if (!Native.gbp_node_bootstrap_joiner(Handle, epoch, expectedFirstTid))
             throw new InvalidOperationException(Native.LastError());
     }
 

@@ -193,9 +193,20 @@ class GroupNode:
         if not _n.gbp_node_bootstrap_creator(self._handle, epoch):
             raise OSError(_n.last_error())
 
-    def bootstrap_as_joiner(self, epoch: int) -> None:
-        """Drive the node from ``IDLE`` to ``ACTIVE`` as a joiner."""
-        if not _n.gbp_node_bootstrap_joiner(self._handle, epoch):
+    def bootstrap_as_joiner(self, epoch: int, expected_first_tid: int = 0) -> None:
+        """Drive the node from ``IDLE`` to ``ACTIVE`` as a joiner.
+
+        ``expected_first_tid`` pre-arms ``pending_transition_id`` so the next
+        ``EXECUTE_TRANSITION`` is accepted by the per-opcode tid validation
+        matrix. The matching ``PREPARE_TRANSITION`` was sealed under the
+        pre-Welcome MLS epoch and is therefore undecryptable to the joiner;
+        the joiner is brought into the group when ``EXECUTE`` arrives on the
+        new shared epoch. Pass ``0`` if the joiner recovered out-of-band and
+        is already current.
+        """
+        if not _n.gbp_node_bootstrap_joiner(
+            self._handle, epoch, expected_first_tid & 0xFFFFFFFF
+        ):
             raise OSError(_n.last_error())
 
     def set_epoch_for_testing(self, epoch: int) -> None:

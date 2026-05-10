@@ -160,9 +160,18 @@ export class GroupNode {
             throw new Error(N.lastError());
     }
 
-    /** Drive the node from ``IDLE`` to ``ACTIVE`` as a joiner. */
-    bootstrapAsJoiner(epoch: bigint | number): void {
-        if (!(N.gbp_node_bootstrap_joiner(this.handle, BigInt(epoch)) as boolean))
+    /**
+     * Drive the node from ``IDLE`` to ``ACTIVE`` as a joiner.
+     *
+     * `expectedFirstTid` pre-arms `pending_transition_id` so the next
+     * `EXECUTE_TRANSITION` is accepted by `handle_control`'s validation
+     * matrix. The matching PREPARE was sealed under the pre-Welcome MLS
+     * epoch and is therefore undecryptable to the joiner; the joiner is
+     * brought into the group when EXECUTE arrives on the new shared epoch.
+     * Pass `0` if the joiner recovered out-of-band and is already current.
+     */
+    bootstrapAsJoiner(epoch: bigint | number, expectedFirstTid: number = 0): void {
+        if (!(N.gbp_node_bootstrap_joiner(this.handle, BigInt(epoch), expectedFirstTid >>> 0) as boolean))
             throw new Error(N.lastError());
     }
 

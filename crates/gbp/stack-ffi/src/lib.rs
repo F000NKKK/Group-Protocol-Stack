@@ -522,12 +522,15 @@ pub extern "C" fn gbp_node_bootstrap_creator(h: i32, epoch: u64) -> bool {
     true
 }
 
-/// Drives the node to `ACTIVE` as a joiner.
+/// Drives the node to `ACTIVE` as a joiner. `expected_first_tid` lets the
+/// joiner pre-arm pending transition state so that the first
+/// `EXECUTE_TRANSITION` after Welcome is accepted; pass `0` if the joiner
+/// recovered out-of-band and is already current.
 #[unsafe(no_mangle)]
-pub extern "C" fn gbp_node_bootstrap_joiner(h: i32, epoch: u64) -> bool {
+pub extern "C" fn gbp_node_bootstrap_joiner(h: i32, epoch: u64, expected_first_tid: u32) -> bool {
     let mut map = nodes().map.lock().unwrap();
     let Some(n) = map.get_mut(&h) else { return false };
-    n.bootstrap_as_joiner(epoch);
+    n.bootstrap_as_joiner(epoch, expected_first_tid);
     true
 }
 

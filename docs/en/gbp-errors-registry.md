@@ -83,9 +83,25 @@ ErrorObject {
 - `0x3006 ERR_GSP_PRECONDITION_FAILED`
 
 ## 9. Retryability and Fatality
-Each specification MUST declare retryability/fatality per code.
-By default:
-- CRYPTO + STATE mismatch in control path: fatal.
+Each specification MUST declare retryability/fatality per code. The matrix below is normative for the GBP base codes; sub-protocols MAY tighten but MUST NOT loosen.
+
+| Code | Retryable | Fatal | Rationale |
+|---|---|---|---|
+| `0x0001 ERR_UNSUPPORTED_VERSION` | false | true | Cannot recover without re-negotiation |
+| `0x0002 ERR_UNKNOWN_GROUP` | false | true | Wrong group; session is invalid |
+| `0x0003 ERR_EPOCH_MISMATCH` | true | false | Recover via Resync (`gbp-control-plane` §5.2) |
+| `0x0004 ERR_TRANSITION_MISMATCH` | true | false | Recover via Resync |
+| `0x0005 ERR_REPLAY_DETECTED` | false | false | Drop frame; keep going |
+| `0x0006 ERR_DECRYPT_FAILED` | true | false | A frame sealed under a different MLS epoch (e.g. PREPARE reaching a fresh joiner) cannot be opened, but the node MUST keep running for the next EXECUTE on the shared epoch. Resync MAY be initiated on repeated failures. |
+| `0x0007 ERR_COMMIT_INVALID` | false | true | Stack-level integrity violation; abort transition and require fresh KeyPackage |
+| `0x0008 ERR_STREAM_POLICY_VIOLATION` | false | false | Drop frame; deployment policy decides escalation |
+| `0x0010 ERR_PREPARE_TIMEOUT` | true | false | Coordinator MAY re-issue PREPARE on next tid |
+| `0x0011 ERR_READY_TIMEOUT` | true | false | Member returns to `T_IDLE`; resync if EXECUTE later observed |
+| `0x0012 ERR_EXECUTE_TIMEOUT` | true | false | Trigger Resync; participate in coordinator handover |
+| `0x0013 ERR_COORDINATOR_GONE` | true | false | Members elect handover per §4.1 |
+| `0x0014 ERR_DIGEST_MISMATCH` | false | true | Re-bootstrap as joiner |
+
+Default classes for codes without an explicit row:
 - SCHEMA in data path: non-fatal.
 - POLICY/AUTHZ: non-fatal unless repeated threshold is exceeded.
 

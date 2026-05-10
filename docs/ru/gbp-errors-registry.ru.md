@@ -52,7 +52,23 @@ ErrorObject {
 - `0x0014 ERR_DIGEST_MISMATCH` — несовпадение `member_set_root_hash` при Resync
 
 ## 6. Retryability/Fatality
-Каждый код MUST иметь явно заданные признаки retryable/fatal.
+Каждый код MUST иметь явно заданные признаки retryable/fatal. Матрица ниже нормативна для базовых GBP-кодов:
+
+| Код | Retryable | Fatal | Причина |
+|---|---|---|---|
+| `0x0001 ERR_UNSUPPORTED_VERSION` | false | true | Невозможно восстановить без re-negotiation |
+| `0x0002 ERR_UNKNOWN_GROUP` | false | true | Не та группа; сессия невалидна |
+| `0x0003 ERR_EPOCH_MISMATCH` | true | false | Recover через Resync |
+| `0x0004 ERR_TRANSITION_MISMATCH` | true | false | Recover через Resync |
+| `0x0005 ERR_REPLAY_DETECTED` | false | false | Дроп фрейма |
+| `0x0006 ERR_DECRYPT_FAILED` | true | false | Фрейм запечатан под другую MLS-эпоху (например PREPARE для свежего joiner'а) — нода MUST продолжать работу для следующего EXECUTE на общей эпохе. На повторных failures допустим Resync. |
+| `0x0007 ERR_COMMIT_INVALID` | false | true | Stack-level integrity нарушен; abort transition + fresh KeyPackage |
+| `0x0008 ERR_STREAM_POLICY_VIOLATION` | false | false | Дроп; deployment-policy решает escalation |
+| `0x0010 ERR_PREPARE_TIMEOUT` | true | false | Координатор MAY переисустить PREPARE на следующем tid |
+| `0x0011 ERR_READY_TIMEOUT` | true | false | Member возвращается в `T_IDLE` |
+| `0x0012 ERR_EXECUTE_TIMEOUT` | true | false | Trigger Resync; участвовать в handover |
+| `0x0013 ERR_COORDINATOR_GONE` | true | false | Members выбирают handover по §4.1 |
+| `0x0014 ERR_DIGEST_MISMATCH` | false | true | Re-bootstrap как joiner |
 
 ## 7. IANA Considerations
 Документ запрашивает реестр GBP Error Code.

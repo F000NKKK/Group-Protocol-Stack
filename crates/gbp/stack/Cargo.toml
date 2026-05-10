@@ -25,3 +25,8 @@ gsp-protocol  = { workspace = true }
 gbp-mls       = { workspace = true }
 gbp-transport = { workspace = true }
 gbp-node      = { workspace = true }
+
+[dev-dependencies]
+openmls             = "0.8"
+openmls_traits      = "0.5"
+openmls_rust_crypto = "0.5"

@@ -62,8 +62,10 @@ Joiner, получивший Welcome, MUST:
 1. `mls.accept_welcome(welcome_bytes)` — поднять MLS-группу на post-commit-эпохе.
 2. Прочитать `mls.epoch()` и `mls.group_id()` из получившегося state.
 3. Создать GBP-узел через `gbp_node_create(member_id, group_id_16)`.
-4. Вызвать `gbp_node_bootstrap_joiner(epoch=0)` — `current_epoch` GBP-узла стартует с 0 и продвигается ТОЛЬКО через предстоящий `EXECUTE_TRANSITION`. MLS epoch из шага 2 на этом моменте информационная; она будет согласована после того как joiner отправит READY и получит EXECUTE для того же TransitionID, по которому его принимали.
-5. Дождаться `PREPARE_TRANSITION`, несущего commit того же приёма. Координатор MUST отправить его, даже если joiner уже имеет post-commit state из Welcome — GBP-уровню joiner'а нужна явная transition-запись, чтобы продвинуть `current_epoch` и `last_transition_id`.
+4. Вызвать `gbp_node_bootstrap_joiner(epoch=0, expected_first_tid=T)` где `T` — `transition_id` invite'а, по которому joiner принят. Это пред-устанавливает `pending_transition_id = T` и `transition_state = T_PREPARED`, чтобы ближайший `EXECUTE_TRANSITION` (с `tid = T`) прошёл per-opcode валидацию из §5b control-plane. **Без** pre-arm `pending_transition_id == 0` приведёт к `ERR_TRANSITION_MISMATCH` на EXECUTE. Передавать `expected_first_tid = 0` только если joiner восстановился out-of-band и уже epoch-current.
+5. Joiner НЕ ожидает дешифруемого `PREPARE_TRANSITION`. PREPARE Координатора запечатан под pre-Welcome MLS-эпоху (existing-members ещё на ней при применении commit'а). У joiner'а после `accept_welcome` уже новая эпоха — AEAD-ключи к старой неприменимы; такой фрейм surface'ится как `ERR_DECRYPT_FAILED` с `fatal=false` и тихо дропается. Первый дешифруемый фрейм для joiner'а — `EXECUTE_TRANSITION`, broadcast после `finalize_pending_commit()` Координатора на общей post-merge эпохе.
+
+`transition_id` `T` Координатор MUST передать joiner'у вместе с Welcome (в demo: side-channel поле в `welcome` envelope). Сам MLS Welcome GBP transition_id не несёт.
 
 ## 7. State Координатора после invite
 Координатор, вызвавший `mls.invite_full`:
