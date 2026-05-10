@@ -203,6 +203,16 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
+    # Auth via PyPI Trusted Publisher (OIDC). Configure the publisher at
+    # https://pypi.org/manage/account/publishing/ with:
+    #   project = gbp-stack, owner = F000NKKK,
+    #   repo    = Group-Protocol-Stack, workflow = release.yml,
+    #   environment = pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gbp-stack
+    permissions:
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -213,14 +223,8 @@ jobs:
         with:
           name: sdist
           path: dist-merged
-      - uses: actions/setup-python@v5
+      - name: publish via Trusted Publisher
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          python-version: "3.11"
-      - run: python -m pip install --upgrade pip twine
-      - name: upload
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          if [ -z "$TWINE_PASSWORD" ]; then echo "PYPI_API_TOKEN not set; skipping"; exit 0; fi
-          python -m twine upload --skip-existing dist-merged/*
+          packages-dir: dist-merged
+          skip-existing: true
