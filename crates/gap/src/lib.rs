@@ -17,7 +17,9 @@
 #![deny(missing_docs)]
 
 pub mod client;
+pub mod jitter;
 pub mod payload;
 
 pub use client::{GapAccept, GapClient, GapError};
+pub use jitter::{JitterBuffer, JitterPush};
 pub use payload::GapPayload;

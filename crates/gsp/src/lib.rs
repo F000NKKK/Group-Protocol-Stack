@@ -19,8 +19,12 @@
 
 #![deny(missing_docs)]
 
+pub mod capabilities;
 pub mod client;
+pub mod roles;
 pub mod signal;
 
+pub use capabilities::CapabilitiesNegotiator;
 pub use client::{GspAccept, GspClient, GspError};
+pub use roles::{Permissions, RoleError, RoleRegistry, RoleSpec};
 pub use signal::GspSignal;
