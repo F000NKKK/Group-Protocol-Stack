@@ -54,6 +54,15 @@ internal static class Native
     public static extern GbpBuffer gbp_mls_invite(int handle, IntPtr kpPtr, nuint kpLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gbp_mls_invite_full(int handle, IntPtr kpPtr, nuint kpLen);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gbp_mls_remove(int handle, uint leafIndex);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint gbp_mls_process_message(int handle, IntPtr msgPtr, nuint msgLen);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static extern bool gbp_mls_accept_welcome(int handle, IntPtr welcomePtr, nuint welcomeLen);
 

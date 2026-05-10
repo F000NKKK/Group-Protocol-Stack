@@ -174,6 +174,8 @@ public sealed record NodeEvent(
     string? Opcode = null,
     ushort? OpcodeCode = null,
     uint? TransitionId = null,
+    uint? RequestId = null,
+    byte[]? Args = null,
     ushort? Code = null,
     string? CodeHex = null,
     byte? Class = null,
@@ -196,6 +198,13 @@ public sealed record NodeEvent(
         if (el.TryGetProperty("plaintext_b64", out var pb) && pb.ValueKind == JsonValueKind.String)
             plaintext = Convert.FromBase64String(pb.GetString()!);
 
+        byte[]? args = null;
+        if (el.TryGetProperty("args_b64", out var ab) && ab.ValueKind == JsonValueKind.String)
+        {
+            var s = ab.GetString();
+            if (!string.IsNullOrEmpty(s)) args = Convert.FromBase64String(s);
+        }
+
         StreamType? st = null;
         if (el.TryGetProperty("stream_type_code", out var stc) && stc.ValueKind == JsonValueKind.Number)
             st = (StreamType)stc.GetUInt32();
@@ -214,6 +223,8 @@ public sealed record NodeEvent(
             Opcode: S("opcode"),
             OpcodeCode: U16("opcode_code"),
             TransitionId: U32("transition_id"),
+            RequestId: U32("request_id"),
+            Args: args,
             Code: U16("code"),
             CodeHex: S("code_hex"),
             Class: U8("class"),
