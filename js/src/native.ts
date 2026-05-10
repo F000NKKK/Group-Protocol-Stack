@@ -79,6 +79,9 @@ export const gbp_mls_epoch = lib.func("uint64_t gbp_mls_epoch(int32_t)");
 export const gbp_mls_group_id = lib.func("bool gbp_mls_group_id(int32_t, void *)");
 export const gbp_mls_export_key_package = lib.func("GbpBuffer gbp_mls_export_key_package(int32_t)");
 export const gbp_mls_invite = lib.func("GbpBuffer gbp_mls_invite(int32_t, void *, size_t)");
+export const gbp_mls_invite_full = lib.func("GbpBuffer gbp_mls_invite_full(int32_t, void *, size_t)");
+export const gbp_mls_remove = lib.func("GbpBuffer gbp_mls_remove(int32_t, uint32_t)");
+export const gbp_mls_process_message = lib.func("uint32_t gbp_mls_process_message(int32_t, void *, size_t)");
 export const gbp_mls_accept_welcome = lib.func("bool gbp_mls_accept_welcome(int32_t, void *, size_t)");
 
 // GBP node

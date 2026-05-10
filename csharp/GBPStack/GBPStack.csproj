@@ -54,8 +54,12 @@
       <HostNativeSrc>$(RustCrateDir)\target\$(RustProfile)\$(HostNativeName)</HostNativeSrc>
       <HostNativeDst>$(NativeRuntimesDir)\$(HostRid)\native</HostNativeDst>
     </PropertyGroup>
-    <Message Importance="high" Text="==&gt; cargo build -p gbp-stack-ffi --$(RustProfile)" />
-    <Exec Command="cargo build -p gbp-stack-ffi --$(RustProfile)"
+    <PropertyGroup>
+      <CargoProfileFlag Condition="'$(RustProfile)' == 'release'">--release</CargoProfileFlag>
+      <CargoProfileFlag Condition="'$(RustProfile)' != 'release'"></CargoProfileFlag>
+    </PropertyGroup>
+    <Message Importance="high" Text="==&gt; cargo build -p gbp-stack-ffi $(CargoProfileFlag)" />
+    <Exec Command="cargo build -p gbp-stack-ffi $(CargoProfileFlag)"
           WorkingDirectory="$(RustCrateDir)"
           ConsoleToMSBuild="true" />
     <MakeDir Directories="$(HostNativeDst)" />

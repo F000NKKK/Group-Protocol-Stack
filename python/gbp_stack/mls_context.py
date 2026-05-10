@@ -57,7 +57,9 @@ class MlsContext:
         return out
 
     def invite(self, key_package: bytes) -> bytes:
-        """Invite ``key_package`` into the local group; returns the Welcome."""
+        """Invite ``key_package`` into the local group; returns the Welcome
+        only. Use :meth:`invite_full` to also obtain the Commit message that
+        must be broadcast to existing members (RFC 9420 §11/§12.4)."""
         def call(ptr, length):
             return _n.gbp_mls_invite(self._handle, ptr, length)
         buf = _n.call_with_bytes(key_package, call)
@@ -65,6 +67,46 @@ class MlsContext:
         if not out:
             raise OSError(f"invite: {_n.last_error()}")
         return out
+
+    def invite_full(self, key_package: bytes) -> tuple[bytes, bytes]:
+        """Invite ``key_package`` and return ``(commit_bytes, welcome_bytes)``.
+
+        The Commit MUST be broadcast to existing members (embedded in
+        ``PREPARE_TRANSITION`` args). The Welcome MUST be unicast to the
+        new joiner.
+        """
+        def call(ptr, length):
+            return _n.gbp_mls_invite_full(self._handle, ptr, length)
+        buf = _n.call_with_bytes(key_package, call)
+        out = _n.take_buffer(buf)
+        if len(out) < 4:
+            raise OSError(f"invite_full: {_n.last_error() or 'truncated'}")
+        commit_len = int.from_bytes(out[:4], "little")
+        if commit_len < 0 or 4 + commit_len > len(out):
+            raise OSError("invite_full: bad commit_len")
+        return bytes(out[4 : 4 + commit_len]), bytes(out[4 + commit_len :])
+
+    def remove_member(self, leaf_index: int) -> bytes:
+        """Remove the member at ``leaf_index`` and return the Commit bytes."""
+        buf = _n.gbp_mls_remove(self._handle, leaf_index & 0xFFFFFFFF)
+        out = _n.take_buffer(buf)
+        if not out:
+            raise OSError(f"remove: {_n.last_error()}")
+        return out
+
+    def process_message(self, message: bytes) -> str:
+        """Apply a Commit (or staged Proposal) to the local MLS group.
+
+        Returns one of ``"commit"``, ``"application"``, ``"proposal"``,
+        ``"external"``.
+        """
+        def call(ptr, length):
+            return _n.gbp_mls_process_message(self._handle, ptr, length)
+        code = int(_n.call_with_bytes(message, call))
+        kinds = {1: "commit", 2: "application", 3: "proposal", 4: "external"}
+        if code not in kinds:
+            raise OSError(f"process_message: {_n.last_error()}")
+        return kinds[code]
 
     def accept_welcome(self, welcome: bytes) -> None:
         """Replace the local group with the one described by ``welcome``."""

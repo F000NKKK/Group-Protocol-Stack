@@ -53,12 +53,58 @@ export class MlsContext {
         return out;
     }
 
-    /** Invite the given KeyPackage into the local group; returns the Welcome. */
+    /**
+     * Invite the given KeyPackage into the local group; returns the
+     * Welcome only. Use {@link MlsContext.inviteFull} to also obtain the
+     * Commit message that must be broadcast to existing members
+     * (RFC 9420 §11/§12.4).
+     */
     invite(keyPackage: Buffer): Buffer {
         const buf = N.gbp_mls_invite(this.handle, keyPackage, keyPackage.length) as N.GbpBuffer;
         const out = N.takeBuffer(buf);
         if (out.length === 0) throw new Error(`invite: ${N.lastError()}`);
         return out;
+    }
+
+    /**
+     * Invite the given KeyPackage and return BOTH the MLS Commit (broadcast
+     * to existing members) and the Welcome (unicast to the new joiner).
+     */
+    inviteFull(keyPackage: Buffer): { commit: Buffer; welcome: Buffer } {
+        const buf = N.gbp_mls_invite_full(this.handle, keyPackage, keyPackage.length) as N.GbpBuffer;
+        const out = N.takeBuffer(buf);
+        if (out.length < 4) throw new Error(`invite_full: ${N.lastError() || "truncated"}`);
+        const commitLen = out.readUInt32LE(0);
+        if (commitLen < 0 || 4 + commitLen > out.length) throw new Error(`invite_full: bad commit_len`);
+        const commit = out.subarray(4, 4 + commitLen);
+        const welcome = out.subarray(4 + commitLen);
+        return { commit: Buffer.from(commit), welcome: Buffer.from(welcome) };
+    }
+
+    /**
+     * Remove the member at the given MLS LeafIndex; returns the Commit that
+     * remaining members must apply via {@link MlsContext.processMessage}.
+     */
+    removeMember(leafIndex: number): Buffer {
+        const buf = N.gbp_mls_remove(this.handle, leafIndex >>> 0) as N.GbpBuffer;
+        const out = N.takeBuffer(buf);
+        if (out.length === 0) throw new Error(`remove: ${N.lastError()}`);
+        return out;
+    }
+
+    /**
+     * Apply a Commit (or staged Proposal) to the local MLS group. Returns
+     * the kind of message that was processed.
+     */
+    processMessage(message: Buffer): "commit" | "application" | "proposal" | "external" {
+        const code = N.gbp_mls_process_message(this.handle, message, message.length) as number;
+        switch (code) {
+            case 1: return "commit";
+            case 2: return "application";
+            case 3: return "proposal";
+            case 4: return "external";
+            default: throw new Error(`process_message: ${N.lastError()}`);
+        }
     }
 
     /** Replace the local group with the one described by the Welcome. */

@@ -89,6 +89,11 @@ gbp_mls_epoch = _bind("gbp_mls_epoch", c_uint64, [c_int32])
 gbp_mls_group_id = _bind("gbp_mls_group_id", c_bool, [c_int32, c_void_p])
 gbp_mls_export_key_package = _bind("gbp_mls_export_key_package", GbpBuffer, [c_int32])
 gbp_mls_invite = _bind("gbp_mls_invite", GbpBuffer, [c_int32, c_void_p, c_size_t])
+gbp_mls_invite_full = _bind("gbp_mls_invite_full", GbpBuffer, [c_int32, c_void_p, c_size_t])
+gbp_mls_remove = _bind("gbp_mls_remove", GbpBuffer, [c_int32, c_uint32])
+gbp_mls_process_message = _bind(
+    "gbp_mls_process_message", c_uint32, [c_int32, c_void_p, c_size_t]
+)
 gbp_mls_accept_welcome = _bind(
     "gbp_mls_accept_welcome", c_bool, [c_int32, c_void_p, c_size_t]
 )
