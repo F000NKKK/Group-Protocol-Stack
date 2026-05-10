@@ -1,0 +1,7 @@
+{
+  "include": ["gbp_stack"],
+  "executionEnvironments": [
+    { "root": "." }
+  ],
+  "reportMissingImports": "warning"
+}

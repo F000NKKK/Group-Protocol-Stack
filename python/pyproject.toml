@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gbp-stack"
+version = "0.2.0"
+description = "Python bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Group Protocol Stack contributors" }]
+keywords = ["mls", "rfc9420", "e2ee", "group-messaging", "chat", "voice", "signaling", "cryptography", "ffi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Networking",
+]
+
+[project.urls]
+Homepage      = "https://github.com/F000NKKK/Group-Protocol-Stack"
+Repository    = "https://github.com/F000NKKK/Group-Protocol-Stack"
+Documentation = "https://github.com/F000NKKK/Group-Protocol-Stack#readme"
+Issues        = "https://github.com/F000NKKK/Group-Protocol-Stack/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["gbp_stack*"]
+
+[tool.setuptools.package-data]
+"gbp_stack" = [
+    "_native/win-x64/*.dll",
+    "_native/linux-x64/*.so",
+    "_native/osx-x64/*.dylib",
+    "_native/osx-arm64/*.dylib",
+]

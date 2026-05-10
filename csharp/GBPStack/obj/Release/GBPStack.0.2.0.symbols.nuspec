@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>GBPStack</id>
+    <version>0.2.0</version>
+    <title>Group Protocol Stack — managed bindings</title>
+    <authors>Group Protocol Stack contributors</authors>
+    <license type="expression">Apache-2.0</license>
+    <licenseUrl>https://licenses.nuget.org/Apache-2.0</licenseUrl>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/F000NKKK/Group-Protocol-Stack</projectUrl>
+    <description>Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for win-x64.</description>
+    <copyright>© 2026 Group Protocol Stack contributors</copyright>
+    <tags>mls rfc9420 e2ee group-messaging chat voice signaling cryptography ffi</tags>
+    <repository type="git" url="https://github.com/F000NKKK/Group-Protocol-Stack" commit="93a1c9effbb4dd1e02af82ae8c87c1157433e1e4" />
+    <dependencies>
+      <group targetFramework="net8.0" />
+      <group targetFramework="net10.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net10.0\GBPStack.pdb" target="lib\net10.0\GBPStack.pdb" />
+    <file src="C:\Users\Admin\source\repos\GBPStackDemo\csharp\GBPStack\bin\Release\net8.0\GBPStack.pdb" target="lib\net8.0\GBPStack.pdb" />
+  </files>
+</package>

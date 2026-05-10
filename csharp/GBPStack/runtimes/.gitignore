@@ -1,0 +1,4 @@
+# Native binaries are populated by CI (.github/workflows/release.yml) and
+# by the local-build target in GBPStack.csproj. Do not commit them.
+*
+!.gitignore

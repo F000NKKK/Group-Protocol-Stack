@@ -1,0 +1,217 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GBPStack</name>
+    </assembly>
+    <members>
+        <member name="T:GBPStack.GapClient">
+            <summary>
+            Group Audio Protocol client. Maintains a per-source <c>rtp_sequence</c>
+            window and validates <c>key_phase</c> against the current group epoch.
+            </summary>
+        </member>
+        <member name="P:GBPStack.GapClient.Handle">
+            <summary>Native handle.</summary>
+        </member>
+        <member name="M:GBPStack.GapClient.Create">
+            <summary>Creates a new GAP client.</summary>
+        </member>
+        <member name="M:GBPStack.GapClient.Send(GBPStack.GroupNode,GBPStack.MlsContext,System.UInt32,System.UInt32,System.UInt64,System.Byte[])">
+            <summary>Sends an Opus frame.</summary>
+        </member>
+        <member name="M:GBPStack.GapClient.Accept(System.Byte[],System.UInt64)">
+            <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
+        </member>
+        <member name="M:GBPStack.GapClient.Reset">
+            <summary>Clears the replay window. Intended for use after an epoch change.</summary>
+        </member>
+        <member name="M:GBPStack.GapClient.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GBPStack.GapAcceptResult">
+            <summary>Outcome of <see cref="M:GBPStack.GapClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
+        </member>
+        <member name="M:GBPStack.GapAcceptResult.#ctor(System.String,System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.Nullable{System.Int32},System.String)">
+            <summary>Outcome of <see cref="M:GBPStack.GapClient.Accept(System.Byte[],System.UInt64)"/>.</summary>
+        </member>
+        <member name="T:GBPStack.ControlOpcode">
+            <summary>Control plane opcode registry.</summary>
+        </member>
+        <member name="T:GBPStack.NodeState">
+            <summary>Node FSM state.</summary>
+        </member>
+        <member name="T:GBPStack.StreamType">
+            <summary>Stream class.</summary>
+        </member>
+        <member name="T:GBPStack.OutboundFrame">
+            <summary>An outbound wire frame: target member and the serialised bytes.</summary>
+        </member>
+        <member name="M:GBPStack.OutboundFrame.#ctor(System.UInt32,System.Byte[])">
+            <summary>An outbound wire frame: target member and the serialised bytes.</summary>
+        </member>
+        <member name="T:GBPStack.GroupNode">
+            <summary>
+            Managed wrapper around the GBP-layer node. Owns the framing, AEAD, replay
+            window, FSM and control plane. Sub-protocol semantics live in
+            <see cref="T:GBPStack.GtpClient"/>, <see cref="T:GBPStack.GapClient"/> and <see cref="T:GBPStack.GspClient"/>.
+            </summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.Handle">
+            <summary>Native handle.</summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.MemberId">
+            <summary>This node's member id.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.Create(System.UInt32,System.Byte[])">
+            <summary>Creates a node with the given member id and 16-byte group id.</summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.State">
+            <summary>Current node FSM state.</summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.Epoch">
+            <summary>Current node epoch.</summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.LastTransitionId">
+            <summary>Last applied <c>transition_id</c>.</summary>
+        </member>
+        <member name="P:GBPStack.GroupNode.GroupId">
+            <summary>Group identifier (a copy of the 16-byte array).</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.BootstrapAsCreator(System.UInt64)">
+            <summary>Drives the node from <c>IDLE</c> to <c>ACTIVE</c> as a creator.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.BootstrapAsJoiner(System.UInt64)">
+            <summary>Drives the node from <c>IDLE</c> to <c>ACTIVE</c> as a joiner.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.SetEpochForTesting(System.UInt64)">
+            <summary>Forces the node's <c>current_epoch</c> (intended for tests of late peers).</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.ApplyTransition(System.UInt32)">
+            <summary>Applies an epoch transition locally.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.SendControl(GBPStack.MlsContext,System.UInt32,GBPStack.ControlOpcode,System.UInt32,System.UInt32,System.Byte[])">
+            <summary>Sends a control plane message on Stream 0.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.OnWire(GBPStack.MlsContext,System.Byte[])">
+            <summary>Feeds wire bytes to the node and returns the resulting events.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.DrainEvents">
+            <summary>Drains queued events without consuming any wire bytes.</summary>
+        </member>
+        <member name="M:GBPStack.GroupNode.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GBPStack.NodeEvent">
+            <summary>Event surfaced by the GBP layer.</summary>
+        </member>
+        <member name="M:GBPStack.NodeEvent.#ctor(System.String,System.String,System.String,System.String,System.Nullable{GBPStack.StreamType},System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.Nullable{System.UInt16},System.Byte[],System.Nullable{System.UInt32},System.String,System.Nullable{System.UInt16},System.Nullable{System.UInt32},System.Nullable{System.UInt16},System.String,System.Nullable{System.Byte},System.Nullable{System.Boolean},System.Nullable{System.Boolean},System.String,System.Nullable{System.UInt64})">
+            <summary>Event surfaced by the GBP layer.</summary>
+        </member>
+        <member name="T:GBPStack.SignalType">
+            <summary>GSP signal type registry.</summary>
+        </member>
+        <member name="T:GBPStack.GspClient">
+            <summary>
+            Group Signaling Protocol client. Tracks <c>request_id</c> deduplication
+            and exposes accepted signals to the application.
+            </summary>
+        </member>
+        <member name="P:GBPStack.GspClient.Handle">
+            <summary>Native handle.</summary>
+        </member>
+        <member name="M:GBPStack.GspClient.Create">
+            <summary>Creates a new GSP client.</summary>
+        </member>
+        <member name="M:GBPStack.GspClient.Send(GBPStack.GroupNode,GBPStack.MlsContext,System.UInt32,GBPStack.SignalType,System.UInt32,System.UInt32)">
+            <summary>Sends a signal.</summary>
+        </member>
+        <member name="M:GBPStack.GspClient.Accept(System.Byte[])">
+            <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
+        </member>
+        <member name="M:GBPStack.GspClient.Reset">
+            <summary>Clears the request-id deduplication set. Intended for use after an epoch change.</summary>
+        </member>
+        <member name="M:GBPStack.GspClient.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GBPStack.GspAcceptResult">
+            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[])"/>.</summary>
+        </member>
+        <member name="M:GBPStack.GspAcceptResult.#ctor(System.String,System.String,System.Nullable{GBPStack.SignalType},System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.Nullable{System.UInt32},System.String)">
+            <summary>Outcome of <see cref="M:GBPStack.GspClient.Accept(System.Byte[])"/>.</summary>
+        </member>
+        <member name="T:GBPStack.GtpClient">
+            <summary>
+            Group Text Protocol client. Tracks idempotency by
+            <c>(sender_id, message_id)</c>.
+            </summary>
+        </member>
+        <member name="P:GBPStack.GtpClient.Handle">
+            <summary>Native handle.</summary>
+        </member>
+        <member name="M:GBPStack.GtpClient.Create">
+            <summary>Creates a new GTP client.</summary>
+        </member>
+        <member name="M:GBPStack.GtpClient.Send(GBPStack.GroupNode,GBPStack.MlsContext,System.UInt32,System.UInt64,System.String)">
+            <summary>Sends a text message to <paramref name="target"/>.</summary>
+        </member>
+        <member name="M:GBPStack.GtpClient.Accept(System.Byte[])">
+            <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
+        </member>
+        <member name="M:GBPStack.GtpClient.Reset">
+            <summary>Clears the idempotency state. Intended for use after an epoch change.</summary>
+        </member>
+        <member name="M:GBPStack.GtpClient.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GBPStack.GtpAcceptResult">
+            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[])"/>.</summary>
+        </member>
+        <member name="M:GBPStack.GtpAcceptResult.#ctor(System.String,System.Nullable{System.UInt32},System.Nullable{System.UInt64},System.String,System.String)">
+            <summary>Outcome of <see cref="M:GBPStack.GtpClient.Accept(System.Byte[])"/>.</summary>
+        </member>
+        <member name="T:GBPStack.MlsContext">
+            <summary>
+            Managed wrapper around an MLS (RFC 9420) context owned by the native library.
+            Owns a single-member group plus a published <c>KeyPackage</c> that can be
+            used to invite this member into another group.
+            </summary>
+        </member>
+        <member name="P:GBPStack.MlsContext.Handle">
+            <summary>Native handle.</summary>
+        </member>
+        <member name="P:GBPStack.MlsContext.Identity">
+            <summary>Application-level identity.</summary>
+        </member>
+        <member name="M:GBPStack.MlsContext.Create(System.String)">
+            <summary>Creates a fresh MLS context.</summary>
+        </member>
+        <member name="P:GBPStack.MlsContext.Epoch">
+            <summary>Returns the current group epoch.</summary>
+        </member>
+        <member name="P:GBPStack.MlsContext.GroupId">
+            <summary>Returns the 16-byte group identifier.</summary>
+        </member>
+        <member name="M:GBPStack.MlsContext.ExportKeyPackage">
+            <summary>Exports the TLS-serialised KeyPackage of this member.</summary>
+        </member>
+        <member name="M:GBPStack.MlsContext.Invite(System.Byte[])">
+            <summary>Invites the given KeyPackage into the local group; returns the Welcome bytes.</summary>
+        </member>
+        <member name="M:GBPStack.MlsContext.AcceptWelcome(System.Byte[])">
+            <summary>Replaces the local group with the one described by the Welcome.</summary>
+        </member>
+        <member name="M:GBPStack.MlsContext.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GBPStack.Native">
+            <summary>
+            P/Invoke surface over the native <c>gbp_stack</c> shared library
+            (cdylib produced by the <c>gbp-stack-ffi</c> Rust crate).
+            </summary>
+        </member>
+        <member name="T:GBPStack.Native.GbpBuffer">
+            <summary>FFI buffer triple <c>(ptr, len, cap)</c>. Released via <see cref="M:GBPStack.Native.gbp_buffer_free(GBPStack.Native.GbpBuffer)"/>.</summary>
+        </member>
+    </members>
+</doc>

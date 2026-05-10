@@ -1,0 +1,226 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 1. Build the native cdylib for every supported runtime identifier.
+  build-native:
+    name: native ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: gbp_stack.dll
+          - rid: win-arm64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact: gbp_stack.dll
+          - rid: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: libgbp_stack.so
+          - rid: linux-arm64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: libgbp_stack.so
+            cross: true
+          - rid: osx-x64
+            os: macos-13
+            target: x86_64-apple-darwin
+            artifact: libgbp_stack.dylib
+          - rid: osx-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: libgbp_stack.dylib
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: install cross (linux-arm64)
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: build cdylib
+        if: '!matrix.cross'
+        run: cargo build -p gbp-stack-ffi --release --target ${{ matrix.target }}
+
+      - name: build cdylib (cross)
+        if: matrix.cross
+        run: cross build -p gbp-stack-ffi --release --target ${{ matrix.target }}
+
+      - name: stage artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "out/${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: out/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  # 2. Assemble the NuGet package with every native runtime bundled.
+  pack-nuget:
+    name: nuget
+    needs: build-native
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+
+      - name: download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: native-artifacts
+          pattern: native-*
+
+      - name: stage runtimes/<rid>/native/
+        shell: pwsh
+        run: |
+          $base = "csharp/GBPStack/runtimes"
+          New-Item -ItemType Directory -Force -Path $base | Out-Null
+          Get-ChildItem native-artifacts -Directory | ForEach-Object {
+            $rid = $_.Name -replace '^native-', ''
+            $dst = Join-Path $base "$rid/native"
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            Copy-Item "$($_.FullName)/*" $dst -Force
+          }
+          Get-ChildItem -Recurse $base
+
+      - name: pack
+        env:
+          SkipStageHostRuntime: "true"
+        run: dotnet pack csharp/GBPStack/GBPStack.csproj -c Release -o nupkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: nupkg/*
+
+      - name: publish to nuget.org
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        shell: pwsh
+        run: |
+          if (-not $env:NUGET_API_KEY) { Write-Host "NUGET_API_KEY not set; skipping publish"; exit 0 }
+          Get-ChildItem nupkg/*.nupkg | ForEach-Object {
+            dotnet nuget push $_.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
+
+  # 3. Build a per-platform Python wheel that bundles the matching native
+  #    library, plus an sdist.
+  build-wheels:
+    name: wheel ${{ matrix.rid }}
+    needs: build-native
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            plat: win_amd64
+          - rid: win-arm64
+            os: windows-latest
+            plat: win_arm64
+          - rid: linux-x64
+            os: ubuntu-latest
+            plat: manylinux2014_x86_64
+          - rid: linux-arm64
+            os: ubuntu-latest
+            plat: manylinux2014_aarch64
+          - rid: osx-x64
+            os: macos-13
+            plat: macosx_11_0_x86_64
+          - rid: osx-arm64
+            os: macos-latest
+            plat: macosx_11_0_arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: download native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: python/gbp_stack/_native/${{ matrix.rid }}
+
+      - name: install build tools
+        run: python -m pip install --upgrade pip build wheel
+
+      - name: build wheel
+        working-directory: python
+        env:
+          GBP_STACK_TARGET_PLATFORM: ${{ matrix.plat }}
+        run: python build_wheel.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.rid }}
+          path: python/dist/*.whl
+
+  build-sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build --sdist
+        working-directory: python
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: python/dist/*.tar.gz
+
+  publish-pypi:
+    name: publish to pypi
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-merged
+          pattern: wheel-*
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist-merged
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip twine
+      - name: upload
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$TWINE_PASSWORD" ]; then echo "PYPI_API_TOKEN not set; skipping"; exit 0; fi
+          python -m twine upload --skip-existing dist-merged/*

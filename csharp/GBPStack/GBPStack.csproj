@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <PackageId>GBPStack</PackageId>
+    <Version>0.2.0</Version>
+    <Title>Group Protocol Stack — managed bindings</Title>
+    <Description>Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for every supported runtime identifier (win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64) — works out of the box on every supported platform.</Description>
+    <PackageTags>mls;rfc9420;e2ee;group-messaging;chat;voice;signaling;cryptography;ffi</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <RustCrateDir>$(MSBuildThisFileDirectory)..\..</RustCrateDir>
+    <RustProfile Condition="'$(Configuration)' == 'Debug'">debug</RustProfile>
+    <RustProfile Condition="'$(RustProfile)' == ''">release</RustProfile>
+    <!-- Populated by CI; locally we copy whatever cargo built for this host. -->
+    <NativeRuntimesDir>$(MSBuildThisFileDirectory)runtimes</NativeRuntimesDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+
+    <!-- Pack every native binary that was placed under runtimes/<rid>/native/. -->
+    <None Include="$(NativeRuntimesDir)\**\*"
+          Pack="true"
+          PackagePath="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    Local-development convenience: if the runtimes/ tree is empty (no CI
+    artefacts yet) and cargo built a host-platform DLL, copy it into
+    runtimes/<host-rid>/native/ so the resulting package always carries at
+    least the host runtime. CI populates the tree with every supported RID
+    before invoking `dotnet pack`.
+  -->
+  <Target Name="StageHostRuntime"
+          BeforeTargets="BeforeBuild"
+          Condition="!Exists('$(NativeRuntimesDir)') Or '$(SkipStageHostRuntime)' == 'true'">
+    <Message Importance="high" Text="==&gt; staging host runtime (set SkipStageHostRuntime=true to opt out)" />
+  </Target>
+
+  <Target Name="BuildAndStageHostRuntime"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(SkipStageHostRuntime)' != 'true' And $([MSBuild]::IsOsPlatform('Windows'))">
+    <PropertyGroup>
+      <HostRid>win-x64</HostRid>
+      <HostNativeName>gbp_stack.dll</HostNativeName>
+      <HostNativeSrc>$(RustCrateDir)\target\$(RustProfile)\$(HostNativeName)</HostNativeSrc>
+      <HostNativeDst>$(NativeRuntimesDir)\$(HostRid)\native</HostNativeDst>
+    </PropertyGroup>
+    <Message Importance="high" Text="==&gt; cargo build -p gbp-stack-ffi --$(RustProfile)" />
+    <Exec Command="cargo build -p gbp-stack-ffi --$(RustProfile)"
+          WorkingDirectory="$(RustCrateDir)"
+          ConsoleToMSBuild="true" />
+    <MakeDir Directories="$(HostNativeDst)" />
+    <Copy SourceFiles="$(HostNativeSrc)"
+          DestinationFolder="$(HostNativeDst)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(HostNativeSrc)')" />
+  </Target>
+
+</Project>

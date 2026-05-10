@@ -1,0 +1,4 @@
+# Per-RID native binaries are populated by CI (.github/workflows/release.yml).
+# Do not commit them.
+*
+!.gitignore
