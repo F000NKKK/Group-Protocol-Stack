@@ -327,8 +327,15 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: upgrade npm (OIDC requires >= 11.5.1)
-        run: npm install -g npm@latest
+      # The runner's pre-installed npm is sporadically corrupted (missing
+      # transitive modules like `promise-retry`), which makes
+      # `npm install -g npm@latest` fail. Use corepack — it ships with Node
+      # and reliably activates an arbitrary npm version.
+      - name: ensure npm >= 11.5.1 (OIDC trusted publishing)
+        run: |
+          corepack enable
+          corepack prepare npm@latest --activate
+          npm --version
 
       - name: download native artifacts
         uses: actions/download-artifact@v4

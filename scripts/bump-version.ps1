@@ -9,6 +9,8 @@
     * python/pyproject.toml       (project.version)
     * python/gbp_stack/__init__.py (__version__)
     * js/package.json             ("version")
+    * every README.md install snippet (gbp-stack = "..", `--version ..`,
+      `pip install gbp-stack==..`, `npm install @voluntas-progressus/gbp-stack@..`)
 
   After running, review the diff, commit, tag (e.g. `git tag v1.0.0`) and
   push the tag — the release workflow handles the rest.
@@ -36,15 +38,17 @@ $root = Split-Path $PSScriptRoot -Parent
 function Update-File([string]$path, [scriptblock]$transform) {
     $full = Join-Path $root $path
     if (-not (Test-Path $full)) { throw "missing: $full" }
-    $orig = Get-Content $full -Raw
+    # Read explicitly as UTF-8. PS 5.1's `Get-Content -Raw` falls back to the
+    # system code page (e.g. cp1251 on RU Windows) and mangles em-dashes /
+    # box-drawing characters in the README files.
+    $orig = [System.IO.File]::ReadAllText($full, [System.Text.UTF8Encoding]::new($false))
     $new  = & $transform $orig
     if ($new -eq $orig) {
         Write-Host "  no change: $path" -ForegroundColor DarkGray
         return
     }
     # Write UTF-8 *without* BOM. PowerShell 5.1's `Set-Content -Encoding utf8`
-    # silently emits a BOM that Python's tomllib (and other strict parsers)
-    # refuse to read.
+    # emits a BOM that Python's tomllib (and other strict parsers) refuse.
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllText($full, $new, $utf8NoBom)
     Write-Host "  updated:   $path" -ForegroundColor Green
@@ -94,6 +98,58 @@ Update-File 'js/package.json' {
     return [regex]::Replace($s,
         '(?m)^(\s*"version"\s*:\s*")[^"]+(")',
         "`${1}$Version`${2}")
+}
+
+# ---- README.md install snippets ---------------------------------------------
+# Every README that documents an install command carries the version inline.
+# Patterns we update (each uniquely identifies one registry):
+#   * Cargo:  gbp-stack = "X.Y.Z"          (or any of the gbp-* / *-protocol crates)
+#   * NuGet:  --version X.Y.Z              (after `dotnet add package GBPStack`)
+#   * PyPI:   pip install gbp-stack==X.Y.Z
+#   * npm:    @voluntas-progressus/gbp-stack@X.Y.Z
+$readmes = Get-ChildItem -Path $root -Recurse -Filter 'README.md' `
+    -Exclude 'node_modules', 'target' |
+    Where-Object {
+        $_.FullName -notmatch '\\(node_modules|target|\.git)\\'
+    }
+
+$cratePackageNames = @(
+    'gbp-stack', 'gbp-core', 'gbp-protocol', 'gbp-mls', 'gbp-transport',
+    'gbp-node', 'gbp-stack-ffi', 'gbp-cli',
+    'gtp-protocol', 'gap-protocol', 'gsp-protocol'
+)
+
+foreach ($r in $readmes) {
+    # PS 5.1 has no [Path]::GetRelativePath — strip the root prefix manually.
+    $rel = $r.FullName.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
+    Update-File $rel {
+        param($s)
+
+        # Cargo: `<crate> = "X.Y.Z"` (TOML lines inside fenced code blocks).
+        foreach ($cn in $cratePackageNames) {
+            $escaped = [regex]::Escape($cn)
+            $s = [regex]::Replace($s,
+                "(?m)^(\s*$escaped\s*=\s*"")[^""]+("")",
+                "`${1}$Version`${2}")
+        }
+
+        # NuGet: `dotnet add package GBPStack --version X.Y.Z`
+        $s = [regex]::Replace($s,
+            '(GBPStack\s+--version\s+)[0-9A-Za-z.+-]+',
+            "`${1}$Version")
+
+        # PyPI: `pip install gbp-stack==X.Y.Z`
+        $s = [regex]::Replace($s,
+            '(pip\s+install\s+gbp-stack==)[0-9A-Za-z.+-]+',
+            "`${1}$Version")
+
+        # npm: `@voluntas-progressus/gbp-stack@X.Y.Z`
+        $s = [regex]::Replace($s,
+            '(@voluntas-progressus/gbp-stack@)[0-9A-Za-z.+-]+',
+            "`${1}$Version")
+
+        return $s
+    }
 }
 
 Write-Host ""
