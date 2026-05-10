@@ -303,12 +303,10 @@ jobs:
             publish "$p"
           done
 
-  # Build and publish the npm package. Authentication uses npm Trusted
-  # Publishing (OIDC). Configure the publisher at
-  # https://www.npmjs.com/settings/<user>/trusted-publishers with:
-  #   package = @voluntas-progressus/gbp-stack, owner = F000NKKK,
-  #   repo    = Group-Protocol-Stack, workflow = release.yml,
-  #   environment = npm.
+  # Build and publish the npm package. Authentication uses a classic
+  # NPM_TOKEN secret stored in the `npm` environment. Trusted Publishing
+  # (OIDC) was tried first but kept returning 404 from the registry; revisit
+  # once the npm side is debuggable.
   pack-npm:
     name: npm
     needs: build-native
@@ -316,9 +314,6 @@ jobs:
     environment:
       name: npm
       url: https://www.npmjs.com/package/@voluntas-progressus/gbp-stack
-    permissions:
-      id-token: write
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -365,18 +360,12 @@ jobs:
           name: npm-tarball
           path: js/*.tgz
 
-      - name: publish via Trusted Publisher
+      - name: publish to npm
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: js
-        # `npm publish` here is authenticated via OIDC + Trusted Publisher
-        # (no NPM_TOKEN). Provenance is attached when supported; if the
-        # provenance verification fails for any reason, fall back to plain
-        # publish so the release is not blocked.
-        run: |
-          if ! npm publish --provenance --access public; then
-            echo "::warning ::provenance publish failed, retrying without provenance"
-            npm publish --access public
-          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_KEY }}
+        run: npm publish --access public
 
   # Aggregate every artefact and create a GitHub Release.
   github-release:
