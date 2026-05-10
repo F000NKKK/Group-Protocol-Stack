@@ -5,7 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <PackageId>GBPStack</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Title>Group Protocol Stack Р Р†Р вЂљРІР‚Сњ managed bindings</Title>
     <Description>Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for every supported runtime identifier (win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64) Р Р†Р вЂљРІР‚Сњ works out of the box on every supported platform.</Description>
     <PackageTags>mls;rfc9420;e2ee;group-messaging;chat;voice;signaling;cryptography;ffi</PackageTags>
