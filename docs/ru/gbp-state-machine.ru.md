@@ -50,7 +50,20 @@ Internet-Draft является рабочим документом IETF.
 - `SUSPENDED`
 
 ## 6. Таймауты
-Реализации MUST поддерживать `T_prepare_max`, `T_ready_max`, `T_execute_max`.
+Реализации MUST поддерживать перечисленные таймеры. Default-значения нормативны для interop-развёртываний; deployment policy MAY сократить их, но MUST NOT увеличить без явной downgrade-договорённости.
+
+| Таймер | Default | Владелец | Запускается при | Истекает когда |
+|---|---|---|---|---|
+| `T_prepare_max` | 5 с | Координатор | отправке `PREPARE_TRANSITION` | quorum READY ещё не достигнут |
+| `T_ready_max` | 5 с | Member | приёме `PREPARE_TRANSITION` | локальная обработка commit/welcome не завершена |
+| `T_execute_max` | 10 с | Member | отправке `READY_FOR_TRANSITION` | `EXECUTE_TRANSITION` не получен |
+| `T_quorum_grace` | 2 с | Координатор | истечении `T_prepare_max` | дополнительный grace перед quorum-failure |
+| `T_coordinator_grace` | 10 с | Member | молчании Координатора | разрешён coordinator-handover |
+
+Истечение таймера MUST приводить к детерминированному fallback'у:
+- **`T_prepare_max + T_quorum_grace` у Координатора**: отправить `ABORT_TRANSITION` с `reason_code = ERR_READY_TIMEOUT`. Координатор MAY переисустить PREPARE на следующей эпохе, исключив транспортно-недоступных.
+- **`T_ready_max` у Member'а**: сбросить локальный pending (вернуться в `T_IDLE`). Member MUST NOT отправлять `READY_FOR_TRANSITION` ретроспективно. Если потом приходит `EXECUTE_TRANSITION` для tid, на который не было ready — переход в `RESYNCING` с запросом digest.
+- **`T_execute_max` у Member'а**: предположить что Координатор упал. Триггер `RESYNCING`; при подтверждённом обрыве (transport closed) — участвовать в coordinator-handover по `gbp-control-plane.md` §4.1.
 
 ## 7. IANA Considerations
 Новых действий IANA не требуется.
