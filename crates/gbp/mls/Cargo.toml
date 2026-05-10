@@ -1,0 +1,25 @@
+[package]
+name = "gbp-mls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mls", "rfc9420", "openmls", "aead", "e2ee"]
+categories = ["cryptography", "network-programming"]
+description = "MLS (RFC 9420) integration for the Group Protocol Stack: openmls 0.8 plus a ChaCha20-Poly1305 AEAD layer driven by labelled exporters."
+readme = "README.md"
+
+[lib]
+name = "gbp_mls"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-core                 = { workspace = true }
+openmls                  = { workspace = true }
+openmls_rust_crypto      = { workspace = true }
+openmls_basic_credential = { workspace = true }
+chacha20poly1305         = { workspace = true }
+thiserror                = { workspace = true }

@@ -1,0 +1,26 @@
+[package]
+name = "gbp-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["gbp", "cli", "messaging", "mls"]
+categories = ["command-line-utilities", "cryptography", "network-programming"]
+description = "Reference CLI binary for the Group Protocol Stack: a minimal smoke runner with `listen` and `connect` modes."
+readme = "README.md"
+
+[[bin]]
+name = "gbp-node"
+path = "src/main.rs"
+
+[dependencies]
+gbp-stack          = { workspace = true }
+openmls            = { workspace = true }
+tokio              = { workspace = true }
+anyhow             = { workspace = true }
+hex                = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -1,0 +1,72 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gbp/core",
+    "crates/gbp/base",
+    "crates/gbp/mls",
+    "crates/gbp/transport",
+    "crates/gbp/node",
+    "crates/gbp/stack",
+    "crates/gbp/stack-ffi",
+    "crates/gbp/cli",
+    "crates/gtp",
+    "crates/gap",
+    "crates/gsp",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.92"
+license = "Apache-2.0"
+authors = ["Group Protocol Stack contributors"]
+repository = "https://github.com/F000NKKK/Group-Protocol-Stack"
+homepage = "https://github.com/F000NKKK/Group-Protocol-Stack"
+documentation = "https://docs.rs/gbp-stack"
+readme = "README.md"
+keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
+categories = ["cryptography", "network-programming"]
+
+[workspace.dependencies]
+# Internal — base layer
+gbp-core      = { path = "crates/gbp/core",      version = "0.2.0" }
+gbp-protocol  = { path = "crates/gbp/base",      version = "0.2.0" }
+gbp-mls       = { path = "crates/gbp/mls",       version = "0.2.0" }
+gbp-transport = { path = "crates/gbp/transport", version = "0.2.0" }
+gbp-node      = { path = "crates/gbp/node",      version = "0.2.0" }
+gbp-stack     = { path = "crates/gbp/stack",     version = "0.2.0" }
+
+# Internal — sub-protocols
+gtp-protocol = { path = "crates/gtp", version = "0.2.0" }
+gap-protocol = { path = "crates/gap", version = "0.2.0" }
+gsp-protocol = { path = "crates/gsp", version = "0.2.0" }
+
+# External
+openmls                  = "0.8"
+openmls_rust_crypto      = "0.5"
+openmls_basic_credential = "0.5"
+
+ciborium    = "0.2"
+serde       = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+
+chacha20poly1305 = "0.10"
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time"] }
+
+thiserror          = "2"
+anyhow             = "1"
+hex                = "0.4"
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde_json         = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug = true

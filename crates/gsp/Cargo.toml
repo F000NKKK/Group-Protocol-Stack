@@ -1,0 +1,27 @@
+[package]
+name = "gsp-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mls", "signaling", "membership", "group", "messaging"]
+categories = ["cryptography", "network-programming"]
+description = "Group Signaling Protocol — the signalling sub-protocol of the Group Protocol Stack. Carries membership, role and stream-state events on top of the GBP base layer."
+readme = "README.md"
+
+[lib]
+name = "gsp"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-protocol = { workspace = true }
+gbp-core     = { workspace = true }
+gbp-node     = { workspace = true }
+gbp-mls      = { workspace = true }
+ciborium     = { workspace = true }
+serde        = { workspace = true }
+serde_bytes  = { workspace = true }
+thiserror    = { workspace = true }

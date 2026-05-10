@@ -1,0 +1,234 @@
+# Network Working Group                                             F000NK
+# Internet-Draft                               Voluntas Progressus Team
+# Intended status: Standards Track                                 May 2026
+# Expires: November 2026
+
+# Group Base Protocol (GBP)
+
+## Abstract
+This document specifies the Group Base Protocol (GBP), a secure group transport substrate over QUIC, TLS 1.3, and MLS. GBP defines frame structure, stream multiplexing, epoch transition control, commit ordering behavior, replay boundaries, and recovery procedures for dependent protocols.
+
+## Status of This Memo
+This Internet-Draft is submitted in full conformance with BCP 78 and BCP 79.
+Internet-Drafts are working documents of the Internet Engineering Task Force (IETF).
+
+## 1. Introduction
+GBP defines common transport and cryptographic mechanics for multi-party applications. Upper protocols (GAP, GTP, GSP) inherit membership and epoch semantics from GBP.
+
+## 2. Conventions and Terminology
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" are to be interpreted as described in BCP 14 [RFC2119]
+[RFC8174] when, and only when, they appear in all capitals.
+
+Terms used in this document:
+- GroupID: globally unique group identifier.
+- MemberID: unique participant identifier in GroupID scope.
+- Epoch: MLS generation for active traffic secrets.
+- TransitionID: monotonic identifier for protocol/epoch transition.
+- AS: Authentication Service.
+- DS: Delivery Service.
+
+## 3. Architecture and Trust Model
+GBP runs over QUIC [RFC9000] with TLS 1.3 [RFC8446] and MLS [RFC9420].
+
+An endpoint:
+- MUST maintain one authenticated QUIC connection per active group session.
+- MUST assign Stream 0 to GBP-Control.
+- MUST support StreamType values 0..3.
+- SHOULD isolate congestion and retransmission across stream classes.
+
+Service boundaries:
+- AS binds identities, credentials, and authorization assertions.
+- DS distributes control and data messages and may reorder, delay, or replay traffic.
+
+GBP endpoints MUST treat DS as untrusted for confidentiality and integrity of application payloads.
+
+## 4. Group State Model
+An endpoint state tuple contains:
+- GroupID
+- CurrentEpoch
+- ActiveTransitionID
+- MemberSet
+- ActiveStreams
+- CommitLog
+- ReplayWindow per stream
+
+Membership changes:
+- MUST be driven by valid MLS commit processing.
+- MUST advance epoch monotonically.
+- MUST reject stale commits and unknown credential chains.
+
+## 5. Stream Registry
+Initial StreamType registry:
+- 0 control
+- 1 audio
+- 2 text
+- 3 signal
+
+Unknown StreamType values in non-critical frames MAY be ignored.
+Unknown StreamType values in critical/system context MUST generate a protocol error.
+
+## 6. Wire Format
+
+### 6.1 GBP Frame
+```
+GBPFrame {
+  uint8    version;
+  uint128  group_id;
+  uint64   epoch;
+  uint32   transition_id;
+  uint8    stream_type;
+  uint32   stream_id;
+  uint16   flags;
+  uint32   sequence_no;
+  uint32   payload_size;
+  bytes    encrypted_payload;
+}
+```
+
+Flags:
+- `0x0001` O ordered delivery
+- `0x0002` R reliable delivery
+- `0x0004` A acknowledgment requested
+- `0x0008` S system frame
+- `0x0010` C critical extension frame
+
+### 6.2 Validation
+Receiver MUST validate version, group_id, epoch, transition_id ordering policy, payload_size, and replay window constraints prior to payload dispatch.
+
+Malformed frames MUST be discarded and SHOULD generate NACK with structured error code for control streams.
+
+## 7. Transition Protocol
+GBP defines control messages:
+- `PREPARE_TRANSITION`
+- `READY_FOR_TRANSITION`
+- `EXECUTE_TRANSITION`
+- `ABORT_TRANSITION`
+
+Rules:
+- TransitionID MUST be strictly monotonic per GroupID.
+- All commit-capable members MUST process commit before READY_FOR_TRANSITION.
+- EXECUTE_TRANSITION MUST only occur after all required READY messages or timeout expiration.
+- Timeout fallback MUST be deterministic and documented by deployment policy.
+
+## 8. Commit Ordering and Tie-Break
+If multiple commits are received for the same epoch window:
+1. Prefer the first valid commit by DS receive order.
+2. Break ties by lowest committer MemberID.
+3. Discard all non-winning commits for that TransitionID.
+
+Clients MUST process only one winning commit per TransitionID.
+
+## 9. Replay and Duplicate Handling
+GBP does not fully prevent insider replay.
+Applications MUST include stream-local uniqueness (`sequence_no` + sender context) and maintain replay windows.
+
+Frames outside replay window:
+- MUST be dropped.
+- SHOULD be metered for abuse detection.
+
+## 10. Recovery
+On reconnect:
+1. Request `GroupStateDigest`.
+2. Compare epoch and transition_id.
+3. Request missing control log range.
+4. Perform MLS resync if needed.
+5. Reopen mandatory streams.
+
+Invalid commit or welcome recovery:
+- Endpoint MUST emit `REPORT_INVALID_COMMIT`.
+- Endpoint MUST reset local pending state.
+- Endpoint MUST request fresh key package workflow.
+
+## 11. Error Handling
+Global codes are defined in `gbp-errors-registry.md`.
+
+Core GBP errors:
+- `ERR_UNSUPPORTED_VERSION`
+- `ERR_UNKNOWN_GROUP`
+- `ERR_EPOCH_MISMATCH`
+- `ERR_TRANSITION_MISMATCH`
+- `ERR_REPLAY_DETECTED`
+- `ERR_DECRYPT_FAILED`
+- `ERR_COMMIT_INVALID`
+- `ERR_STREAM_POLICY_VIOLATION`
+
+Each error MUST define class, retryability, and fatality.
+
+## 12. Schemas
+
+### 12.1 CBOR
+```
+{
+  "v": uint,
+  "gid": bstr,
+  "ep": uint,
+  "tid": uint,
+  "st": uint,
+  "sid": uint,
+  "fl": uint,
+  "seq": uint,
+  "psz": uint,
+  "pl": bstr
+}
+```
+
+### 12.2 Protobuf
+```proto
+syntax = "proto3";
+package gbp;
+
+message GBPFrame {
+  uint32 version = 1;
+  bytes group_id = 2;
+  uint64 epoch = 3;
+  uint32 transition_id = 4;
+  uint32 stream_type = 5;
+  uint32 stream_id = 6;
+  uint32 flags = 7;
+  uint32 sequence_no = 8;
+  uint32 payload_size = 9;
+  bytes encrypted_payload = 10;
+}
+```
+
+### 12.3 FlatBuffers
+```fbs
+namespace gbp;
+
+table GBPFrame {
+  version:ubyte;
+  group_id:[ubyte];
+  epoch:ulong;
+  transition_id:uint;
+  stream_type:ubyte;
+  stream_id:uint;
+  flags:ushort;
+  sequence_no:uint;
+  payload_size:uint;
+  encrypted_payload:[ubyte];
+}
+
+root_type GBPFrame;
+```
+
+## 13. IANA Considerations
+IANA is requested to create:
+- GBP StreamType Registry
+- GBP Control Message Type Registry
+- GBP Error Code Registry
+
+Initial values are provided in this document and companion registries.
+
+## 14. Security Considerations
+Security depends on MLS state convergence and endpoint authorization enforcement. Implementations MUST enforce downgrade resistance, strict epoch/transition validation, replay window checks, and key erasure after epoch rollover. DS compromise MUST be assumed in threat analysis.
+
+## 15. References
+### 15.1 Normative References
+- [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels".
+- [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words".
+- [RFC8446] Rescorla, E., "The Transport Layer Security (TLS) Protocol Version 1.3".
+- [RFC8949] Bormann, C. and P. Hoffman, "Concise Binary Object Representation (CBOR)".
+- [RFC9000] Iyengar, J. and M. Thomson, "QUIC: A UDP-Based Multiplexed and Secure Transport".
+- [RFC9420] Barnes, R., et al., "The Messaging Layer Security (MLS) Protocol".

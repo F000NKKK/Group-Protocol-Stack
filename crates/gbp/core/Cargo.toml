@@ -1,0 +1,17 @@
+[package]
+name = "gbp-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mls", "group", "messaging", "protocol"]
+categories = ["cryptography", "network-programming", "no-std"]
+description = "Core type vocabulary for the Group Broadcast Protocol stack: stream classes, frame flags, FSM states, opcodes and the error code registry."
+readme = "README.md"
+
+[lib]
+name = "gbp_core"
+path = "src/lib.rs"

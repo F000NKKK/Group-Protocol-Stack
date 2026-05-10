@@ -1,0 +1,26 @@
+[package]
+name = "gbp-stack-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["ffi", "gbp", "cdylib", "pinvoke", "interop"]
+categories = ["external-ffi-bindings", "cryptography", "network-programming"]
+description = "C ABI surface (cdylib) for the Group Protocol Stack: handle-based API for MLS, the GBP node and the GTP/GAP/GSP clients. Designed to be consumed via P/Invoke or any FFI-capable runtime."
+readme = "README.md"
+
+[lib]
+name = "gbp_stack"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gbp-stack   = { workspace = true }
+openmls     = { workspace = true }
+serde       = { workspace = true }
+serde_bytes = { workspace = true }
+hex         = { workspace = true }
+serde_json  = { workspace = true }

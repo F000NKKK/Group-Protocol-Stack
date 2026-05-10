@@ -1,0 +1,24 @@
+[package]
+name = "gbp-node"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["gbp", "mls", "group", "messaging", "e2ee"]
+categories = ["cryptography", "network-programming"]
+description = "GBP-layer group node: framing, AEAD, replay window, control plane and FSM. Sub-protocols (gtp/gap/gsp) build on top of this crate."
+readme = "README.md"
+
+[lib]
+name = "gbp_node"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-core     = { workspace = true }
+gbp-protocol = { workspace = true }
+gbp-mls      = { workspace = true }
+tracing      = { workspace = true }
+thiserror    = { workspace = true }

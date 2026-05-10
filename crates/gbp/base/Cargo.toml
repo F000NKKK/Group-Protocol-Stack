@@ -1,0 +1,24 @@
+[package]
+name = "gbp-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
+categories = ["cryptography", "network-programming"]
+description = "Group Broadcast Protocol base layer: GbpFrame (CBOR), control plane and error object. The IP-like substrate that GTP, GAP and GSP build on top of."
+readme = "README.md"
+
+[lib]
+name = "gbp"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-core    = { workspace = true }
+ciborium    = { workspace = true }
+serde       = { workspace = true }
+serde_bytes = { workspace = true }
+thiserror   = { workspace = true }

@@ -1,0 +1,27 @@
+[package]
+name = "gbp-stack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
+categories = ["cryptography", "network-programming"]
+description = "Top-level facade for the Group Protocol Stack: re-exports gbp-core, gbp-protocol, gtp-protocol, gap-protocol, gsp-protocol, gbp-mls, gbp-transport and gbp-node."
+readme = "README.md"
+
+[lib]
+name = "gbp_stack"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-core      = { workspace = true }
+gbp-protocol  = { workspace = true }
+gtp-protocol  = { workspace = true }
+gap-protocol  = { workspace = true }
+gsp-protocol  = { workspace = true }
+gbp-mls       = { workspace = true }
+gbp-transport = { workspace = true }
+gbp-node      = { workspace = true }

@@ -1,0 +1,22 @@
+[package]
+name = "gbp-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["gbp", "transport", "tokio", "tcp", "framing"]
+categories = ["network-programming"]
+description = "Length-prefixed wire transport for the Group Protocol Stack over TCP, intended as a stand-in until a QUIC binding lands."
+readme = "README.md"
+
+[lib]
+name = "gbp_transport"
+path = "src/lib.rs"
+
+[dependencies]
+gbp-protocol = { workspace = true }
+tokio        = { workspace = true }
+thiserror    = { workspace = true }
