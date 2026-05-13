@@ -34,5 +34,5 @@ pub use errors::{ErrorClass, codes};
 pub use flags::GbpFlags;
 pub use ids::{Epoch, GroupId, MemberId, SequenceNo, StreamId, TransitionId};
 pub use signal::SignalType;
-pub use state::{NodeState, SubprotocolState, TransitionState};
+pub use state::{NodeState, SubprotocolState, TransitionState, timeouts};
 pub use stream::StreamType;

@@ -38,7 +38,7 @@ BCP 14 применяется.
                     (RFC 9420 §12 требует явного merge через finalize).
  3   Координатор    next_tid = last_transition_id + 1.
  4   Координатор    Broadcast PREPARE_TRANSITION всем оставшимся Active-членам
-                    (target = 0), args = { commit: commit_bytes, removed: target }.
+                    (target = 0), args = commit_bytes.
                     Уходящий участник в рассылке НЕ участвует.
  5   Каждый         Применить commit через mls.process_message(commit_bytes);
      оставшийся     MLS-state продвигается. Отправить READY_FOR_TRANSITION

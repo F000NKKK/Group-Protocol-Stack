@@ -151,9 +151,11 @@ GBPFrame {
   "v": uint,
   "gid": bstr,
   "ep": uint,
+  "tid": uint,
   "st": uint,
   "sid": uint,
   "fl": uint,
+  "seq": uint,
   "psz": uint,
   "pl": bstr
 }
@@ -168,11 +170,13 @@ message GBPFrame {
   uint32 version = 1;
   bytes group_id = 2;
   uint64 epoch = 3;
-  uint32 stream_type = 4;
-  uint32 stream_id = 5;
-  uint32 flags = 6;
-  uint32 payload_size = 7;
-  bytes encrypted_payload = 8;
+  uint32 transition_id = 4;
+  uint32 stream_type = 5;
+  uint32 stream_id = 6;
+  uint32 flags = 7;
+  uint32 sequence_no = 8;
+  uint32 payload_size = 9;
+  bytes encrypted_payload = 10;
 }
 ```
 
@@ -184,9 +188,11 @@ table GBPFrame {
   version:ubyte;
   group_id:[ubyte];
   epoch:ulong;
+  transition_id:uint;
   stream_type:ubyte;
   stream_id:uint;
   flags:ushort;
+  sequence_no:uint;
   payload_size:uint;
   encrypted_payload:[ubyte];
 }

@@ -81,12 +81,27 @@ The DS does not guarantee that a joiner's Welcome arrives before the existing me
 
 Implementations MUST be robust to both orderings.
 
-## 9. Security Considerations
+## 9. Per-Stream AEAD
+
+GBP derives per-stream AEAD keys from the MLS exporter (RFC 9420 §8.5) using the following labelled secrets:
+
+| Stream | Exporter Label | AEAD Cipher | Nonce (12 bytes) |
+|--------|---------------|-------------|------------------|
+| Control | `gbp/control` | ChaCha20-Poly1305 | `seq.to_be_bytes()` in bytes 0–3, bytes 4–11 zero |
+| Audio | `gbp/audio` | ChaCha20-Poly1305 | `seq.to_be_bytes()` in bytes 0–3, bytes 4–11 zero |
+| Text | `gbp/text` | ChaCha20-Poly1305 | `seq.to_be_bytes()` in bytes 0–3, bytes 4–11 zero |
+| Signal | `gbp/signal` | ChaCha20-Poly1305 | `seq.to_be_bytes()` in bytes 0–3, bytes 4–11 zero |
+
+`seq` is the per-stream 32-bit monotonic sequence number from the GBP frame (`sequence_no` field), encoded as big-endian. The remaining 8 bytes of the 12-byte nonce are zero-filled. A 32-bit key (`export_secret` with `key_length = 32`) is exported at each epoch change; the key material is derived on the fly and never cached across epochs.
+
+The normative MLS ciphersuite for this binding is `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` (Ciphersuite ID 0x0001).
+
+## 10. Security Considerations
 - The Coordinator's MLS state advances eagerly (step 1 of §7). If the transition aborts, the Coordinator MUST be able to roll back to the pre-commit state. RFC 9420 §12 supports this only if `merge_pending_commit` has not been called yet. Implementations SHOULD therefore defer the merge until READY quorum is observed; if the wrapper merges eagerly, an abort requires re-bootstrap of the Coordinator's MLS context (acceptable in deployments where Coordinator-side abort is rare, but MUST be documented as a known cost).
 - Welcome messages MUST be sent over a confidential transport. Disclosure of the Welcome to any party other than the intended joiner allows that party to reconstruct the new epoch's secrets.
 - An attacker who replays a stale PREPARE+Commit MUST be detected via TransitionID monotonicity (`gbp_rfc.md` §8).
 
-## 10. References
+## 11. References
 ### 10.1 Normative References
 - [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels".
 - [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words".

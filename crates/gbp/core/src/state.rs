@@ -99,6 +99,20 @@ impl TransitionState {
     }
 }
 
+/// Timeout defaults normative for interoperable deployments (gbp-state-machine §6).
+pub mod timeouts {
+    /// Coordinator: max wait for READY quorum after issuing PREPARE_TRANSITION.
+    pub const T_PREPARE_MAX_MS: u64 = 5_000;
+    /// Member: max time to complete local commit / welcome processing.
+    pub const T_READY_MAX_MS: u64 = 5_000;
+    /// Member: max wait for EXECUTE_TRANSITION after sending READY_FOR_TRANSITION.
+    pub const T_EXECUTE_MAX_MS: u64 = 10_000;
+    /// Coordinator: extra slack before declaring quorum failure.
+    pub const T_QUORUM_GRACE_MS: u64 = 2_000;
+    /// Member: silence threshold before triggering coordinator handover.
+    pub const T_COORDINATOR_GRACE_MS: u64 = 10_000;
+}
+
 /// Sub-protocol activation FSM.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SubprotocolState {

@@ -53,7 +53,7 @@ Endpoints:
 - MUST treat repeated `(sender_id, message_id)` as idempotent duplicates.
 - MUST verify `content_length` against actual body size.
 - SHOULD preserve order for streams with ordered delivery.
-- MUST preserve per-sender dedupe cache for at least `max(2*RTT, 30s)`.
+- MUST preserve per-sender dedupe cache for the current epoch. The default implementation uses an LRU-bounded set of 10 000 entries per epoch; time-based eviction (`max(2*RTT, 30s)`) is an acceptable alternative for deployments with predictable RTT bounds.
 - SHOULD support ACK and NACK envelopes carrying `request_id`.
 
 ## 6. Attachments

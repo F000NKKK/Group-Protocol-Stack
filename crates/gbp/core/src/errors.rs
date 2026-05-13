@@ -65,15 +65,29 @@ pub mod codes {
     pub const STREAM_POLICY_VIOLATION: u16 = 0x0008;
     /// A second commit arrived while a pending transition is in progress.
     pub const TRANSITION_IN_PROGRESS: u16 = 0x0009;
+    /// Coordinator timed out waiting for READY quorum.
+    pub const PREPARE_TIMEOUT: u16 = 0x0010;
+    /// Member timed out before completing local commit processing.
+    pub const READY_TIMEOUT: u16 = 0x0011;
+    /// Member timed out waiting for EXECUTE_TRANSITION after READY.
+    pub const EXECUTE_TIMEOUT: u16 = 0x0012;
+    /// Coordinator transport lost; handover required.
+    pub const COORDINATOR_GONE: u16 = 0x0013;
+    /// member_set_root_hash mismatch on Resync.
+    pub const DIGEST_MISMATCH: u16 = 0x0014;
 
     /// Unknown audio source.
     pub const GAP_BAD_SOURCE_ID: u16 = 0x1001;
     /// Opus decoder error.
     pub const GAP_DECODE_FAILED: u16 = 0x1002;
+    /// AEAD authentication failed at the GAP layer.
+    pub const GAP_AUTH_FAILED: u16 = 0x1003;
     /// rtp_sequence already seen for this source.
-    pub const GAP_REPLAY_DETECTED: u16 = 0x1003;
+    pub const GAP_REPLAY_DETECTED: u16 = 0x1004;
     /// key_phase points at a stale epoch.
-    pub const GAP_EPOCH_STALE: u16 = 0x1004;
+    pub const GAP_EPOCH_STALE: u16 = 0x1005;
+    /// key_phase refers to an unknown epoch.
+    pub const GAP_KEY_PHASE_UNKNOWN: u16 = 0x1006;
 
     /// content_length does not match the body length.
     pub const GTP_BAD_LENGTH: u16 = 0x2001;
@@ -83,6 +97,10 @@ pub mod codes {
     pub const GTP_DUPLICATE_MESSAGE: u16 = 0x2003;
     /// Message rejected by the policy layer (retention / quota / …).
     pub const GTP_POLICY_REJECTED: u16 = 0x2004;
+    /// Attachment integrity check failed.
+    pub const GTP_ATTACHMENT_INTEGRITY: u16 = 0x2005;
+    /// Request timed out.
+    pub const GTP_REQUEST_TIMEOUT: u16 = 0x2006;
 
     /// Invalid args schema for the given signal_type.
     pub const GSP_BAD_SCHEMA: u16 = 0x3001;
@@ -94,6 +112,8 @@ pub mod codes {
     pub const GSP_DUPLICATE_REQUEST: u16 = 0x3004;
     /// Signal contradicts the current state.
     pub const GSP_STATE_CONFLICT: u16 = 0x3005;
+    /// Signal precondition not met.
+    pub const GSP_PRECONDITION_FAILED: u16 = 0x3006;
 }
 
 /// Compile-time descriptor: code plus its `retryable` / `fatal` semantics.
@@ -128,19 +148,29 @@ impl ErrorSpec {
             COMMIT_INVALID => spec(code, ErrorClass::Crypto, false, true, "ERR_COMMIT_INVALID"),
             STREAM_POLICY_VIOLATION => spec(code, ErrorClass::Policy, false, false, "ERR_STREAM_POLICY_VIOLATION"),
             TRANSITION_IN_PROGRESS => spec(code, ErrorClass::State, false, false, "ERR_TRANSITION_IN_PROGRESS"),
+            PREPARE_TIMEOUT => spec(code, ErrorClass::State, true, false, "ERR_PREPARE_TIMEOUT"),
+            READY_TIMEOUT => spec(code, ErrorClass::State, true, false, "ERR_READY_TIMEOUT"),
+            EXECUTE_TIMEOUT => spec(code, ErrorClass::State, true, false, "ERR_EXECUTE_TIMEOUT"),
+            COORDINATOR_GONE => spec(code, ErrorClass::State, true, false, "ERR_COORDINATOR_GONE"),
+            DIGEST_MISMATCH => spec(code, ErrorClass::State, false, true, "ERR_DIGEST_MISMATCH"),
             GAP_BAD_SOURCE_ID => spec(code, ErrorClass::Schema, false, false, "ERR_GAP_BAD_SOURCE_ID"),
             GAP_DECODE_FAILED => spec(code, ErrorClass::Schema, false, false, "ERR_GAP_DECODE_FAILED"),
+            GAP_AUTH_FAILED => spec(code, ErrorClass::Crypto, false, false, "ERR_GAP_AUTH_FAILED"),
             GAP_REPLAY_DETECTED => spec(code, ErrorClass::Crypto, false, false, "ERR_GAP_REPLAY_DETECTED"),
             GAP_EPOCH_STALE => spec(code, ErrorClass::Crypto, false, false, "ERR_GAP_EPOCH_STALE"),
+            GAP_KEY_PHASE_UNKNOWN => spec(code, ErrorClass::Crypto, false, false, "ERR_GAP_KEY_PHASE_UNKNOWN"),
             GTP_BAD_LENGTH => spec(code, ErrorClass::Schema, false, false, "ERR_GTP_BAD_LENGTH"),
             GTP_UNSUPPORTED_CONTENT_TYPE => spec(code, ErrorClass::Schema, false, false, "ERR_GTP_UNSUPPORTED_CONTENT_TYPE"),
             GTP_DUPLICATE_MESSAGE => spec(code, ErrorClass::Policy, false, false, "ERR_GTP_DUPLICATE_MESSAGE"),
             GTP_POLICY_REJECTED => spec(code, ErrorClass::Policy, false, false, "ERR_GTP_POLICY_REJECTED"),
+            GTP_ATTACHMENT_INTEGRITY => spec(code, ErrorClass::Schema, false, false, "ERR_GTP_ATTACHMENT_INTEGRITY"),
+            GTP_REQUEST_TIMEOUT => spec(code, ErrorClass::State, true, false, "ERR_GTP_REQUEST_TIMEOUT"),
             GSP_BAD_SCHEMA => spec(code, ErrorClass::Schema, false, false, "ERR_GSP_BAD_SCHEMA"),
             GSP_UNAUTHORIZED => spec(code, ErrorClass::Authz, false, false, "ERR_GSP_UNAUTHORIZED"),
             GSP_UNKNOWN_SIGNAL => spec(code, ErrorClass::Schema, false, false, "ERR_GSP_UNKNOWN_SIGNAL"),
             GSP_DUPLICATE_REQUEST => spec(code, ErrorClass::Policy, false, false, "ERR_GSP_DUPLICATE_REQUEST"),
             GSP_STATE_CONFLICT => spec(code, ErrorClass::State, true, false, "ERR_GSP_STATE_CONFLICT"),
+            GSP_PRECONDITION_FAILED => spec(code, ErrorClass::State, false, false, "ERR_GSP_PRECONDITION_FAILED"),
             _ => return None,
         })
     }

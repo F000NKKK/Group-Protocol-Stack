@@ -70,6 +70,21 @@ Initial StreamType registry:
 Unknown StreamType values in non-critical frames MAY be ignored.
 Unknown StreamType values in critical/system context MUST generate a protocol error.
 
+### 5.1 Stream Multiplexing
+Each member exposes one logical stream per (StreamType, member) pair. The per-member `stream_id` is computed as:
+
+```
+stream_id = base_class + member_id * 100
+```
+
+where `base_class` is the protocol-wide base for the stream class:
+- Control: `base = 0`
+- Text (GTP): `base = 1`
+- Audio (GAP): `base = 2`
+- Signal (GSP): `base = 3`
+
+The factor `100` ensures non-overlapping `stream_id` ranges for up to `1_000_000` members per group. Implementations MUST enforce `member_id < 1_000_000` via `debug_assert!`.
+
 ## 6. Wire Format
 
 ### 6.1 GBP Frame

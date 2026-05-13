@@ -25,7 +25,7 @@ GAP передает Opus-кадры в рамках общей защищенн
 ## 4.  Ключевая модель
 - `MediaMasterKey`
 - `MediaSalt`
-- `MediaEncryptionKey = HKDF(MediaMasterKey, MediaSalt, "audio/srtp")`
+- `MediaEncryptionKey = HKDF(MediaMasterKey, MediaSalt, "audio/sender")`
 - `MediaAuthenticationKey = HKDF(MediaMasterKey, MediaSalt, "audio/auth")`
 
 Производные SRTP-ключи MUST NOT передаваться по сети.
@@ -56,8 +56,10 @@ GAPPayload {
 ## 8.  Ошибки
 - `ERR_GAP_BAD_SOURCE_ID`
 - `ERR_GAP_DECODE_FAILED`
+- `ERR_GAP_AUTH_FAILED`
 - `ERR_GAP_REPLAY_DETECTED`
 - `ERR_GAP_EPOCH_STALE`
+- `ERR_GAP_KEY_PHASE_UNKNOWN`
 
 ## 9.  Схемы сообщений
 
@@ -81,7 +83,8 @@ message GAPPayload {
   uint32 media_source_id = 1;
   uint32 rtp_sequence = 2;
   uint64 rtp_timestamp = 3;
-  bytes opus_frame = 4;
+  uint32 key_phase = 4;
+  bytes opus_frame = 5;
 }
 ```
 
@@ -93,6 +96,7 @@ table GAPPayload {
   media_source_id:uint;
   rtp_sequence:ushort;
   rtp_timestamp:ulong;
+  key_phase:uint;
   opus_frame:[ubyte];
 }
 

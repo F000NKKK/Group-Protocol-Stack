@@ -61,6 +61,8 @@ ContentType:
 - `ERR_GTP_UNSUPPORTED_CONTENT_TYPE`
 - `ERR_GTP_DUPLICATE_MESSAGE`
 - `ERR_GTP_POLICY_REJECTED`
+- `ERR_GTP_ATTACHMENT_INTEGRITY`
+- `ERR_GTP_REQUEST_TIMEOUT`
 
 ## 9.  Схемы сообщений
 
@@ -87,10 +89,11 @@ message GTPMessage {
   uint64 message_id = 1;
   uint32 sender_id = 2;
   uint64 timestamp_ms = 3;
-  uint32 flags = 4;
-  uint32 content_type = 5;
-  uint32 content_length = 6;
-  bytes content = 7;
+  uint32 request_id = 4;
+  uint32 flags = 5;
+  uint32 content_type = 6;
+  uint32 content_length = 7;
+  bytes content = 8;
 }
 ```
 
@@ -102,6 +105,7 @@ table GTPMessage {
   message_id:ulong;
   sender_id:uint;
   timestamp_ms:ulong;
+  request_id:uint;
   flags:ubyte;
   content_type:ubyte;
   content_length:uint;

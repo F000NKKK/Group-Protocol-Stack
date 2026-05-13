@@ -46,7 +46,7 @@ pub use gtp::{GtpAccept, GtpClient, GtpError, GtpMessage};
 
 pub use gbp_core::{
     BoundedSeen, ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SignalType,
-    StreamType, TransitionState, codes,
+    StreamType, TransitionState, codes, timeouts,
 };
 
 pub use gbp_mls::{MlsContext, ProcessedKind, StreamLabel, label_for};

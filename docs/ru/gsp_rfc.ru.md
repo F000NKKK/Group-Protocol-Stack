@@ -58,6 +58,7 @@ GSPSignal {
 - `ERR_GSP_UNKNOWN_SIGNAL`
 - `ERR_GSP_DUPLICATE_REQUEST`
 - `ERR_GSP_STATE_CONFLICT`
+- `ERR_GSP_PRECONDITION_FAILED`
 
 ## 9.  Схемы сообщений
 
@@ -82,8 +83,9 @@ message GSPSignal {
   uint32 signal_type = 1;
   uint32 request_id = 2;
   uint32 sender_id = 3;
-  uint32 args_length = 4;
-  bytes args_cbor = 5;
+  uint32 role_claim = 4;
+  uint32 args_length = 5;
+  bytes args_cbor = 6;
 }
 ```
 
@@ -95,6 +97,7 @@ table GSPSignal {
   signal_type:ushort;
   request_id:uint;
   sender_id:uint;
+  role_claim:uint;
   args_length:uint;
   args:[ubyte];
 }
