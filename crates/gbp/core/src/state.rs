@@ -33,6 +33,7 @@ impl NodeState {
         matches!(
             (self, next),
             (Idle, Connecting)
+                | (Idle, Failed)
                 | (Connecting, EstablishingGroup)
                 | (Connecting, Failed)
                 | (EstablishingGroup, Active)
@@ -76,6 +77,26 @@ pub enum TransitionState {
     TExecuted,
     /// Transition was aborted (`ABORT_TRANSITION` or timeout).
     TAborted,
+}
+
+impl TransitionState {
+    /// Returns `true` if the transition `self -> next` is allowed by the
+    /// state-machine specification (gbp-state-machine §4).
+    pub fn can_transition_to(self, next: TransitionState) -> bool {
+        use TransitionState::*;
+        matches!(
+            (self, next),
+            (TIdle, TPrepared)
+                | (TPrepared, TCommitProcessed)
+                | (TPrepared, TAborted)
+                | (TCommitProcessed, TReady)
+                | (TCommitProcessed, TAborted)
+                | (TReady, TExecuted)
+                | (TReady, TAborted)
+                | (TExecuted, TIdle)
+                | (TAborted, TIdle)
+        )
+    }
 }
 
 /// Sub-protocol activation FSM.

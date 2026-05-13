@@ -25,12 +25,30 @@ pub struct GapPayload {
 }
 
 impl GapPayload {
-    /// Builds a 20 ms Opus frame at 48 kHz (`rtp_timestamp = 960`).
+    /// Builds a 20 ms Opus frame at 48 kHz (960 samples).
     pub fn opus_20ms(media_source_id: u32, rtp_sequence: u16, key_phase: u32, opus: Vec<u8>) -> Self {
         Self {
             media_source_id,
             rtp_sequence: rtp_sequence as u32,
             rtp_timestamp: 960,
+            key_phase,
+            opus_frame: ByteBuf::from(opus),
+        }
+    }
+
+    /// Builds an Opus frame with an explicit `rtp_timestamp`.
+    /// Prefer [`GapPayload::opus_20ms`] for the common 48 kHz / 20 ms case.
+    pub fn with_timestamp(
+        media_source_id: u32,
+        rtp_sequence: u16,
+        rtp_timestamp: u64,
+        key_phase: u32,
+        opus: Vec<u8>,
+    ) -> Self {
+        Self {
+            media_source_id,
+            rtp_sequence: rtp_sequence as u32,
+            rtp_timestamp,
             key_phase,
             opus_frame: ByteBuf::from(opus),
         }

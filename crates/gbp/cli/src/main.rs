@@ -80,9 +80,16 @@ async fn run_connector(addr: &str) -> anyhow::Result<()> {
         .validate(alice.provider.crypto(), ProtocolVersion::Mls10)
         .map_err(|e| anyhow::anyhow!("bob kp validate: {e:?}"))?;
 
-    let welcome = alice
-        .invite(&[bob_kp])
+    let (commit, welcome) = alice
+        .invite_full(&[bob_kp])
         .map_err(|e| anyhow::anyhow!("invite: {e}"))?;
+    // In a real app the Commit MUST be broadcast to all existing members
+    // BEFORE calling finalize_pending_commit. Here there are no other members,
+    // so we finalize immediately (simulating the coordinator path).
+    alice
+        .finalize_pending_commit()
+        .map_err(|e| anyhow::anyhow!("finalize: {e}"))?;
+    tracing::info!(commit_len = commit.len(), "commit ready for broadcast");
     write_blob(&mut sock, &welcome).await?;
 
     let gtp = GtpMessage::plain(1, 0xCAFE_F00D, "hello over real MLS");

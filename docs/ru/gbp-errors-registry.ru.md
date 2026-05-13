@@ -43,8 +43,9 @@ ErrorObject {
 - `0xF000-0xFFFF` Private use
 
 ## 5. Начальные коды
-Используются начальные наборы кодов из EN-версии документа. Полный список в `gbp-errors-registry.md`. Дополнительно к базовым `0x0001..0x0008` определены коды для control-plane таймаутов:
+Используются начальные наборы кодов из EN-версии документа. Полный список в `gbp-errors-registry.md`. Дополнительно к базовым `0x0001..0x0009` определены коды для control-plane таймаутов:
 
+- `0x0009 ERR_TRANSITION_IN_PROGRESS` — Второй commit пришёл при активном pending transition
 - `0x0010 ERR_PREPARE_TIMEOUT` — Координатор не дождался quorum READY
 - `0x0011 ERR_READY_TIMEOUT` — Member не успел применить commit/welcome за `T_ready_max`
 - `0x0012 ERR_EXECUTE_TIMEOUT` — Member не дождался EXECUTE_TRANSITION после READY
@@ -64,6 +65,7 @@ ErrorObject {
 | `0x0006 ERR_DECRYPT_FAILED` | true | false | Фрейм запечатан под другую MLS-эпоху (например PREPARE для свежего joiner'а) — нода MUST продолжать работу для следующего EXECUTE на общей эпохе. На повторных failures допустим Resync. |
 | `0x0007 ERR_COMMIT_INVALID` | false | true | Stack-level integrity нарушен; abort transition + fresh KeyPackage |
 | `0x0008 ERR_STREAM_POLICY_VIOLATION` | false | false | Дроп; deployment-policy решает escalation |
+| `0x0009 ERR_TRANSITION_IN_PROGRESS` | false | false | Вызывающая сторона MUST сначала finalise или clear pending commit |
 | `0x0010 ERR_PREPARE_TIMEOUT` | true | false | Координатор MAY переисустить PREPARE на следующем tid |
 | `0x0011 ERR_READY_TIMEOUT` | true | false | Member возвращается в `T_IDLE` |
 | `0x0012 ERR_EXECUTE_TIMEOUT` | true | false | Trigger Resync; участвовать в handover |

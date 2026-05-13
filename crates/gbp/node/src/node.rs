@@ -198,6 +198,7 @@ impl GroupNode {
     /// This is used so that the receiver's replay window does not conflate
     /// streams that originate from different members.
     pub fn member_stream_id(&self, base: u32) -> StreamId {
+        debug_assert!(self.member_id < 1_000_000, "member_id overflow: {0}", self.member_id);
         base + self.member_id * 100
     }
 
@@ -304,13 +305,7 @@ impl GroupNode {
         let frame = match GbpFrame::decode(wire) {
             Ok(f) => f,
             Err(e) => {
-                self.emit_err_named(
-                    codes::DECRYPT_FAILED,
-                    ErrorClass::Schema,
-                    false,
-                    false,
-                    format!("frame decode: {e}"),
-                );
+                self.emit_err_spec(codes::STREAM_POLICY_VIOLATION, format!("frame decode: {e}"));
                 return Ok(self.drain_events());
             }
         };
@@ -338,13 +333,7 @@ impl GroupNode {
             return Ok(());
         }
         if let Err(e) = frame.validate_payload_size() {
-            self.emit_err_named(
-                codes::DECRYPT_FAILED,
-                ErrorClass::Schema,
-                false,
-                false,
-                format!("payload size: {e}"),
-            );
+            self.emit_err_spec(codes::STREAM_POLICY_VIOLATION, format!("payload size: {e}"));
             return Ok(());
         }
         let flags = GbpFlags::from_bits(frame.flags);
@@ -567,6 +556,13 @@ impl GroupNode {
         reason: impl Into<String>,
     ) {
         let reason = reason.into();
+        // ErrorSpec is authoritative for known codes — use its class/retryable/fatal
+        // so that the wire error always matches the registry.
+        let (class, retryable, fatal) = if let Some(spec) = ErrorSpec::lookup(code) {
+            (spec.class, spec.retryable, spec.fatal)
+        } else {
+            (class, retryable, fatal)
+        };
         let _ = ErrorObject::new(code, class, retryable, fatal, reason.clone()).to_cbor();
         self.events.push(Event::Error { code, class, retryable, fatal, reason });
         if fatal {

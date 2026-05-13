@@ -91,6 +91,13 @@ impl CapabilitiesNegotiator {
     pub fn is_empty(&self) -> bool {
         self.advertised.is_empty()
     }
+
+    /// Clears all advertisements. Call on epoch advance for symmetry with
+    /// [`GapClient::sync_epoch`], [`GtpClient::sync_epoch`] and
+    /// [`GspClient::sync_epoch`].
+    pub fn reset_for_epoch(&mut self) {
+        self.advertised.clear();
+    }
 }
 
 #[cfg(test)]

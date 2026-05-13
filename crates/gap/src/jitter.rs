@@ -31,6 +31,8 @@ impl SourceState {
         if self.waiting.iter().any(|q| q.rtp_sequence == p.rtp_sequence) {
             return None;
         }
+        // O(n) linear scan — n ≤ 16 in practice (Opus frame window), so this
+        // is cheaper than a BTreeMap for tiny N.
         let pos = self
             .waiting
             .iter()

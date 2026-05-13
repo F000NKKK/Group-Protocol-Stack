@@ -114,7 +114,9 @@ impl GapClient {
             return Err(GapError::EpochStale { kp: p.key_phase, expected: current_epoch as u32 });
         }
         let hw = self.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
-        if p.rtp_sequence <= hw {
+        // RFC 3550 §A.1: 16-bit wraparound detection. After 0xFFFF→0x0000
+        // a naive `<= hw` would reject every frame for the rest of the epoch.
+        if p.rtp_sequence <= hw && hw.wrapping_sub(p.rtp_sequence) <= 0x7FFF {
             return Ok(GapAccept::Late(p));
         }
         self.in_hw.insert(p.media_source_id, p.rtp_sequence);
@@ -137,5 +139,49 @@ impl GapClient {
         self.out_rtp_seq.clear();
         self.in_hw.clear();
         self.current_epoch = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_payload(seq: u32, key_phase: u32) -> Vec<u8> {
+        crate::GapPayload {
+            media_source_id: 1,
+            rtp_sequence: seq,
+            rtp_timestamp: 960,
+            key_phase,
+            opus_frame: serde_bytes::ByteBuf::from(b"opus-data".to_vec()),
+        }
+        .to_cbor()
+    }
+
+    #[test]
+    fn wraparound_after_ffff_is_accepted() {
+        let mut client = GapClient::new();
+        // Prime the high-water mark near wraparound point.
+        let _ = client.accept(&make_payload(0xFFFE, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(0xFFFF, 1), 1).unwrap();
+        // After wraparound, seq=0 should be accepted as New, not Late.
+        let result = client.accept(&make_payload(0x0000, 1), 1).unwrap();
+        assert!(matches!(result, GapAccept::New(_)), "seq=0 after 0xFFFF must be New");
+    }
+
+    #[test]
+    fn strict_replay_within_window_is_late() {
+        let mut client = GapClient::new();
+        let _ = client.accept(&make_payload(100, 1), 1).unwrap();
+        let result = client.accept(&make_payload(100, 1), 1).unwrap();
+        assert!(matches!(result, GapAccept::Late(_)), "exact dup must be Late");
+    }
+
+    #[test]
+    fn epoch_change_clears_window() {
+        let mut client = GapClient::new();
+        let _ = client.accept(&make_payload(1, 1), 1).unwrap();
+        // Epoch change: seq 1 was seen in epoch 1, but in epoch 2 it's new again.
+        let result = client.accept(&make_payload(1, 2), 2).unwrap();
+        assert!(matches!(result, GapAccept::New(_)), "new epoch resets window");
     }
 }

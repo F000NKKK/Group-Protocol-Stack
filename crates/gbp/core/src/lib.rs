@@ -19,6 +19,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod bounded;
 pub mod control;
 pub mod errors;
 pub mod flags;
@@ -27,6 +28,7 @@ pub mod signal;
 pub mod state;
 pub mod stream;
 
+pub use bounded::BoundedSeen;
 pub use control::ControlOpcode;
 pub use errors::{ErrorClass, codes};
 pub use flags::GbpFlags;

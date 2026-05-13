@@ -2,9 +2,8 @@
 
 use crate::GtpMessage;
 use gbp::CodecError;
-use gbp_core::{GbpFlags, MemberId, StreamType};
+use gbp_core::{BoundedSeen, GbpFlags, MemberId, StreamType};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
-use std::collections::HashSet;
 
 /// Errors returned by [`GtpClient`].
 #[derive(Debug, thiserror::Error)]
@@ -34,25 +33,29 @@ pub enum GtpAccept {
     Duplicate(GtpMessage),
 }
 
+/// Per-epoch message dedup capacity (GTP §5).
+const GTP_SEEN_CAP: usize = 10_000;
+
 /// Stateful GTP client.
 ///
 /// Tracks the set of already-seen `(sender_id, message_id)` pairs to enforce
-/// the idempotency contract of GTP §5.
+/// the idempotency contract of GTP §5. The seen-set is LRU-bounded at
+/// [`GTP_SEEN_CAP`] entries per epoch to prevent unbounded memory growth
+/// in long-lived groups.
 ///
 /// The client observes the current group epoch on every [`GtpClient::send`]
 /// or [`GtpClient::accept`] call and automatically clears its idempotency
 /// set when the epoch advances. Callers may also drive a reset explicitly
 /// via [`GtpClient::reset`].
-#[derive(Default)]
 pub struct GtpClient {
-    seen: HashSet<(MemberId, u64)>,
+    seen: BoundedSeen<(MemberId, u64)>,
     current_epoch: Option<u64>,
 }
 
 impl GtpClient {
     /// Creates an empty client.
     pub fn new() -> Self {
-        Self::default()
+        Self { seen: BoundedSeen::new(GTP_SEEN_CAP), current_epoch: None }
     }
 
     /// Sends a text message via the given GBP node and AEAD sealer.

@@ -27,6 +27,6 @@ gbp-transport = { workspace = true }
 gbp-node      = { workspace = true }
 
 [dev-dependencies]
-openmls             = "0.8"
-openmls_traits      = "0.5"
-openmls_rust_crypto = "0.5"
+openmls             = { workspace = true }
+openmls_traits      = { workspace = true }
+openmls_rust_crypto = { workspace = true }

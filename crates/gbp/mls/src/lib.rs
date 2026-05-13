@@ -88,6 +88,10 @@ pub enum MlsError {
     /// AEAD seal or open failure.
     #[error("aead: {0}")]
     Aead(String),
+    /// A pending staged commit already exists — the previous transition must
+    /// be finalised or cleared before processing another commit.
+    #[error("transition in progress: pending staged commit exists")]
+    TransitionInProgress,
 }
 
 /// MLS context for a single group member.
@@ -287,6 +291,9 @@ impl MlsContext {
             .map_err(|e| MlsError::OpenMls(format!("process: {e:?}")))?;
         match processed.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged) => {
+                if self.pending_staged.is_some() {
+                    return Err(MlsError::TransitionInProgress);
+                }
                 self.pending_staged = Some(*staged);
                 Ok(ProcessedKind::Commit)
             }

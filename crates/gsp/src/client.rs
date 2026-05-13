@@ -2,7 +2,7 @@
 
 use crate::GspSignal;
 use gbp::CodecError;
-use gbp_core::{GbpFlags, MemberId, SignalType, StreamType};
+use gbp_core::{BoundedSeen, GbpFlags, MemberId, SignalType, StreamType};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 use std::collections::HashSet;
 
@@ -37,19 +37,22 @@ pub struct GspAccept {
     pub request_id: u32,
 }
 
+/// Per-epoch request dedup capacity (GSP §5).
+const GSP_SEEN_CAP: usize = 10_000;
+
 /// Stateful GSP client.
 ///
 /// Tracks `request_id` deduplication, the current membership set and the
 /// mute-list. Membership is updated atomically when JOIN, LEAVE, MUTE or
-/// UNMUTE signals are accepted.
+/// UNMUTE signals are accepted. The `request_id` set is LRU-bounded at
+/// [`GSP_SEEN_CAP`] entries per epoch.
 ///
 /// The client observes the current group epoch on every [`GspClient::send`]
 /// or [`GspClient::accept`] call and automatically clears its
 /// `request_id` deduplication set when the epoch advances. Callers may also
 /// drive a reset explicitly via [`GspClient::reset`].
-#[derive(Default)]
 pub struct GspClient {
-    seen_requests: HashSet<u32>,
+    seen_requests: BoundedSeen<u32>,
     /// Members that are currently muted.
     pub muted: HashSet<MemberId>,
     /// Current membership set, driven by JOIN / LEAVE.
@@ -60,7 +63,12 @@ pub struct GspClient {
 impl GspClient {
     /// Creates an empty client.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            seen_requests: BoundedSeen::new(GSP_SEEN_CAP),
+            muted: HashSet::new(),
+            members: HashSet::new(),
+            current_epoch: None,
+        }
     }
 
     /// Sends a signal. Uses the `O | R | A` profile required by GSP §3.

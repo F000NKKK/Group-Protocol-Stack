@@ -28,7 +28,7 @@ keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
 categories = ["cryptography", "network-programming"]
 
 [workspace.dependencies]
-# Internal Р Р†Р вЂљРІР‚Сњ base layer
+# Internal — base layer
 gbp-core      = { path = "crates/gbp/core",      version = "1.1.2" }
 gbp-protocol  = { path = "crates/gbp/base",      version = "1.1.2" }
 gbp-mls       = { path = "crates/gbp/mls",       version = "1.1.2" }
@@ -36,7 +36,7 @@ gbp-transport = { path = "crates/gbp/transport", version = "1.1.2" }
 gbp-node      = { path = "crates/gbp/node",      version = "1.1.2" }
 gbp-stack     = { path = "crates/gbp/stack",     version = "1.1.2" }
 
-# Internal Р Р†Р вЂљРІР‚Сњ sub-protocols
+# Internal — sub-protocols
 gtp-protocol = { path = "crates/gtp", version = "1.1.2" }
 gap-protocol = { path = "crates/gap", version = "1.1.2" }
 gsp-protocol = { path = "crates/gsp", version = "1.1.2" }
@@ -45,6 +45,7 @@ gsp-protocol = { path = "crates/gsp", version = "1.1.2" }
 openmls                  = "0.8"
 openmls_rust_crypto      = "0.5"
 openmls_basic_credential = "0.5"
+openmls_traits           = "0.5"
 
 ciborium    = "0.2"
 serde       = { version = "1", features = ["derive"] }

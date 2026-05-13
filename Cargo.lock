@@ -424,7 +424,7 @@ dependencies = [
 
 [[package]]
 name = "gap-protocol"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-cli"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "gbp-stack",
@@ -451,11 +451,11 @@ dependencies = [
 
 [[package]]
 name = "gbp-core"
-version = "1.1.1"
+version = "1.1.2"
 
 [[package]]
 name = "gbp-mls"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "chacha20poly1305",
  "gbp-core",
@@ -467,7 +467,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-node"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "gbp-core",
  "gbp-mls",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-protocol"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-stack"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "gap-protocol",
  "gbp-core",
@@ -506,7 +506,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-stack-ffi"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "gbp-stack",
  "hex",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-transport"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "gbp-protocol",
  "thiserror",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "gsp-protocol"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "gtp-protocol"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "ciborium",
  "gbp-core",

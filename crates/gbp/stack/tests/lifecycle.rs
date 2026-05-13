@@ -36,7 +36,7 @@ fn export_kp(bundle: &openmls::prelude::KeyPackageBundle) -> Vec<u8> {
 
 /// One participant: MLS context + GBP node + GTP idempotency.
 struct Member {
-    name: &'static str,
+    _name: &'static str,
     mls: MlsContext,
     node: GroupNode,
     gtp: GtpClient,
@@ -47,7 +47,7 @@ impl Member {
         let (mls, _) = MlsContext::new_member(name.as_bytes()).unwrap();
         let mut node = GroupNode::new(member_id, mls.group_id_16());
         node.bootstrap_as_creator(0);
-        Self { name, mls, node, gtp: GtpClient::new() }
+        Self { _name: name, mls, node, gtp: GtpClient::new() }
     }
     fn new_pending(name: &'static str) -> (Self, openmls::prelude::KeyPackageBundle) {
         let (mls, bundle) = MlsContext::new_member(name.as_bytes()).unwrap();
@@ -55,7 +55,7 @@ impl Member {
         // accepting Welcome. We park a placeholder so the type stays simple.
         let placeholder = GroupNode::new(0, [0u8; 16]);
         (
-            Self { name, mls, node: placeholder, gtp: GtpClient::new() },
+            Self { _name: name, mls, node: placeholder, gtp: GtpClient::new() },
             bundle,
         )
     }
@@ -87,7 +87,7 @@ fn full_lifecycle_two_joins_one_leave() {
     // ─── 2. Alice invites Bob ────────────────────────────────────────────
     let kp_bytes = export_kp(&bob_kp_bundle);
     let validated = validated_kp(&alice.mls, &kp_bytes);
-    let (commit_bytes, welcome_bytes) = alice.mls.invite_full(&[validated]).unwrap();
+    let (_commit_bytes, welcome_bytes) = alice.mls.invite_full(&[validated]).unwrap();
     assert_eq!(alice.mls.epoch(), 0, "no merge yet");
 
     // Bob applies welcome → his MLS is on epoch 1, GBP node bootstraps

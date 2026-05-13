@@ -30,12 +30,17 @@ States:
 
 Mandatory transitions:
 - `IDLE -> CONNECTING` on join intent.
+- `IDLE -> FAILED` on initialisation or pre-join fatal error.
 - `CONNECTING -> ESTABLISHING_GROUP` on authenticated transport.
+- `CONNECTING -> FAILED` on transport failure.
 - `ESTABLISHING_GROUP -> ACTIVE` on valid epoch establishment.
+- `ESTABLISHING_GROUP -> FAILED` on MLS/Welcome failure.
 - `ACTIVE -> RESYNCING` on epoch/transition mismatch.
+- `ACTIVE -> FAILED` on fatal policy/crypto violation.
+- `ACTIVE -> CLOSED` on graceful shutdown.
 - `RESYNCING -> ACTIVE` on successful digest replay.
-- any state -> `FAILED` on fatal policy/crypto violation.
-- `FAILED -> CLOSED` on teardown.
+- `RESYNCING -> FAILED` on irrecoverable resync failure.
+- any state -> `CLOSED` on teardown.
 
 ## 4. Epoch Transition State Machine
 States:
@@ -46,12 +51,20 @@ States:
 - `T_EXECUTED`
 - `T_ABORTED`
 
-Flow:
-1. `T_IDLE -> T_PREPARED` on `PREPARE_TRANSITION`.
-2. `T_PREPARED -> T_COMMIT_PROCESSED` after valid commit.
-3. `T_COMMIT_PROCESSED -> T_READY` when local prerequisites are met.
-4. `T_READY -> T_EXECUTED` on `EXECUTE_TRANSITION`.
-5. any pre-execute state -> `T_ABORTED` on timeout or invalid transition.
+Normative transition matrix (`TransitionState::can_transition_to`):
+| From | To | Trigger |
+|---|---|---|
+| `T_IDLE` | `T_PREPARED` | `PREPARE_TRANSITION` issued or received |
+| `T_PREPARED` | `T_COMMIT_PROCESSED` | Local MLS commit/welcome processed |
+| `T_PREPARED` | `T_ABORTED` | Timeout or invalid transition |
+| `T_COMMIT_PROCESSED` | `T_READY` | Local prerequisites met; member sends `READY_FOR_TRANSITION` |
+| `T_COMMIT_PROCESSED` | `T_ABORTED` | Timeout or coordinator abort |
+| `T_READY` | `T_EXECUTED` | `EXECUTE_TRANSITION` received |
+| `T_READY` | `T_ABORTED` | `ABORT_TRANSITION` or coordinator timeout |
+| `T_EXECUTED` | `T_IDLE` | Epoch advance complete; return to idle for next transition |
+| `T_ABORTED` | `T_IDLE` | Cleanup complete; return to idle |
+
+All other transitions are forbidden. Implementations MUST enforce this matrix.
 
 ## 5. Subprotocol Activation State Machine
 Each stream type has:

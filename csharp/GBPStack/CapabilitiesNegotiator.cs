@@ -58,4 +58,11 @@ public sealed class CapabilitiesNegotiator
 
     /// <summary>Number of members that advertised something.</summary>
     public int Count => _advertised.Count;
+
+    /// <summary>
+    /// Clears all advertisements. Call on epoch advance for symmetry with
+    /// <see cref="GtpClient.Reset"/>, <see cref="GapClient.Reset"/> and
+    /// <see cref="GspClient.Reset"/>.
+    /// </summary>
+    public void ResetForEpoch() => _advertised.Clear();
 }

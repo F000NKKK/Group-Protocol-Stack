@@ -52,6 +52,7 @@ ErrorObject {
 - `0x0006 ERR_DECRYPT_FAILED`
 - `0x0007 ERR_COMMIT_INVALID`
 - `0x0008 ERR_STREAM_POLICY_VIOLATION`
+- `0x0009 ERR_TRANSITION_IN_PROGRESS`  ; A second commit arrived while a pending transition is in progress
 - `0x0010 ERR_PREPARE_TIMEOUT`        ; Coordinator timed out waiting for READY quorum
 - `0x0011 ERR_READY_TIMEOUT`          ; Member timed out before completing local commit processing
 - `0x0012 ERR_EXECUTE_TIMEOUT`        ; Member timed out waiting for EXECUTE_TRANSITION after READY
@@ -95,6 +96,7 @@ Each specification MUST declare retryability/fatality per code. The matrix below
 | `0x0006 ERR_DECRYPT_FAILED` | true | false | A frame sealed under a different MLS epoch (e.g. PREPARE reaching a fresh joiner) cannot be opened, but the node MUST keep running for the next EXECUTE on the shared epoch. Resync MAY be initiated on repeated failures. |
 | `0x0007 ERR_COMMIT_INVALID` | false | true | Stack-level integrity violation; abort transition and require fresh KeyPackage |
 | `0x0008 ERR_STREAM_POLICY_VIOLATION` | false | false | Drop frame; deployment policy decides escalation |
+| `0x0009 ERR_TRANSITION_IN_PROGRESS` | false | false | Caller MUST finalise or clear the pending commit first |
 | `0x0010 ERR_PREPARE_TIMEOUT` | true | false | Coordinator MAY re-issue PREPARE on next tid |
 | `0x0011 ERR_READY_TIMEOUT` | true | false | Member returns to `T_IDLE`; resync if EXECUTE later observed |
 | `0x0012 ERR_EXECUTE_TIMEOUT` | true | false | Trigger Resync; participate in coordinator handover |

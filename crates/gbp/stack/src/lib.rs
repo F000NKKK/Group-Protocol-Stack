@@ -41,12 +41,12 @@ pub use gtp;
 pub use gbp::{ControlMessage, ErrorObject, GbpFrame};
 
 pub use gap::{GapAccept, GapClient, GapError, GapPayload};
-pub use gsp::{GspAccept, GspClient, GspError, GspSignal};
+pub use gsp::{CapabilitiesNegotiator, GspAccept, GspClient, GspError, GspSignal};
 pub use gtp::{GtpAccept, GtpClient, GtpError, GtpMessage};
 
 pub use gbp_core::{
-    ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SignalType, StreamType,
-    TransitionState, codes,
+    BoundedSeen, ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SignalType,
+    StreamType, TransitionState, codes,
 };
 
 pub use gbp_mls::{MlsContext, ProcessedKind, StreamLabel, label_for};

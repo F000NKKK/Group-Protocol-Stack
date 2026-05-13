@@ -63,6 +63,8 @@ pub mod codes {
     pub const COMMIT_INVALID: u16 = 0x0007;
     /// Stream class used outside its allowed policy.
     pub const STREAM_POLICY_VIOLATION: u16 = 0x0008;
+    /// A second commit arrived while a pending transition is in progress.
+    pub const TRANSITION_IN_PROGRESS: u16 = 0x0009;
 
     /// Unknown audio source.
     pub const GAP_BAD_SOURCE_ID: u16 = 0x1001;
@@ -122,9 +124,10 @@ impl ErrorSpec {
             EPOCH_MISMATCH => spec(code, ErrorClass::State, true, false, "ERR_EPOCH_MISMATCH"),
             TRANSITION_MISMATCH => spec(code, ErrorClass::State, true, false, "ERR_TRANSITION_MISMATCH"),
             REPLAY_DETECTED => spec(code, ErrorClass::Crypto, false, false, "ERR_REPLAY_DETECTED"),
-            DECRYPT_FAILED => spec(code, ErrorClass::Crypto, false, true, "ERR_DECRYPT_FAILED"),
+            DECRYPT_FAILED => spec(code, ErrorClass::Crypto, true, false, "ERR_DECRYPT_FAILED"),
             COMMIT_INVALID => spec(code, ErrorClass::Crypto, false, true, "ERR_COMMIT_INVALID"),
             STREAM_POLICY_VIOLATION => spec(code, ErrorClass::Policy, false, false, "ERR_STREAM_POLICY_VIOLATION"),
+            TRANSITION_IN_PROGRESS => spec(code, ErrorClass::State, false, false, "ERR_TRANSITION_IN_PROGRESS"),
             GAP_BAD_SOURCE_ID => spec(code, ErrorClass::Schema, false, false, "ERR_GAP_BAD_SOURCE_ID"),
             GAP_DECODE_FAILED => spec(code, ErrorClass::Schema, false, false, "ERR_GAP_DECODE_FAILED"),
             GAP_REPLAY_DETECTED => spec(code, ErrorClass::Crypto, false, false, "ERR_GAP_REPLAY_DETECTED"),

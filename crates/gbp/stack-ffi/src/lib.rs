@@ -34,7 +34,7 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CString, c_char};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicI32, Ordering};
 
 // ============================================================================
@@ -131,7 +131,7 @@ macro_rules! registry {
     ($vis:vis $name:ident<$t:ty>) => {
         $vis struct $name {
             next: AtomicI32,
-            map: Mutex<HashMap<i32, Box<$t>>>,
+            map: Mutex<HashMap<i32, Arc<Mutex<$t>>>>,
         }
         impl $name {
             fn new() -> Self {
@@ -139,11 +139,14 @@ macro_rules! registry {
             }
             fn insert(&self, v: $t) -> i32 {
                 let id = self.next.fetch_add(1, Ordering::Relaxed);
-                self.map.lock().unwrap().insert(id, Box::new(v));
+                self.map.lock().unwrap().insert(id, Arc::new(Mutex::new(v)));
                 id
             }
             fn remove(&self, id: i32) {
                 self.map.lock().unwrap().remove(&id);
+            }
+            fn get(&self, id: i32) -> Option<Arc<Mutex<$t>>> {
+                self.map.lock().unwrap().get(&id).cloned()
             }
         }
     };
@@ -243,8 +246,7 @@ pub extern "C" fn gbp_mls_destroy(h: i32) {
 /// Returns the current epoch of the MLS context, or `0` on failure.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_mls_epoch(h: i32) -> u64 {
-    let map = mls().map.lock().unwrap();
-    map.get(&h).map(|c| c.epoch()).unwrap_or(0)
+    mls().get(h).map(|c| c.lock().unwrap().epoch()).unwrap_or(0)
 }
 
 /// Writes the 16-byte group identifier into `out16`.
@@ -254,11 +256,11 @@ pub extern "C" fn gbp_mls_epoch(h: i32) -> u64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gbp_mls_group_id(h: i32, out16: *mut u8) -> bool {
     clear_last_error();
-    let map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return false;
     };
+    let ctx = ctx_arc.lock().unwrap();
     let gid = ctx.group_id_16();
     unsafe { std::ptr::copy_nonoverlapping(gid.as_ptr(), out16, 16) };
     true
@@ -293,11 +295,11 @@ pub extern "C" fn gbp_mls_export_key_package(h: i32) -> GbpBuffer {
 pub unsafe extern "C" fn gbp_mls_invite(h: i32, kp_ptr: *const u8, kp_len: usize) -> GbpBuffer {
     clear_last_error();
     let bytes = unsafe { std::slice::from_raw_parts(kp_ptr, kp_len) };
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return GbpBuffer::empty();
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     let kp_in = match KeyPackageIn::tls_deserialize_exact_bytes(bytes) {
         Ok(v) => v,
         Err(e) => {
@@ -338,11 +340,11 @@ pub unsafe extern "C" fn gbp_mls_invite_full(
 ) -> GbpBuffer {
     clear_last_error();
     let bytes = unsafe { std::slice::from_raw_parts(kp_ptr, kp_len) };
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return GbpBuffer::empty();
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     let kp_in = match KeyPackageIn::tls_deserialize_exact_bytes(bytes) {
         Ok(v) => v,
         Err(e) => {
@@ -378,11 +380,11 @@ pub unsafe extern "C" fn gbp_mls_invite_full(
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_mls_remove(h: i32, leaf_index: u32) -> GbpBuffer {
     clear_last_error();
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return GbpBuffer::empty();
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     match ctx.remove_members(&[leaf_index]) {
         Ok(commit) => GbpBuffer::from_vec(commit),
         Err(e) => {
@@ -410,11 +412,11 @@ pub unsafe extern "C" fn gbp_mls_process_message(
 ) -> u32 {
     clear_last_error();
     let bytes = unsafe { std::slice::from_raw_parts(msg_ptr, msg_len) };
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return 0;
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     match ctx.process_message(bytes) {
         Ok(ProcessedKind::Commit) => 1,
         Ok(ProcessedKind::Application) => 2,
@@ -432,11 +434,11 @@ pub unsafe extern "C" fn gbp_mls_process_message(
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_mls_finalize_commit(h: i32) -> bool {
     clear_last_error();
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return false;
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     match ctx.finalize_pending_commit() {
         Ok(()) => true,
         Err(e) => {
@@ -451,11 +453,11 @@ pub extern "C" fn gbp_mls_finalize_commit(h: i32) -> bool {
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_mls_clear_pending_commit(h: i32) -> bool {
     clear_last_error();
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return false;
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     match ctx.clear_pending_commit() {
         Ok(()) => true,
         Err(e) => {
@@ -477,11 +479,11 @@ pub unsafe extern "C" fn gbp_mls_accept_welcome(
 ) -> bool {
     clear_last_error();
     let bytes = unsafe { std::slice::from_raw_parts(welcome_ptr, welcome_len) };
-    let mut map = mls().map.lock().unwrap();
-    let Some(ctx) = map.get_mut(&h) else {
+    let Some(ctx_arc) = mls().get(h) else {
         set_last_error("invalid MLS handle");
         return false;
     };
+    let mut ctx = ctx_arc.lock().unwrap();
     match ctx.accept_welcome(bytes) {
         Ok(()) => true,
         Err(e) => {
@@ -516,9 +518,8 @@ pub extern "C" fn gbp_node_destroy(h: i32) {
 /// Drives the node to `ACTIVE` as a creator.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_bootstrap_creator(h: i32, epoch: u64) -> bool {
-    let mut map = nodes().map.lock().unwrap();
-    let Some(n) = map.get_mut(&h) else { return false };
-    n.bootstrap_as_creator(epoch);
+    let Some(n_arc) = nodes().get(h) else { return false };
+    n_arc.lock().unwrap().bootstrap_as_creator(epoch);
     true
 }
 
@@ -528,9 +529,8 @@ pub extern "C" fn gbp_node_bootstrap_creator(h: i32, epoch: u64) -> bool {
 /// recovered out-of-band and is already current.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_bootstrap_joiner(h: i32, epoch: u64, expected_first_tid: u32) -> bool {
-    let mut map = nodes().map.lock().unwrap();
-    let Some(n) = map.get_mut(&h) else { return false };
-    n.bootstrap_as_joiner(epoch, expected_first_tid);
+    let Some(n_arc) = nodes().get(h) else { return false };
+    n_arc.lock().unwrap().bootstrap_as_joiner(epoch, expected_first_tid);
     true
 }
 
@@ -538,29 +538,23 @@ pub extern "C" fn gbp_node_bootstrap_joiner(h: i32, epoch: u64, expected_first_t
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_state(h: i32) -> u32 {
     nodes()
-        .map
-        .lock()
-        .unwrap()
-        .get(&h)
-        .map(|n| n.state as u32)
+        .get(h)
+        .map(|n| n.lock().unwrap().state as u32)
         .unwrap_or(u32::MAX)
 }
 
 /// Returns the node's current epoch.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_epoch(h: i32) -> u64 {
-    nodes().map.lock().unwrap().get(&h).map(|n| n.current_epoch).unwrap_or(0)
+    nodes().get(h).map(|n| n.lock().unwrap().current_epoch).unwrap_or(0)
 }
 
 /// Returns the node's last applied `transition_id`.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_last_transition_id(h: i32) -> u32 {
     nodes()
-        .map
-        .lock()
-        .unwrap()
-        .get(&h)
-        .map(|n| n.last_transition_id)
+        .get(h)
+        .map(|n| n.lock().unwrap().last_transition_id)
         .unwrap_or(0)
 }
 
@@ -568,18 +562,16 @@ pub extern "C" fn gbp_node_last_transition_id(h: i32) -> u32 {
 /// peers and `EPOCH_MISMATCH` recovery).
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_set_epoch(h: i32, epoch: u64) -> bool {
-    let mut map = nodes().map.lock().unwrap();
-    let Some(n) = map.get_mut(&h) else { return false };
-    n.current_epoch = epoch;
+    let Some(n_arc) = nodes().get(h) else { return false };
+    n_arc.lock().unwrap().current_epoch = epoch;
     true
 }
 
 /// Applies an epoch transition locally.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_apply_transition(h: i32, tid: u32) -> bool {
-    let mut map = nodes().map.lock().unwrap();
-    let Some(n) = map.get_mut(&h) else { return false };
-    n.apply_transition(tid);
+    let Some(n_arc) = nodes().get(h) else { return false };
+    n_arc.lock().unwrap().apply_transition(tid);
     true
 }
 
@@ -613,17 +605,14 @@ pub unsafe extern "C" fn gbp_node_send_control(
     } else {
         unsafe { std::slice::from_raw_parts(args_ptr, args_len) }.to_vec()
     };
-    let mut nmap = nodes().map.lock().unwrap();
-    let mut mmap = mls().map.lock().unwrap();
-    let Some(n) = nmap.get_mut(&nh) else {
-        set_last_error("bad node");
+    let (n_arc, m_arc) = (nodes().get(nh), mls().get(mh));
+    let (Some(n_arc), Some(m_arc)) = (n_arc, m_arc) else {
+        set_last_error("bad node/mls handle");
         return GbpBuffer::empty();
     };
-    let Some(m) = mmap.get_mut(&mh) else {
-        set_last_error("bad mls");
-        return GbpBuffer::empty();
-    };
-    match n.send_control(&mut **m, target, op, transition_id, request_id, args) {
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    match n.send_control(&mut *m, target, op, transition_id, request_id, args) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -645,13 +634,14 @@ pub unsafe extern "C" fn gbp_node_on_wire(
 ) -> *mut c_char {
     clear_last_error();
     let wire = unsafe { std::slice::from_raw_parts(wire_ptr, wire_len) };
-    let mut nmap = nodes().map.lock().unwrap();
-    let mut mmap = mls().map.lock().unwrap();
-    let (Some(n), Some(m)) = (nmap.get_mut(&nh), mmap.get_mut(&mh)) else {
+    let (n_arc, m_arc) = (nodes().get(nh), mls().get(mh));
+    let (Some(n_arc), Some(m_arc)) = (n_arc, m_arc) else {
         set_last_error("bad node/mls handle");
         return alloc_cstring("[]");
     };
-    let events = match n.on_wire(&mut **m, wire) {
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    let events = match n.on_wire(&mut *m, wire) {
         Ok(e) => e,
         Err(e) => {
             set_last_error(e.to_string());
@@ -664,11 +654,10 @@ pub unsafe extern "C" fn gbp_node_on_wire(
 /// Drains the queued events (without consuming any wire bytes).
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_drain_events(nh: i32) -> *mut c_char {
-    let mut map = nodes().map.lock().unwrap();
-    let Some(n) = map.get_mut(&nh) else {
+    let Some(n_arc) = nodes().get(nh) else {
         return alloc_cstring("[]");
     };
-    alloc_cstring(&events_to_json(&n.drain_events()))
+    alloc_cstring(&events_to_json(&n_arc.lock().unwrap().drain_events()))
 }
 
 fn outbound_to_buffer(of: OutboundFrame) -> GbpBuffer {
@@ -697,8 +686,8 @@ pub extern "C" fn gtp_client_destroy(h: i32) {
 /// Clears the client state. Intended for use after an epoch change.
 #[unsafe(no_mangle)]
 pub extern "C" fn gtp_client_reset(h: i32) {
-    if let Some(c) = gtps().map.lock().unwrap().get_mut(&h) {
-        c.reset();
+    if let Some(c) = gtps().get(h) {
+        c.lock().unwrap().reset();
     }
 }
 
@@ -725,16 +714,15 @@ pub unsafe extern "C" fn gtp_client_send(
             return GbpBuffer::empty();
         }
     };
-    let mut cmap = gtps().map.lock().unwrap();
-    let mut nmap = nodes().map.lock().unwrap();
-    let mut mmap = mls().map.lock().unwrap();
-    let (Some(c), Some(n), Some(m)) =
-        (cmap.get_mut(&ch), nmap.get_mut(&nh), mmap.get_mut(&mh))
-    else {
+    let (c_arc, n_arc, m_arc) = (gtps().get(ch), nodes().get(nh), mls().get(mh));
+    let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
         return GbpBuffer::empty();
     };
-    match c.send(&mut **n, &mut **m, target, message_id, text) {
+    let mut c = c_arc.lock().unwrap();
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    match c.send(&mut *n, &mut *m, target, message_id, text) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -761,10 +749,10 @@ pub unsafe extern "C" fn gtp_client_accept(
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
-    let mut cmap = gtps().map.lock().unwrap();
-    let Some(c) = cmap.get_mut(&ch) else {
+    let Some(c_arc) = gtps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
+    let mut c = c_arc.lock().unwrap();
     #[derive(Serialize)]
     struct Out<'a> {
         status: &'a str,
@@ -818,8 +806,8 @@ pub extern "C" fn gap_client_destroy(h: i32) {
 /// Clears the client state. Intended for use after an epoch change.
 #[unsafe(no_mangle)]
 pub extern "C" fn gap_client_reset(h: i32) {
-    if let Some(c) = gaps().map.lock().unwrap().get_mut(&h) {
-        c.reset();
+    if let Some(c) = gaps().get(h) {
+        c.lock().unwrap().reset();
     }
 }
 
@@ -840,16 +828,15 @@ pub unsafe extern "C" fn gap_client_send(
 ) -> GbpBuffer {
     clear_last_error();
     let opus = unsafe { std::slice::from_raw_parts(opus_ptr, opus_len) }.to_vec();
-    let mut cmap = gaps().map.lock().unwrap();
-    let mut nmap = nodes().map.lock().unwrap();
-    let mut mmap = mls().map.lock().unwrap();
-    let (Some(c), Some(n), Some(m)) =
-        (cmap.get_mut(&ch), nmap.get_mut(&nh), mmap.get_mut(&mh))
-    else {
+    let (c_arc, n_arc, m_arc) = (gaps().get(ch), nodes().get(nh), mls().get(mh));
+    let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
         return GbpBuffer::empty();
     };
-    match c.send(&mut **n, &mut **m, target, media_source_id, rtp_timestamp, opus) {
+    let mut c = c_arc.lock().unwrap();
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    match c.send(&mut *n, &mut *m, target, media_source_id, rtp_timestamp, opus) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -871,10 +858,10 @@ pub unsafe extern "C" fn gap_client_accept(
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
-    let mut cmap = gaps().map.lock().unwrap();
-    let Some(c) = cmap.get_mut(&ch) else {
+    let Some(c_arc) = gaps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
+    let mut c = c_arc.lock().unwrap();
     #[derive(Serialize)]
     struct Out<'a> {
         status: &'a str,
@@ -928,8 +915,8 @@ pub extern "C" fn gsp_client_destroy(h: i32) {
 /// Clears the client state. Intended for use after an epoch change.
 #[unsafe(no_mangle)]
 pub extern "C" fn gsp_client_reset(h: i32) {
-    if let Some(c) = gsps().map.lock().unwrap().get_mut(&h) {
-        c.reset();
+    if let Some(c) = gsps().get(h) {
+        c.lock().unwrap().reset();
     }
 }
 
@@ -952,16 +939,15 @@ pub extern "C" fn gsp_client_send(
             return GbpBuffer::empty();
         }
     };
-    let mut cmap = gsps().map.lock().unwrap();
-    let mut nmap = nodes().map.lock().unwrap();
-    let mut mmap = mls().map.lock().unwrap();
-    let (Some(c), Some(n), Some(m)) =
-        (cmap.get_mut(&ch), nmap.get_mut(&nh), mmap.get_mut(&mh))
-    else {
+    let (c_arc, n_arc, m_arc) = (gsps().get(ch), nodes().get(nh), mls().get(mh));
+    let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
         return GbpBuffer::empty();
     };
-    match c.send(&mut **n, &mut **m, target, sig, role_claim, request_id) {
+    let mut c = c_arc.lock().unwrap();
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    match c.send(&mut *n, &mut *m, target, sig, role_claim, request_id) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -986,10 +972,10 @@ pub unsafe extern "C" fn gsp_client_accept(
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
-    let mut cmap = gsps().map.lock().unwrap();
-    let Some(c) = cmap.get_mut(&ch) else {
+    let Some(c_arc) = gsps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
+    let mut c = c_arc.lock().unwrap();
     #[derive(Serialize)]
     struct Out<'a> {
         status: &'a str,
@@ -1213,3 +1199,67 @@ const _STATES: [NodeState; 7] = [
     NodeState::Failed,
     NodeState::Closed,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::b64;
+
+    #[test]
+    fn b64_empty() {
+        assert_eq!(b64(b""), "");
+    }
+
+    #[test]
+    fn b64_single_byte() {
+        // 0xFF = "255" → base64: b"255" → "//8="
+        // 0xFF >> 2 = 63 = '/', (0xFF & 0x03) << 4 = 60 = '8', pad = "=="
+        // "255" in base64: first char = table[(255 >> 2)] = table[63] = '/'
+        // second char = table[((255 & 3) << 4) | 0] = table[60] = '8'
+        // pad = "==" → "//8="
+        // Actually let me just check with known vectors.
+        let s = b64(b"f");
+        // "f" = 0x66 = 102. chars: table[102>>2=25]='Z', table[((102&3)<<4)=32]='g', pad="==" → "Zg=="
+        assert_eq!(s, "Zg==");
+    }
+
+    #[test]
+    fn b64_two_bytes() {
+        let s = b64(b"fo");
+        // "fo" → 0x66, 0x6F. n = (0x66<<16)|(0x6F<<8)|0 = 0x666F00
+        // c1 = table[n>>18] = table[0x666F00>>18=1] = 'B' ... let me just use a known-vector.
+        // Actually "fo" in base64 is "Zm8="  (0x66='Z', combined='m8', pad='=')
+        assert_eq!(s, "Zm8=");
+    }
+
+    #[test]
+    fn b64_three_bytes() {
+        let s = b64(b"foo");
+        // "foo" in standard base64 is "Zm9v"
+        assert_eq!(s, "Zm9v");
+    }
+
+    #[test]
+    fn b64_known_vectors() {
+        // Independently verified against RFC 4648 test vectors and Python base64.
+        assert_eq!(b64(b""), "");
+        assert_eq!(b64(b"f"), "Zg==");
+        assert_eq!(b64(b"fo"), "Zm8=");
+        assert_eq!(b64(b"foo"), "Zm9v");
+        assert_eq!(b64(b"foob"), "Zm9vYg==");
+        assert_eq!(b64(b"fooba"), "Zm9vYmE=");
+        assert_eq!(b64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn b64_padding_roundtrip() {
+        // Verify padding is correct by checking every single-byte input 0..255
+        for b in 0u8..=255 {
+            let input = [b];
+            let enc = b64(&input);
+            // Every 1-byte base64 string is exactly 4 chars.
+            assert_eq!(enc.len(), 4, "len mismatch for 0x{b:02X}: {enc}");
+            // The last two chars must be padding.
+            assert!(enc.ends_with("=="), "missing padding for 0x{b:02X}: {enc}");
+        }
+    }
+}

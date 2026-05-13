@@ -6,8 +6,8 @@
 
     <PackageId>GBPStack</PackageId>
     <Version>1.1.2</Version>
-    <Title>Group Protocol Stack Р Р†Р вЂљРІР‚Сњ managed bindings</Title>
-    <Description>Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for every supported runtime identifier (win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64) Р Р†Р вЂљРІР‚Сњ works out of the box on every supported platform.</Description>
+    <Title>Group Protocol Stack — managed bindings</Title>
+    <Description>Managed (.NET) bindings for the Group Protocol Stack: a layered, end-to-end encrypted group-messaging protocol family built on top of MLS (RFC 9420). Bundles the native runtime library (gbp_stack) for every supported runtime identifier (win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64) — works out of the box on every supported platform.</Description>
     <PackageTags>mls;rfc9420;e2ee;group-messaging;chat;voice;signaling;cryptography;ffi</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
@@ -34,23 +34,28 @@
 
   <!--
     Local-development convenience: if the runtimes/ tree is empty (no CI
-    artefacts yet) and cargo built a host-platform DLL, copy it into
-    runtimes/<host-rid>/native/ so the resulting package always carries at
-    least the host runtime. CI populates the tree with every supported RID
-    before invoking `dotnet pack`.
+    artefacts yet), build the native cdylib for the host platform and stage
+    it into runtimes/<host-rid>/native/. CI sets SkipStageHostRuntime=true
+    and pre-populates the runtimes tree with every supported RID.
   -->
   <Target Name="StageHostRuntime"
           BeforeTargets="BeforeBuild"
-          Condition="!Exists('$(NativeRuntimesDir)') Or '$(SkipStageHostRuntime)' == 'true'">
-    <Message Importance="high" Text="==&gt; staging host runtime (set SkipStageHostRuntime=true to opt out)" />
-  </Target>
-
-  <Target Name="BuildAndStageHostRuntime"
-          BeforeTargets="BeforeBuild"
-          Condition="'$(SkipStageHostRuntime)' != 'true' And $([MSBuild]::IsOsPlatform('Windows'))">
+          Condition="'$(SkipStageHostRuntime)' != 'true' And !Exists('$(NativeRuntimesDir)')">
     <PropertyGroup>
-      <HostRid>win-x64</HostRid>
-      <HostNativeName>gbp_stack.dll</HostNativeName>
+      <!-- Detect host RID: RuntimeInformation is not available in MSBuild, so
+           we infer it from OS + architecture. Full matrix support lives in CI;
+           local dev typically targets win-x64 or linux-x64. -->
+      <_IsWindows>$([MSBuild]::IsOsPlatform('Windows'))</_IsWindows>
+      <_IsLinux>$([MSBuild]::IsOsPlatform('Linux'))</_IsLinux>
+      <_IsOsx>$([MSBuild]::IsOsPlatform('OSX'))</_IsOsx>
+      <HostArch Condition="'$(PROCESSOR_ARCHITECTURE)' == 'ARM64' Or '$(PROCESSOR_ARCHITEW6432)' == 'ARM64'">arm64</HostArch>
+      <HostArch Condition="'$(HostArch)' == ''">x64</HostArch>
+      <HostRid Condition="'$(_IsWindows)' == 'true'">win-$(HostArch)</HostRid>
+      <HostRid Condition="'$(_IsLinux)' == 'true'">linux-$(HostArch)</HostRid>
+      <HostRid Condition="'$(_IsOsx)' == 'true'">osx-$(HostArch)</HostRid>
+      <HostNativeName Condition="'$(_IsWindows)' == 'true'">gbp_stack.dll</HostNativeName>
+      <HostNativeName Condition="'$(_IsLinux)' == 'true'">libgbp_stack.so</HostNativeName>
+      <HostNativeName Condition="'$(_IsOsx)' == 'true'">libgbp_stack.dylib</HostNativeName>
       <HostNativeSrc>$(RustCrateDir)\target\$(RustProfile)\$(HostNativeName)</HostNativeSrc>
       <HostNativeDst>$(NativeRuntimesDir)\$(HostRid)\native</HostNativeDst>
     </PropertyGroup>
@@ -58,7 +63,7 @@
       <CargoProfileFlag Condition="'$(RustProfile)' == 'release'">--release</CargoProfileFlag>
       <CargoProfileFlag Condition="'$(RustProfile)' != 'release'"></CargoProfileFlag>
     </PropertyGroup>
-    <Message Importance="high" Text="==&gt; cargo build -p gbp-stack-ffi $(CargoProfileFlag)" />
+    <Message Importance="high" Text="==&gt; cargo build -p gbp-stack-ffi $(CargoProfileFlag) for $(HostRid)" />
     <Exec Command="cargo build -p gbp-stack-ffi $(CargoProfileFlag)"
           WorkingDirectory="$(RustCrateDir)"
           ConsoleToMSBuild="true" />

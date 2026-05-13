@@ -118,6 +118,9 @@ function Update-Changelog([string]$entry) {
     } else {
         $new = "# Changelog`r`n`r`n" + $entry
     }
+    # CHANGELOG.md uses UTF-8 with BOM for maximum Windows tooling compatibility
+    # (Notepad, legacy editors). Code manifests (Cargo.toml, .csproj, etc.) use
+    # no-BOM via bump-version.ps1 to avoid breaking parsers.
     Set-Content -Path $path -Value $new -Encoding utf8
 }
 
