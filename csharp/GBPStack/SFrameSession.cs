@@ -93,18 +93,19 @@ public sealed class SFrameSession : IDisposable
         ReadOnlySpan<byte> extraAad = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        Native.GbpBuffer buf;
         uint senderLeaf = 0;
-        GbpBuffer buf = default;
         unsafe
         {
-            Native.WithBytes<int>(payload, (payPtr, payLen) =>
-                Native.WithBytes<int>(extraAad.IsEmpty ? ReadOnlySpan<byte>.Empty : extraAad,
-                    (aadPtr, aadLen) =>
-                    {
-                        buf = Native.gbp_sframe_decrypt(
-                            _sessionHandle, payPtr, payLen, aadPtr, aadLen, &senderLeaf);
-                        return 0;
-                    }));
+            fixed (byte* payPtr = payload)
+            fixed (byte* aadPtr = extraAad.IsEmpty ? (ReadOnlySpan<byte>)[] : extraAad)
+            {
+                buf = Native.gbp_sframe_decrypt(
+                    _sessionHandle,
+                    (IntPtr)payPtr, (nuint)payload.Length,
+                    extraAad.IsEmpty ? IntPtr.Zero : (IntPtr)aadPtr, (nuint)extraAad.Length,
+                    &senderLeaf);
+            }
         }
         if (buf.IsEmpty)
             throw new InvalidOperationException(
@@ -150,14 +151,18 @@ public sealed class SFrameEncryptor : IDisposable
         ReadOnlySpan<byte> extraAad = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        GbpBuffer buf = default;
-        Native.WithBytes<int>(plaintext, (ptPtr, ptLen) =>
-            Native.WithBytes<int>(extraAad.IsEmpty ? ReadOnlySpan<byte>.Empty : extraAad,
-                (aadPtr, aadLen) =>
-                {
-                    buf = Native.gbp_sframe_encrypt(_handle, ptPtr, ptLen, aadPtr, aadLen);
-                    return 0;
-                }));
+        Native.GbpBuffer buf;
+        unsafe
+        {
+            fixed (byte* ptPtr = plaintext)
+            fixed (byte* aadPtr = extraAad.IsEmpty ? (ReadOnlySpan<byte>)[] : extraAad)
+            {
+                buf = Native.gbp_sframe_encrypt(
+                    _handle,
+                    (IntPtr)ptPtr, (nuint)plaintext.Length,
+                    extraAad.IsEmpty ? IntPtr.Zero : (IntPtr)aadPtr, (nuint)extraAad.Length);
+            }
+        }
         if (buf.IsEmpty)
             throw new InvalidOperationException(
                 $"gbp_sframe_encrypt failed: {Native.LastError()}");
