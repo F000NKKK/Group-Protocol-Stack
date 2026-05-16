@@ -20,6 +20,7 @@
 #![deny(missing_docs)]
 
 pub mod bounded;
+pub mod conformance;
 pub mod control;
 pub mod errors;
 pub mod flags;
@@ -29,6 +30,7 @@ pub mod state;
 pub mod stream;
 
 pub use bounded::BoundedSeen;
+pub use conformance::ConformanceClass;
 pub use control::ControlOpcode;
 pub use errors::{ErrorClass, codes};
 pub use flags::GbpFlags;

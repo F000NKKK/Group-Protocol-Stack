@@ -1,6 +1,6 @@
 //! Stateful GSP client.
 
-use crate::GspSignal;
+use crate::{GspSignal, args::validate_args};
 use gbp::CodecError;
 use gbp_core::{BoundedSeen, GbpFlags, MemberId, SignalType, StreamType};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
@@ -18,6 +18,9 @@ pub enum GspError {
     /// Duplicate `request_id`.
     #[error("duplicate request_id: {0}")]
     DuplicateRequest(u32),
+    /// `args` do not conform to the per-signal schema (gsp_rfc §6).
+    #[error("bad args schema: {0}")]
+    BadSchema(&'static str),
     /// Underlying GBP node error during send.
     #[error("node: {0}")]
     Node(#[from] NodeError),
@@ -105,6 +108,8 @@ impl GspClient {
         self.sync_epoch(current_epoch);
         let s = GspSignal::from_cbor(plaintext)?;
         let signal = SignalType::try_from(s.signal_type).map_err(GspError::UnknownSignal)?;
+        // Per-signal args schema validation (gsp_rfc §6, step 3).
+        validate_args(signal, &s.args).map_err(GspError::BadSchema)?;
         if !self.seen_requests.insert(s.request_id) {
             return Err(GspError::DuplicateRequest(s.request_id));
         }

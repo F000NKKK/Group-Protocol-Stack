@@ -19,6 +19,7 @@
 
 #![deny(missing_docs)]
 
+pub mod args;
 pub mod capabilities;
 pub mod client;
 pub mod roles;
