@@ -1,4 +1,16 @@
-﻿## 1.2.1 (2026-05-16)
+﻿## 1.2.2 (2026-05-16)
+
+### Bug Fixes
+
+- fix(csharp): use fixed instead of lambdas for ReadOnlySpan in SFrameSession (21c4cfb)
+
+### Chores
+
+- chore: update Cargo.lock (eb69395)
+
+---
+
+## 1.2.1 (2026-05-16)
 
 ### CI
 
@@ -101,6 +113,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 

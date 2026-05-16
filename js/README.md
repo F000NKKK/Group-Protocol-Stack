@@ -43,7 +43,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-npm install @voluntas-progressus/gbp-stack@1.2.1
+npm install @voluntas-progressus/gbp-stack@1.2.2
 ```
 
 ## Quick start
