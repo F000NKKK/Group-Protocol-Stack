@@ -1,4 +1,17 @@
-﻿## 1.2.3 (2026-05-16)
+﻿## 1.3.0 (2026-05-16)
+
+### Bug Fixes
+
+- fix(js): add node types and ESNext.Disposable to tsconfig (0380f4b)
+- fix(release): fall back to latest non-deprecated patch; update SECURITY.md (1.2.2 supported, 1.2.3 deprecated) (ca34e58)
+
+### Documentation
+
+- docs: move FAQ to root, implement CONTRIBUTING, update CoC link (5a1091b)
+
+---
+
+## 1.2.3 (2026-05-16)
 
 ### Bug Fixes
 
@@ -125,6 +138,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 

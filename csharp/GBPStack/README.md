@@ -42,7 +42,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-dotnet add package GBPStack --version 1.2.3
+dotnet add package GBPStack --version 1.3.0
 ```
 
 ## Quick start
