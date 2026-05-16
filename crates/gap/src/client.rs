@@ -2,9 +2,10 @@
 
 use crate::GapPayload;
 use gbp::CodecError;
-use gbp_core::{GbpFlags, MemberId, StreamType};
+use gbp_core::{GbpFlags, MemberId, StreamType, timeouts};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 /// Errors returned by [`GapClient`].
 #[derive(Debug, thiserror::Error)]
@@ -45,6 +46,14 @@ pub enum GapAccept {
     Late(GapPayload),
 }
 
+/// A snapshot of one old epoch's replay window, kept for `T_GAP_KEY_OVERLAP_MS`
+/// so that late in-flight audio frames from that epoch are still accepted.
+struct OldEpochWindow {
+    epoch: u64,
+    in_hw: HashMap<u32, u32>,
+    expires: Instant,
+}
+
 /// Stateful GAP client.
 ///
 /// Maintains an outbound `rtp_sequence` counter and an inbound replay window,
@@ -54,11 +63,27 @@ pub enum GapAccept {
 /// or [`GapClient::accept`] call and automatically clears its replay window
 /// when the epoch advances. Callers may also drive a reset explicitly via
 /// [`GapClient::reset`].
-#[derive(Default)]
+///
+/// Old-epoch windows are retained for [`timeouts::T_GAP_KEY_OVERLAP_MS`]
+/// (default 10 s) so that in-flight audio frames from the previous epoch can
+/// still be accepted after an epoch transition (gap_rfc §4).
 pub struct GapClient {
     out_rtp_seq: HashMap<u32, u32>,
     in_hw: HashMap<u32, u32>,
     current_epoch: Option<u64>,
+    /// Old replay windows from previous epochs, retained until T_overlap expires.
+    old_windows: Vec<OldEpochWindow>,
+}
+
+impl Default for GapClient {
+    fn default() -> Self {
+        Self {
+            out_rtp_seq: HashMap::new(),
+            in_hw: HashMap::new(),
+            current_epoch: None,
+            old_windows: Vec::new(),
+        }
+    }
 }
 
 impl GapClient {
@@ -104,40 +129,74 @@ impl GapClient {
     }
 
     /// Accepts a plaintext payload delivered by the GBP layer.
+    ///
     /// Returns [`GapAccept::New`] for fresh frames, [`GapAccept::Late`] for
-    /// replays that the spec allows to drop, or [`GapError::EpochStale`] when
-    /// `key_phase` does not match the current epoch.
+    /// replays that the spec allows to drop. Returns [`GapError::EpochStale`]
+    /// only when `key_phase` refers to an epoch that has already expired its
+    /// T_overlap window; frames from epochs still within T_overlap are
+    /// accepted normally (gap_rfc §4).
     pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GapAccept, GapError> {
         self.sync_epoch(current_epoch);
         let p = GapPayload::from_cbor(plaintext)?;
-        if p.key_phase != current_epoch as u32 {
-            return Err(GapError::EpochStale { kp: p.key_phase, expected: current_epoch as u32 });
+        if p.key_phase == current_epoch as u32 {
+            // Fast path: current epoch.
+            let hw = self.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
+            if p.rtp_sequence <= hw && hw.wrapping_sub(p.rtp_sequence) <= 0x7FFF {
+                return Ok(GapAccept::Late(p));
+            }
+            self.in_hw.insert(p.media_source_id, p.rtp_sequence);
+            return Ok(GapAccept::New(p));
         }
-        let hw = self.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
-        // RFC 3550 §A.1: 16-bit wraparound detection. After 0xFFFF→0x0000
-        // a naive `<= hw` would reject every frame for the rest of the epoch.
-        if p.rtp_sequence <= hw && hw.wrapping_sub(p.rtp_sequence) <= 0x7FFF {
-            return Ok(GapAccept::Late(p));
+        // Slow path: frame from an older epoch — check the overlap buffer.
+        let now = Instant::now();
+        if let Some(old) = self.old_windows.iter_mut().find(|w| {
+            w.epoch == p.key_phase as u64 && w.expires > now
+        }) {
+            let hw = old.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
+            if p.rtp_sequence <= hw && hw.wrapping_sub(p.rtp_sequence) <= 0x7FFF {
+                return Ok(GapAccept::Late(p));
+            }
+            old.in_hw.insert(p.media_source_id, p.rtp_sequence);
+            return Ok(GapAccept::New(p));
         }
-        self.in_hw.insert(p.media_source_id, p.rtp_sequence);
-        Ok(GapAccept::New(p))
+        Err(GapError::EpochStale { kp: p.key_phase, expected: current_epoch as u32 })
     }
 
-    /// Synchronises the client's view of the group epoch and resets the
-    /// outbound counters and replay window when the epoch has advanced.
+    /// Synchronises the client's view of the group epoch.
+    ///
+    /// When the epoch advances, the current replay window is moved to the
+    /// overlap buffer (retained for `T_GAP_KEY_OVERLAP_MS`) instead of being
+    /// discarded, so late in-flight frames from the previous epoch are still
+    /// accepted (gap_rfc §4). Expired entries are pruned on each call.
     /// Called automatically by [`GapClient::send`] and [`GapClient::accept`].
     pub fn sync_epoch(&mut self, epoch: u64) {
+        // Prune expired old windows.
+        let now = Instant::now();
+        self.old_windows.retain(|w| w.expires > now);
+
         if Some(epoch) != self.current_epoch {
+            // Save current window to overlap buffer before resetting.
+            if let Some(old_epoch) = self.current_epoch {
+                if !self.in_hw.is_empty() {
+                    self.old_windows.push(OldEpochWindow {
+                        epoch: old_epoch,
+                        in_hw: std::mem::take(&mut self.in_hw),
+                        expires: now + Duration::from_millis(timeouts::T_GAP_KEY_OVERLAP_MS),
+                    });
+                }
+            }
             self.out_rtp_seq.clear();
             self.in_hw.clear();
             self.current_epoch = Some(epoch);
         }
     }
 
-    /// Clears the outbound counters and the replay window unconditionally.
+    /// Clears the outbound counters, the replay window, and the overlap buffer
+    /// unconditionally.
     pub fn reset(&mut self) {
         self.out_rtp_seq.clear();
         self.in_hw.clear();
+        self.old_windows.clear();
         self.current_epoch = None;
     }
 }
@@ -183,5 +242,55 @@ mod tests {
         // Epoch change: seq 1 was seen in epoch 1, but in epoch 2 it's new again.
         let result = client.accept(&make_payload(1, 2), 2).unwrap();
         assert!(matches!(result, GapAccept::New(_)), "new epoch resets window");
+    }
+
+    // ---- T_overlap buffer (gap_rfc §4) --------------------------------------
+
+    #[test]
+    fn old_epoch_frame_accepted_within_overlap() {
+        let mut client = GapClient::new();
+        // Establish seq 5 in epoch 1.
+        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        // Advance to epoch 2 — old window is buffered.
+        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        // A late frame from epoch 1 (seq 6, not seen yet) arrives before T_overlap expires.
+        let result = client.accept(&make_payload(6, 1), 2).unwrap();
+        assert!(matches!(result, GapAccept::New(_)), "late epoch-1 frame accepted within T_overlap");
+    }
+
+    #[test]
+    fn old_epoch_replay_is_late_within_overlap() {
+        let mut client = GapClient::new();
+        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        // Advance epoch.
+        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        // Same seq from epoch 1 arrives again — replay → Late.
+        let result = client.accept(&make_payload(5, 1), 2).unwrap();
+        assert!(matches!(result, GapAccept::Late(_)), "duplicate from old epoch is Late");
+    }
+
+    #[test]
+    fn expired_old_epoch_frame_is_stale() {
+        let mut client = GapClient::new();
+        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        // Advance epoch.
+        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        // Manually expire the overlap window.
+        for w in &mut client.old_windows {
+            w.expires = Instant::now() - Duration::from_millis(1);
+        }
+        // Now a late epoch-1 frame should be rejected.
+        let result = client.accept(&make_payload(6, 1), 2);
+        assert!(matches!(result, Err(GapError::EpochStale { .. })), "expired epoch is Stale");
+    }
+
+    #[test]
+    fn reset_clears_overlap_buffer() {
+        let mut client = GapClient::new();
+        let _ = client.accept(&make_payload(1, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        assert!(!client.old_windows.is_empty(), "overlap buffer populated");
+        client.reset();
+        assert!(client.old_windows.is_empty(), "overlap buffer cleared after reset");
     }
 }

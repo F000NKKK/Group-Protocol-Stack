@@ -62,7 +62,7 @@ can depend on individual crates directly.
 | [`gap-protocol`](https://crates.io/crates/gap-protocol)          | Group Audio Protocol (Opus + jitter buffer)                   |
 | [`gsp-protocol`](https://crates.io/crates/gsp-protocol)          | Group Signaling Protocol (signals + roles + capabilities)     |
 | [`gbp-mls`](https://crates.io/crates/gbp-mls)                    | MLS (RFC 9420) integration via openmls                        |
-| [`gbp-transport`](https://crates.io/crates/gbp-transport)        | Length-prefixed TCP transport adapter                         |
+| [`gbp-transport`](https://crates.io/crates/gbp-transport)        | Length-prefixed TCP adapter (QUIC planned)                    |
 | [`gbp-node`](https://crates.io/crates/gbp-node)                  | GBP-layer group node (FSM, replay, control plane)             |
 | [`gbp-sframe`](https://crates.io/crates/gbp-sframe)              | SFrame (draft-ietf-sframe-enc) E2EE for GAP audio streams     |
 | [`gbp-stack`](https://crates.io/crates/gbp-stack)                | Top-level facade re-exporting every layer                     |

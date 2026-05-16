@@ -24,9 +24,11 @@ use gbp_core::{
     ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SequenceNo, StreamId,
     StreamType, TransitionId, TransitionState, codes,
     errors::ErrorSpec,
+    timeouts,
 };
 use gbp_mls::{MlsError, label_for};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 /// Errors raised by [`GroupNode`].
 #[derive(Debug, thiserror::Error)]
@@ -114,6 +116,18 @@ pub enum Event {
         /// `transition_id` that produced the new epoch.
         transition_id: TransitionId,
     },
+    /// Coordinator silence exceeded `T_coordinator_grace`. The application
+    /// should call [`GroupNode::claim_coordinator`] if this node has the
+    /// lowest `MemberId` among currently active members.
+    CoordinatorElectionNeeded,
+    /// This node successfully claimed the coordinator role (sent
+    /// `CAPABILITIES_ADVERTISE` with `coordinator_claim=true`).
+    BecameCoordinator,
+    /// A remote member broadcast a coordinator claim.
+    CoordinatorClaim {
+        /// The claiming member's id.
+        claimant: MemberId,
+    },
 }
 
 /// GBP-layer node.
@@ -125,6 +139,8 @@ pub enum Event {
 pub struct GroupNode {
     /// Application-level member id.
     pub member_id: MemberId,
+    /// Whether this node currently holds the coordinator role.
+    pub is_coordinator: bool,
     /// 16-byte group identifier.
     pub group_id: GroupId,
     /// Current epoch as observed by the GBP layer (the authoritative epoch
@@ -142,6 +158,20 @@ pub struct GroupNode {
     out_seq: HashMap<(StreamType, StreamId), SequenceNo>,
     in_hw: HashMap<(StreamType, StreamId), SequenceNo>,
     events: Vec<Event>,
+
+    /// MemberId of the member whose PREPARE_TRANSITION is currently pending.
+    /// Used for tie-break: if two PREPAREs arrive for the same transition_id,
+    /// the one from the lower MemberId wins (gbp_rfc §8).
+    pending_commit_sender: Option<MemberId>,
+    /// Deadline for receiving quorum READY after issuing PREPARE_TRANSITION.
+    /// Armed when coordinator sends PREPARE; fires ERR_PREPARE_TIMEOUT.
+    prepare_deadline: Option<Instant>,
+    /// Deadline for receiving EXECUTE_TRANSITION after sending READY_FOR_TRANSITION.
+    /// Armed when a member sends READY; fires ERR_EXECUTE_TIMEOUT.
+    execute_deadline: Option<Instant>,
+    /// Timestamp of last coordinator activity. When silence exceeds
+    /// T_COORDINATOR_GRACE_MS the node emits ERR_COORDINATOR_GONE.
+    coordinator_last_seen: Option<Instant>,
 }
 
 impl GroupNode {
@@ -150,6 +180,7 @@ impl GroupNode {
         Self {
             member_id,
             group_id,
+            is_coordinator: false,
             current_epoch: 0,
             last_transition_id: 0,
             pending_transition_id: 0,
@@ -158,6 +189,10 @@ impl GroupNode {
             out_seq: HashMap::new(),
             in_hw: HashMap::new(),
             events: Vec::new(),
+            pending_commit_sender: None,
+            prepare_deadline: None,
+            execute_deadline: None,
+            coordinator_last_seen: None,
         }
     }
 
@@ -272,10 +307,21 @@ impl GroupNode {
             ControlOpcode::PrepareTransition => {
                 self.pending_transition_id = transition_id;
                 self.transition_state = TransitionState::TPrepared;
+                self.prepare_deadline =
+                    Some(Instant::now() + Duration::from_millis(timeouts::T_PREPARE_MAX_MS));
+                self.execute_deadline = None;
             }
-            ControlOpcode::AbortTransition => {
-                self.pending_transition_id = 0;
-                self.transition_state = TransitionState::TAborted;
+            ControlOpcode::ReadyForTransition => {
+                self.execute_deadline =
+                    Some(Instant::now() + Duration::from_millis(timeouts::T_EXECUTE_MAX_MS));
+            }
+            ControlOpcode::ExecuteTransition | ControlOpcode::AbortTransition => {
+                self.prepare_deadline = None;
+                self.execute_deadline = None;
+                if opcode == ControlOpcode::AbortTransition {
+                    self.pending_transition_id = 0;
+                    self.transition_state = TransitionState::TAborted;
+                }
             }
             _ => {}
         }
@@ -456,22 +502,69 @@ impl GroupNode {
         }
         match opcode {
             ControlOpcode::PrepareTransition => {
+                // Tie-break (gbp_rfc §8): if a PREPARE for the same tid already
+                // exists from another sender, keep whichever has the lower
+                // MemberId — that member's commit is the canonical winner.
+                if self.pending_transition_id == c.transition_id {
+                    let current_winner = self.pending_commit_sender.unwrap_or(MemberId::MAX);
+                    if c.sender_id >= current_winner {
+                        // Existing winner holds; discard this competing commit
+                        // but still surface the Control event so upper layers
+                        // can observe it.
+                        self.events.push(Event::Control {
+                            from: c.sender_id,
+                            opcode,
+                            transition_id: c.transition_id,
+                            request_id: c.request_id,
+                            args: c.args.to_vec(),
+                        });
+                        return;
+                    }
+                    // New sender wins — replace.
+                }
                 self.pending_transition_id = c.transition_id;
+                self.pending_commit_sender = Some(c.sender_id);
                 self.transition_state = TransitionState::TPrepared;
+                // PREPARE originates from the coordinator — record activity.
+                self.note_coordinator_activity();
+                // Arm execute deadline: member must see EXECUTE within T_execute_max.
+                self.execute_deadline =
+                    Some(Instant::now() + Duration::from_millis(timeouts::T_EXECUTE_MAX_MS));
             }
             ControlOpcode::ReadyForTransition => {
                 self.transition_state = TransitionState::TReady;
+                // Coordinator received a READY — clear the per-member wait.
+                self.prepare_deadline = None;
             }
             ControlOpcode::ExecuteTransition => {
+                self.execute_deadline = None;
+                self.pending_commit_sender = None;
                 self.apply_transition(c.transition_id);
+                self.note_coordinator_activity();
             }
             ControlOpcode::AbortTransition => {
+                self.prepare_deadline = None;
+                self.execute_deadline = None;
+                self.pending_commit_sender = None;
                 self.transition_state = TransitionState::TAborted;
                 self.pending_transition_id = 0;
             }
             ControlOpcode::GroupStateDigestResponse => {
                 if self.state == NodeState::Resyncing {
                     self.transition(NodeState::Active);
+                }
+            }
+            ControlOpcode::CapabilitiesAdvertise => {
+                if Self::is_coordinator_claim(&c.args) {
+                    // Coordinator is alive — reset silence timer.
+                    self.note_coordinator_activity();
+                    // Collision resolution (gbp-control-plane §5.1): if we
+                    // also claimed and the remote claimant has a lower
+                    // MemberId, yield the coordinator role to them.
+                    if self.is_coordinator && c.sender_id < self.member_id {
+                        self.is_coordinator = false;
+                    }
+                    self.events.push(Event::CoordinatorClaim { claimant: c.sender_id });
                 }
             }
             _ => {}
@@ -491,6 +584,7 @@ impl GroupNode {
         self.current_epoch += 1;
         self.last_transition_id = tid;
         self.pending_transition_id = 0;
+        self.pending_commit_sender = None;
         self.transition_state = TransitionState::TExecuted;
         self.out_seq.clear();
         self.in_hw.clear();
@@ -505,6 +599,89 @@ impl GroupNode {
         if self.state != NodeState::Resyncing {
             self.transition(NodeState::Resyncing);
         }
+    }
+
+    /// Checks FSM deadlines and emits timeout events if any have expired.
+    ///
+    /// Call this regularly from the application event loop (e.g. every 500 ms).
+    /// Returns the same events that would come from [`GroupNode::drain_events`];
+    /// the caller may also drain events separately — this method does not
+    /// duplicate them.
+    pub fn check_timeouts(&mut self) -> Vec<Event> {
+        let now = Instant::now();
+
+        if self.prepare_deadline.is_some_and(|d| now >= d) {
+            self.prepare_deadline = None;
+            self.execute_deadline = None;
+            self.pending_transition_id = 0;
+            self.transition_state = TransitionState::TAborted;
+            self.emit_err_spec(codes::PREPARE_TIMEOUT, "T_prepare_max exceeded");
+        }
+
+        if self.execute_deadline.is_some_and(|d| now >= d) {
+            self.execute_deadline = None;
+            self.emit_err_spec(codes::EXECUTE_TIMEOUT, "T_execute_max exceeded");
+        }
+
+        if self.coordinator_last_seen.is_some_and(|t| {
+            now.duration_since(t).as_millis() as u64 >= timeouts::T_COORDINATOR_GRACE_MS
+        }) {
+            self.coordinator_last_seen = None;
+            self.is_coordinator = false;
+            self.emit_err_spec(codes::COORDINATOR_GONE, "coordinator silence exceeded T_coordinator_grace");
+            self.events.push(Event::CoordinatorElectionNeeded);
+        }
+
+        self.drain_events()
+    }
+
+    /// Records that the coordinator was active right now.
+    ///
+    /// Call this whenever the node receives a frame from the current
+    /// coordinator (e.g. `PREPARE_TRANSITION`, `EXECUTE_TRANSITION`,
+    /// `CAPABILITIES_ADVERTISE` with `coordinator_claim`). Resets the
+    /// coordinator-silence timer used to detect `ERR_COORDINATOR_GONE`.
+    pub fn note_coordinator_activity(&mut self) {
+        self.coordinator_last_seen = Some(Instant::now());
+    }
+
+    /// Claims the coordinator role by broadcasting `CAPABILITIES_ADVERTISE`
+    /// with `coordinator_claim=true` (gbp-control-plane §5.1).
+    ///
+    /// Call this when [`Event::CoordinatorElectionNeeded`] fires **and** this
+    /// node has the lowest `MemberId` among currently active members. The
+    /// caller is responsible for delivering the returned frame to every group
+    /// member.
+    ///
+    /// The args payload is the minimal CBOR map `{0: true}` encoding a
+    /// coordinator claim flag.
+    pub fn claim_coordinator<S: Sealer>(
+        &mut self,
+        seal: &mut S,
+        target: MemberId,
+    ) -> Result<OutboundFrame, NodeError> {
+        // CBOR: {0: true}  →  A1 00 F5
+        let args = vec![0xA1u8, 0x00, 0xF5];
+        self.is_coordinator = true;
+        self.coordinator_last_seen = Some(Instant::now());
+        self.events.push(Event::BecameCoordinator);
+        self.send_control(seal, target, ControlOpcode::CapabilitiesAdvertise,
+                          self.last_transition_id, 0, args)
+    }
+
+    /// Returns `true` if the raw args bytes of a `CAPABILITIES_ADVERTISE`
+    /// frame encode a coordinator claim (`{0: true}` in CBOR).
+    fn is_coordinator_claim(args: &[u8]) -> bool {
+        // Minimal CBOR map {0: true}: A1 00 F5
+        // We also accept larger maps where key 0 maps to true.
+        // Fast path: exact match on the minimal encoding.
+        if args == [0xA1, 0x00, 0xF5] {
+            return true;
+        }
+        // General path: scan for the sequence 00 F5 (uint(0) → true) inside a
+        // CBOR map. This is intentionally simple; a full CBOR parser lives in
+        // the gbp-protocol crate and is not a dependency here.
+        args.windows(2).any(|w| w == [0x00, 0xF5])
     }
 
     fn transition(&mut self, next: NodeState) {
@@ -774,6 +951,237 @@ mod tests {
         assert!(errs.is_empty(), "expected clean apply, got errors {:?}", errs);
         assert_eq!(joiner.last_transition_id, 1);
         assert_eq!(joiner.current_epoch, 1);
+    }
+
+    // ---- Coordinator handover (gbp-control-plane §5.1) ---------------------
+
+    #[test]
+    fn claim_coordinator_sets_flag_and_emits_event() {
+        let mut node = GroupNode::new(1, group_id());
+        node.bootstrap_as_creator(0);
+        node.drain_events();
+        let mut s = PlainSealer;
+        let _ = node.claim_coordinator(&mut s, 0).unwrap();
+        assert!(node.is_coordinator);
+        let evs = node.drain_events();
+        assert!(evs.iter().any(|e| matches!(e, Event::BecameCoordinator)));
+    }
+
+    #[test]
+    fn coordinator_gone_emits_election_needed() {
+        let mut member = GroupNode::new(2, group_id());
+        member.bootstrap_as_joiner(0, 0);
+        member.coordinator_last_seen = Some(Instant::now() - Duration::from_millis(11_000));
+        let evs = member.check_timeouts();
+        assert!(evs.iter().any(|e| matches!(e, Event::CoordinatorElectionNeeded)));
+        assert!(!member.is_coordinator, "flag cleared on silence");
+    }
+
+    #[test]
+    fn capabilities_advertise_with_claim_resets_silence_timer() {
+        let mut member = GroupNode::new(2, group_id());
+        let mut coord = GroupNode::new(1, group_id());
+        member.bootstrap_as_joiner(0, 0);
+        coord.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        // coord sends claim
+        let f = coord.claim_coordinator(&mut s, 2).unwrap();
+        // on_wire already drains events — use the returned vec.
+        let evs = member.on_wire(&mut s, &f.wire).unwrap();
+        assert!(member.coordinator_last_seen.is_some(), "silence timer reset");
+        assert!(evs.iter().any(|e| matches!(e, Event::CoordinatorClaim { claimant: 1 })));
+    }
+
+    #[test]
+    fn higher_id_yields_to_lower_claimant() {
+        // Node 5 claims first, then receives a claim from node 2 (lower) → yields.
+        let mut node5 = GroupNode::new(5, group_id());
+        let mut node2 = GroupNode::new(2, group_id());
+        node5.bootstrap_as_joiner(0, 0);
+        node2.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        // node5 claims
+        node5.is_coordinator = true;
+        // node2 broadcasts claim
+        let f = node2.claim_coordinator(&mut s, 5).unwrap();
+        node5.on_wire(&mut s, &f.wire).unwrap();
+        assert!(!node5.is_coordinator, "node5 yielded to node2");
+    }
+
+    #[test]
+    fn lower_id_keeps_coordinator_against_higher_claimant() {
+        let mut node1 = GroupNode::new(1, group_id());
+        let mut node5 = GroupNode::new(5, group_id());
+        node1.bootstrap_as_creator(0);
+        node5.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        node1.is_coordinator = true;
+        let f = node5.claim_coordinator(&mut s, 1).unwrap();
+        node1.on_wire(&mut s, &f.wire).unwrap();
+        assert!(node1.is_coordinator, "node1 keeps role — it has lower id");
+    }
+
+    // ---- Tie-break (gbp_rfc §8) ---------------------------------------------
+
+    #[test]
+    fn competing_prepare_lower_member_id_wins() {
+        // Two coordinators issue PREPARE for the same tid.
+        // Member 1 (lower) sends first — member 3 (higher) is the loser.
+        let mut node = GroupNode::new(10, group_id());
+        node.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+
+        // Build a PREPARE from member 1 (lower id).
+        let mut sender1 = GroupNode::new(1, group_id());
+        sender1.bootstrap_as_creator(0);
+        let f1 = sender1.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 1, b"commit-A".to_vec()).unwrap();
+        node.on_wire(&mut s, &f1.wire).unwrap();
+        assert_eq!(node.pending_commit_sender, Some(1), "member 1 is initial winner");
+
+        // Build a PREPARE from member 3 (higher id, same tid).
+        let mut sender3 = GroupNode::new(3, group_id());
+        sender3.bootstrap_as_creator(0);
+        let f3 = sender3.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 2, b"commit-B".to_vec()).unwrap();
+        node.on_wire(&mut s, &f3.wire).unwrap();
+        // Lower sender (1) keeps the win.
+        assert_eq!(node.pending_commit_sender, Some(1), "member 1 still wins");
+        assert_eq!(node.pending_transition_id, 1);
+    }
+
+    #[test]
+    fn competing_prepare_later_lower_id_displaces_winner() {
+        // Member 5 arrives first, then member 2 (lower) — member 2 wins.
+        let mut node = GroupNode::new(10, group_id());
+        node.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+
+        let mut sender5 = GroupNode::new(5, group_id());
+        sender5.bootstrap_as_creator(0);
+        let f5 = sender5.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 1, b"commit-X".to_vec()).unwrap();
+        node.on_wire(&mut s, &f5.wire).unwrap();
+        assert_eq!(node.pending_commit_sender, Some(5));
+
+        let mut sender2 = GroupNode::new(2, group_id());
+        sender2.bootstrap_as_creator(0);
+        let f2 = sender2.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 2, b"commit-Y".to_vec()).unwrap();
+        node.on_wire(&mut s, &f2.wire).unwrap();
+        assert_eq!(node.pending_commit_sender, Some(2), "member 2 displaces member 5");
+    }
+
+    #[test]
+    fn apply_transition_clears_commit_sender() {
+        let mut coord = GroupNode::new(1, group_id());
+        coord.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        coord.apply_transition(1);
+        assert_eq!(coord.pending_commit_sender, None);
+    }
+
+    // ---- Timer engine -------------------------------------------------------
+
+    #[test]
+    fn prepare_timeout_fires_when_deadline_exceeded() {
+        let mut coord = GroupNode::new(1, group_id());
+        coord.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        // Manually backdate the deadline so it appears expired.
+        coord.prepare_deadline = Some(Instant::now() - Duration::from_millis(1));
+        let evs = coord.check_timeouts();
+        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::PREPARE_TIMEOUT, .. })),
+            "expected PREPARE_TIMEOUT, got {:?}", evs);
+        assert_eq!(coord.transition_state, TransitionState::TAborted, "transition aborted");
+        assert_eq!(coord.prepare_deadline, None, "deadline cleared");
+    }
+
+    #[test]
+    fn execute_timeout_fires_when_deadline_exceeded() {
+        let mut member = GroupNode::new(2, group_id());
+        member.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        // Simulate READY sent → execute_deadline armed.
+        member.pending_transition_id = 1;
+        member.transition_state = TransitionState::TPrepared;
+        member.send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 1, 1, vec![]).unwrap();
+        // Backdate.
+        member.execute_deadline = Some(Instant::now() - Duration::from_millis(1));
+        let evs = member.check_timeouts();
+        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::EXECUTE_TIMEOUT, .. })),
+            "expected EXECUTE_TIMEOUT, got {:?}", evs);
+        assert_eq!(member.execute_deadline, None, "deadline cleared");
+    }
+
+    #[test]
+    fn coordinator_gone_fires_after_silence() {
+        let mut member = GroupNode::new(2, group_id());
+        member.bootstrap_as_joiner(0, 0);
+        // Simulate coordinator was seen 11 seconds ago (> T_COORDINATOR_GRACE_MS = 10_000).
+        member.coordinator_last_seen = Some(Instant::now() - Duration::from_millis(11_000));
+        let evs = member.check_timeouts();
+        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::COORDINATOR_GONE, .. })),
+            "expected COORDINATOR_GONE, got {:?}", evs);
+        assert_eq!(member.coordinator_last_seen, None, "timer cleared");
+    }
+
+    #[test]
+    fn note_coordinator_activity_resets_silence_timer() {
+        let mut member = GroupNode::new(2, group_id());
+        member.bootstrap_as_joiner(0, 0);
+        // Old timestamp — would fire.
+        member.coordinator_last_seen = Some(Instant::now() - Duration::from_millis(11_000));
+        // Reset.
+        member.note_coordinator_activity();
+        let evs = member.check_timeouts();
+        assert!(!evs.iter().any(|e| matches!(e, Event::Error { code: codes::COORDINATOR_GONE, .. })),
+            "should NOT fire after reset");
+    }
+
+    #[test]
+    fn execute_clears_prepare_deadline() {
+        let mut coord = GroupNode::new(1, group_id());
+        coord.bootstrap_as_creator(0);
+        let mut s = PlainSealer;
+        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        assert!(coord.prepare_deadline.is_some(), "deadline armed");
+        coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        assert_eq!(coord.prepare_deadline, None, "deadline cleared on EXECUTE");
+        assert_eq!(coord.execute_deadline, None, "execute_deadline also cleared");
+    }
+
+    #[test]
+    fn receive_prepare_arms_execute_deadline() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut member = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        member.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        member.on_wire(&mut s, &f.wire).unwrap();
+        assert!(member.execute_deadline.is_some(), "execute_deadline armed on receiving PREPARE");
+    }
+
+    #[test]
+    fn receive_execute_clears_execute_deadline() {
+        let mut coord = GroupNode::new(1, group_id());
+        let mut member = GroupNode::new(2, group_id());
+        coord.bootstrap_as_creator(0);
+        member.bootstrap_as_joiner(0, 0);
+        let mut s = PlainSealer;
+        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        member.on_wire(&mut s, &prep.wire).unwrap();
+        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        member.on_wire(&mut s, &exec.wire).unwrap();
+        assert_eq!(member.execute_deadline, None, "cleared on EXECUTE");
+    }
+
+    #[test]
+    fn no_timeout_when_deadlines_not_set() {
+        let mut node = GroupNode::new(1, group_id());
+        node.bootstrap_as_creator(0);
+        node.drain_events(); // clear bootstrap StateChanged events
+        let evs = node.check_timeouts();
+        assert!(evs.is_empty(), "no events without armed deadlines");
     }
 
     #[test]

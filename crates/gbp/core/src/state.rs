@@ -111,6 +111,9 @@ pub mod timeouts {
     pub const T_QUORUM_GRACE_MS: u64 = 2_000;
     /// Member: silence threshold before triggering coordinator handover.
     pub const T_COORDINATOR_GRACE_MS: u64 = 10_000;
+    /// GAP: how long old-epoch keys are retained after an epoch transition so
+    /// that in-flight audio frames can still be accepted (gap_rfc §4).
+    pub const T_GAP_KEY_OVERLAP_MS: u64 = 10_000;
 }
 
 /// Sub-protocol activation FSM.
