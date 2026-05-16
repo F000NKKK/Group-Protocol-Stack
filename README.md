@@ -9,9 +9,9 @@
 [![NuGet](https://img.shields.io/nuget/v/GBPStack?logo=nuget&label=NuGet)](https://www.nuget.org/packages/GBPStack)
 [![PyPI](https://img.shields.io/pypi/v/gbp-stack?logo=pypi&label=PyPI&logoColor=white)](https://pypi.org/project/gbp-stack/)
 [![NPM](https://img.shields.io/npm/v/%40voluntas-progressus%2Fgbp-stack?logo=npm&label=npm)](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack)
-
 [![GitHub release](https://img.shields.io/github/v/release/F000NKKK/Group-Protocol-Stack?label=latest%20release&logo=github)](https://github.com/F000NKKK/Group-Protocol-Stack/releases)
 [![GitHub release date](https://img.shields.io/github/release-date/F000NKKK/Group-Protocol-Stack?label=released)](https://github.com/F000NKKK/Group-Protocol-Stack/releases)
+
 [![GitHub Issues](https://img.shields.io/github/issues/F000NKKK/Group-Protocol-Stack?logo=github)](https://github.com/F000NKKK/Group-Protocol-Stack/issues)
 [![GitHub Discussions](https://img.shields.io/github/discussions/F000NKKK/Group-Protocol-Stack?logo=github)](https://github.com/F000NKKK/Group-Protocol-Stack/discussions)
 
