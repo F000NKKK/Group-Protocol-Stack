@@ -111,7 +111,7 @@ jobs:
             10.0.x
 
       - name: download native artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: native-artifacts
           pattern: native-*
@@ -156,7 +156,7 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nupkg
           path: nupkg
@@ -209,7 +209,7 @@ jobs:
           python-version: "3.11"
 
       - name: download native artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: native-${{ matrix.rid }}
           path: python/gbp_stack/_native/${{ matrix.rid }}
@@ -260,12 +260,12 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist-merged
           pattern: wheel-*
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sdist
           path: dist-merged
@@ -357,7 +357,7 @@ jobs:
           npm --version
 
       - name: download native artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: native-artifacts
           pattern: native-*
@@ -403,7 +403,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: stage release files
