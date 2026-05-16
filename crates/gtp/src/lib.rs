@@ -15,10 +15,15 @@
 
 #![deny(missing_docs)]
 
+pub mod attachment;
 pub mod client;
 pub mod history;
 pub mod message;
 
+pub use attachment::{
+    AttachmentAssembler, AttachmentChunk, AttachmentError, AttachmentManifest, AttachmentSender,
+    DEFAULT_CHUNK_SIZE,
+};
 pub use client::{GtpAccept, GtpClient, GtpError};
 pub use history::{MessageHistory, Watermark};
 pub use message::{GtpContentType, GtpMessage};

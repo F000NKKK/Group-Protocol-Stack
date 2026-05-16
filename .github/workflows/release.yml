@@ -281,7 +281,7 @@ jobs:
   #   workflow = release.yml, environment = crates-io.
   # Register one publisher per crate (gbp-core, gbp-protocol, gbp-mls,
   # gbp-transport, gbp-node, gtp-protocol, gap-protocol, gsp-protocol,
-  # gbp-sframe, gbp-stack, gbp-stack-ffi, gbp-cli) before the first publish.
+  # gbp-sframe, gbp-proto, gbp-stack, gbp-stack-ffi, gbp-cli) before the first publish.
   publish-crates:
     name: publish to crates.io
     if: startsWith(github.ref, 'refs/tags/v')
@@ -322,7 +322,7 @@ jobs:
             return 1
           }
           for p in gbp-core gbp-protocol gbp-mls gbp-transport gbp-node \
-                   gtp-protocol gap-protocol gsp-protocol gbp-sframe \
+                   gtp-protocol gap-protocol gsp-protocol gbp-sframe gbp-proto \
                    gbp-stack gbp-stack-ffi gbp-cli; do
             publish "$p"
           done

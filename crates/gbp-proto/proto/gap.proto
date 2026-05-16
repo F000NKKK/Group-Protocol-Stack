@@ -1,0 +1,11 @@
+// Group Audio Protocol (GAP) — Protobuf schema (gbp_rfc §12.2)
+syntax = "proto3";
+package gap;
+
+message GapPayload {
+  uint32 media_source_id = 1;
+  uint32 rtp_sequence    = 2;
+  uint64 rtp_timestamp   = 3;
+  uint32 key_phase       = 4;
+  bytes  opus_frame      = 5;
+}

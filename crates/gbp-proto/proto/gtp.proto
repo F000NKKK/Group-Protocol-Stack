@@ -1,0 +1,30 @@
+// Group Text Protocol (GTP) — Protobuf schema (gbp_rfc §12.2)
+syntax = "proto3";
+package gtp;
+
+message GtpMessage {
+  uint64 message_id      = 1;
+  uint32 sender_id       = 2;
+  uint64 timestamp_ms    = 3;
+  uint32 request_id      = 4;
+  uint32 flags           = 5;
+  uint32 content_type    = 6;
+  uint32 content_length  = 7;
+  bytes  content         = 8;
+}
+
+message AttachmentManifest {
+  uint64 attachment_id = 1;
+  string filename      = 2;
+  string mime_type     = 3;
+  uint64 total_size    = 4;
+  uint32 chunk_count   = 5;
+  bytes  sha256        = 6;  // 32 bytes
+}
+
+message AttachmentChunk {
+  uint64 attachment_id = 1;
+  uint32 chunk_index   = 2;
+  uint32 chunk_count   = 3;
+  bytes  data          = 4;
+}

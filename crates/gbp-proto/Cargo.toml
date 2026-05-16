@@ -1,0 +1,20 @@
+[package]
+name = "gbp-proto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["gbp", "protobuf", "proto", "group", "messaging"]
+categories = ["cryptography", "network-programming", "encoding"]
+description = "Protobuf codec for the Group Protocol Stack (GBP/GTP/GAP/GSP). Alternative wire format to CBOR per gbp_rfc §12.2."
+readme = "README.md"
+
+[lib]
+name = "gbp_proto"
+path = "src/lib.rs"
+
+[dependencies]
+prost = { workspace = true }

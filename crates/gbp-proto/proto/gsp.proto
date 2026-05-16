@@ -1,0 +1,12 @@
+// Group Signaling Protocol (GSP) — Protobuf schema (gbp_rfc §12.2)
+syntax = "proto3";
+package gsp;
+
+message GspSignal {
+  uint32 signal_type  = 1;
+  uint32 request_id   = 2;
+  uint32 sender_id    = 3;
+  uint32 role_claim   = 4;
+  uint32 args_length  = 5;
+  bytes  args         = 6;
+}

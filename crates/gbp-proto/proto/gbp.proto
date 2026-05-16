@@ -1,0 +1,31 @@
+// Group Base Protocol (GBP) — Protobuf schema (gbp_rfc §12.2)
+syntax = "proto3";
+package gbp;
+
+message GbpFrame {
+  uint32 version          = 1;
+  bytes  group_id         = 2;  // 16 bytes
+  uint64 epoch            = 3;
+  uint32 transition_id    = 4;
+  uint32 stream_type      = 5;
+  uint32 stream_id        = 6;
+  uint32 flags            = 7;
+  uint64 sequence_no      = 8;
+  bytes  encrypted_payload = 9;
+}
+
+message ControlMessage {
+  uint32 opcode        = 1;
+  uint32 request_id    = 2;
+  uint32 sender_id     = 3;
+  uint32 transition_id = 4;
+  bytes  args          = 5;
+}
+
+message ErrorObject {
+  uint32 code      = 1;
+  uint32 class     = 2;
+  bool   retryable = 3;
+  bool   fatal     = 4;
+  string reason    = 5;
+}
