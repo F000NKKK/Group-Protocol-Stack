@@ -1,7 +1,10 @@
 # Group Protocol Stack
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 [![release](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/release.yml/badge.svg)](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/release.yml)
+[![Dependabot Updates](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/F000NKKK/Group-Protocol-Stack/actions/workflows/dependabot/dependabot-updates)
+
 [![crates.io](https://img.shields.io/crates/v/gbp-stack?logo=rust&label=crates.io)](https://crates.io/crates/gbp-stack)
 [![NuGet](https://img.shields.io/nuget/v/GBPStack?logo=nuget&label=NuGet)](https://www.nuget.org/packages/GBPStack)
 [![PyPI](https://img.shields.io/pypi/v/gbp-stack?logo=pypi&label=PyPI&logoColor=white)](https://pypi.org/project/gbp-stack/)
