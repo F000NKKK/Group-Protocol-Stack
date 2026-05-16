@@ -41,7 +41,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-pip install gbp-stack==1.1.4
+pip install gbp-stack==1.2.0
 ```
 
 ## Quick start

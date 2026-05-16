@@ -1,4 +1,16 @@
-﻿## 1.1.4 (2026-05-13)
+﻿## 1.2.0 (2026-05-16)
+
+### Features
+
+- feat(gbp-sframe): add SFrame E2EE crate for GAP audio streams (dbf75c5)
+
+### Chores
+
+- chore: remove manual Unreleased section (release script auto-generates) (30517fa)
+
+---
+
+## 1.1.4 (2026-05-13)
 
 _No conventional commits found in this range._
 
@@ -77,6 +89,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
