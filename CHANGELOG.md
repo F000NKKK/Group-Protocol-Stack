@@ -1,4 +1,16 @@
-﻿## 1.2.2 (2026-05-16)
+﻿## 1.2.3 (2026-05-16)
+
+### Bug Fixes
+
+- fix(release): use .Contains() instead of .ContainsKey() for PS 5.1 compatibility (5f35371)
+
+### Chores
+
+- chore: remove root CoC and Contributing (live in .github), update release script with auto SECURITY.md (566b02a)
+
+---
+
+## 1.2.2 (2026-05-16)
 
 ### Bug Fixes
 
@@ -113,6 +125,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
