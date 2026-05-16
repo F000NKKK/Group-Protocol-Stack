@@ -54,7 +54,7 @@ serde_bytes = "0.11"
 
 chacha20poly1305 = "0.10"
 aes-gcm           = "0.10"
-hkdf              = "0.12"
+hkdf              = "0.13"
 sha2              = "0.11"
 
 gbp-sframe = { path = "crates/gbp-sframe", version = "1.2.2" }
