@@ -44,7 +44,7 @@
     "koffi": "^2.10.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.8.0",
     "typescript": "^6.0.3"
   },
   "publishConfig": {
