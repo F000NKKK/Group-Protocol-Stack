@@ -163,25 +163,9 @@ function Update-SecurityPolicy([string]$newVersion) {
         [long]$v[0] * 1000000L + [long]$v[1] * 1000L + [long]$v[2]
     } -Descending
 
-    # Group by major.minor — first occurrence (highest patch) is the "latest patch".
-    $latestByMinor = [ordered]@{}
-    foreach ($tag in $sorted) {
-        if ($tag -match '^v(\d+)\.(\d+)\.') {
-            $key = "$($Matches[1]).$($Matches[2])"
-            if (-not $latestByMinor.Contains($key)) { $latestByMinor[$key] = $tag }
-        }
-    }
-
-    # Top 2 minors = candidates for "supported" (latest patch only).
-    $supportedCandidates = [System.Collections.Generic.HashSet[string]]::new(
-        [string[]]($latestByMinor.Values | Select-Object -First 2),
-        [System.StringComparer]::Ordinal
-    )
-
-    # Check annotated tags for explicit "deprecated" / "eol" overrides.
+    # Detect deprecated/eol tags via annotation message.
     $deprecatedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($tag in $sorted) {
-        # git for-each-ref returns object type + contents only for annotated tags.
         $objType = git for-each-ref "refs/tags/$tag" --format='%(objecttype)' 2>$null
         if ($objType -eq 'tag') {
             $msg = git for-each-ref "refs/tags/$tag" --format='%(contents)' 2>$null
@@ -191,13 +175,31 @@ function Update-SecurityPolicy([string]$newVersion) {
         }
     }
 
+    # Group by major.minor — latest NON-deprecated patch per minor is the supported candidate.
+    # If the absolute latest patch is deprecated, fall back to the next non-deprecated patch.
+    $latestByMinor = [ordered]@{}
+    foreach ($tag in $sorted) {
+        if ($tag -match '^v(\d+)\.(\d+)\.') {
+            $key = "$($Matches[1]).$($Matches[2])"
+            if (-not $latestByMinor.Contains($key) -and -not $deprecatedSet.Contains($tag)) {
+                $latestByMinor[$key] = $tag
+            }
+        }
+    }
+
+    # Top 2 minors = candidates for "supported" (latest non-deprecated patch only).
+    $supportedCandidates = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]($latestByMinor.Values | Select-Object -First 2),
+        [System.StringComparer]::Ordinal
+    )
+
     # Build table rows.
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('| Version | Supported          |')
     $lines.Add('| ------- | ------------------ |')
     foreach ($tag in $sorted) {
         $ver  = ($tag -replace '^v', '').PadRight(7)
-        $ok   = $supportedCandidates.Contains($tag) -and -not $deprecatedSet.Contains($tag)
+        $ok   = $supportedCandidates.Contains($tag)
         $mark = if ($ok) { ':white_check_mark:' } else { ':x:' }
         $lines.Add("| $ver | $($mark.PadRight(18)) |")
     }
