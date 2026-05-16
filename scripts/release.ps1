@@ -1,7 +1,8 @@
-﻿<#
+<#
 .SYNOPSIS
   Cuts a release: bumps the version across every package manifest, updates
-  CHANGELOG.md from conventional commits, commits, tags and pushes.
+  CHANGELOG.md from conventional commits, regenerates the SECURITY.md
+  supported-versions table, commits, tags and pushes.
 
 .DESCRIPTION
   After this script returns, the GitHub Actions release workflow will see
@@ -10,6 +11,18 @@
 
   The "current version" is read from Cargo.toml (workspace.package.version);
   every other manifest is updated to match via scripts/bump-version.ps1.
+
+  SECURITY.md is regenerated automatically:
+    * The two most recent minor series (latest patch only) are marked supported.
+    * Any annotated tag whose message contains "deprecated" or "eol" is
+      explicitly forced to unsupported, even if policy would support it.
+    * All other stable tags are marked unsupported.
+
+  To mark a released patch as deprecated without releasing a new version:
+    git tag -a -f v1.2.1 -m "deprecated: superseded by v1.2.2"
+    git push origin v1.2.1 --force-with-lease
+    pwsh ./scripts/release.ps1 -Bump patch -NoPush   # just regenerate SECURITY.md
+    # or run Update-SecurityPolicy manually and commit
 
 .PARAMETER Bump
   patch | minor | major | rc — relative bump (cannot be combined with -Version).
@@ -23,7 +36,7 @@
 
 .EXAMPLE
   pwsh ./scripts/release.ps1 -Bump patch
-  pwsh ./scripts/release.ps1 -Bump rc
+  pwsh ./scripts/release.ps1 -Bump minor
   pwsh ./scripts/release.ps1 -Version 1.0.0
 #>
 
@@ -118,10 +131,87 @@ function Update-Changelog([string]$entry) {
     } else {
         $new = "# Changelog`r`n`r`n" + $entry
     }
-    # CHANGELOG.md uses UTF-8 with BOM for maximum Windows tooling compatibility
-    # (Notepad, legacy editors). Code manifests (Cargo.toml, .csproj, etc.) use
-    # no-BOM via bump-version.ps1 to avoid breaking parsers.
+    # CHANGELOG.md uses UTF-8 with BOM for maximum Windows tooling compatibility.
+    # Code manifests use no-BOM (via bump-version.ps1) to avoid breaking parsers.
     Set-Content -Path $path -Value $new -Encoding utf8
+}
+
+# Rebuilds the | Version | Supported | table in SECURITY.md from git tags.
+#
+# Policy:
+#   - Latest patch of the two most-recent minor series → supported.
+#   - Any annotated tag whose message contains "deprecated" or "eol" → unsupported
+#     (overrides policy even for the latest patch).
+#   - Everything else → unsupported.
+#
+# $newVersion — the version being released (tag doesn't exist in git yet at
+#               call time, so we inject it into the list manually).
+function Update-SecurityPolicy([string]$newVersion) {
+    Write-Host "Updating SECURITY.md supported-versions table..." -ForegroundColor Cyan
+
+    # Collect all stable release tags (vMAJOR.MINOR.PATCH, no pre-release suffix).
+    $allTags = @(git tag -l | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' })
+
+    # Inject the version being released before the tag exists in git.
+    if ($newVersion -and "v$newVersion" -notin $allTags) {
+        $allTags = @("v$newVersion") + $allTags
+    }
+
+    # Sort descending so the highest version comes first.
+    $sorted = $allTags | Sort-Object {
+        $v = ($_ -replace '^v', '').Split('.')
+        [long]$v[0] * 1000000L + [long]$v[1] * 1000L + [long]$v[2]
+    } -Descending
+
+    # Group by major.minor — first occurrence (highest patch) is the "latest patch".
+    $latestByMinor = [ordered]@{}
+    foreach ($tag in $sorted) {
+        if ($tag -match '^v(\d+)\.(\d+)\.') {
+            $key = "$($Matches[1]).$($Matches[2])"
+            if (-not $latestByMinor.ContainsKey($key)) { $latestByMinor[$key] = $tag }
+        }
+    }
+
+    # Top 2 minors = candidates for "supported" (latest patch only).
+    $supportedCandidates = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]($latestByMinor.Values | Select-Object -First 2),
+        [System.StringComparer]::Ordinal
+    )
+
+    # Check annotated tags for explicit "deprecated" / "eol" overrides.
+    $deprecatedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($tag in $sorted) {
+        # git for-each-ref returns object type + contents only for annotated tags.
+        $objType = git for-each-ref "refs/tags/$tag" --format='%(objecttype)' 2>$null
+        if ($objType -eq 'tag') {
+            $msg = git for-each-ref "refs/tags/$tag" --format='%(contents)' 2>$null
+            if (($msg -join ' ') -match '\b(deprecated|eol|end.of.life)\b') {
+                [void]$deprecatedSet.Add($tag)
+            }
+        }
+    }
+
+    # Build table rows.
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('| Version | Supported          |')
+    $lines.Add('| ------- | ------------------ |')
+    foreach ($tag in $sorted) {
+        $ver  = ($tag -replace '^v', '').PadRight(7)
+        $ok   = $supportedCandidates.Contains($tag) -and -not $deprecatedSet.Contains($tag)
+        $mark = if ($ok) { ':white_check_mark:' } else { ':x:' }
+        $lines.Add("| $ver | $($mark.PadRight(18)) |")
+    }
+
+    # Replace the existing table block in SECURITY.md.
+    # Matches: "| Version |..." header line + divider line + all "|...|" rows.
+    $path    = Join-Path $root 'SECURITY.md'
+    $md      = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false))
+    $newTable = ($lines -join "`n") + "`n"
+    $md = [regex]::Replace($md,
+        '(?m)^\| Version \|[^\n]*\n(?:\|[^\n]*\n)+',
+        $newTable)
+    [System.IO.File]::WriteAllText($path, $md, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "  updated: SECURITY.md" -ForegroundColor Green
 }
 
 # --- main ---------------------------------------------------------------------
@@ -148,10 +238,10 @@ try {
 
     Write-Host "Releasing $current -> $next" -ForegroundColor Cyan
 
-    # 1. Bump every manifest
+    # 1. Bump every manifest.
     & (Join-Path $PSScriptRoot 'bump-version.ps1') -Version $next
 
-    # 2. Changelog
+    # 2. Changelog.
     $lastTag = git describe --tags --abbrev=0 2>$null
     $range = if ($LASTEXITCODE -eq 0 -and $lastTag) { "$lastTag..HEAD" } else { 'HEAD' }
     $LASTEXITCODE = 0
@@ -159,15 +249,17 @@ try {
     Update-Changelog $entry
     Write-Host "CHANGELOG.md updated"
 
-    # 3. Commit (manifests + every README touched by bump-version) + tag.
-    #    Test-Clean above guarantees the only dirty paths are ours, so -A is safe
-    #    and picks up README files that bump-version.ps1 rewrites.
+    # 3. Regenerate SECURITY.md supported-versions table.
+    #    Called before `git add -A` so the updated file is included in the commit.
+    Update-SecurityPolicy $next
+
+    # 4. Commit (manifests + READMEs + CHANGELOG + SECURITY.md) + annotated tag.
     git add -A
     git commit -m "chore(release): $next"
     git tag -a "v$next" -m "Release v$next"
     Write-Host "Committed and tagged v$next"
 
-    # 4. Push commit then tag (tag last so CI sees the final commit under v$next).
+    # 5. Push commit then tag (tag last so CI sees the final commit under v$next).
     if ($NoPush) {
         Write-Host "Skipping push (-NoPush). When ready: git push && git push origin v$next" -ForegroundColor Yellow
     } else {
