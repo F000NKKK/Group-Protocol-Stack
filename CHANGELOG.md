@@ -1,4 +1,16 @@
-﻿## 1.2.0 (2026-05-16)
+﻿## 1.2.1 (2026-05-16)
+
+### CI
+
+- ci: add gbp-sframe to crates.io publish order (970a5e1)
+
+### Chores
+
+- chore: update Cargo.lock (4ba2b16)
+
+---
+
+## 1.2.0 (2026-05-16)
 
 ### Features
 
@@ -89,6 +101,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
