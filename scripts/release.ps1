@@ -168,7 +168,7 @@ function Update-SecurityPolicy([string]$newVersion) {
     foreach ($tag in $sorted) {
         if ($tag -match '^v(\d+)\.(\d+)\.') {
             $key = "$($Matches[1]).$($Matches[2])"
-            if (-not $latestByMinor.ContainsKey($key)) { $latestByMinor[$key] = $tag }
+            if (-not $latestByMinor.Contains($key)) { $latestByMinor[$key] = $tag }
         }
     }
 
