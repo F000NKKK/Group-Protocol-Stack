@@ -155,6 +155,26 @@ gsp_client_send = _bind(
 )
 gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
 
+# ── SFrame ────────────────────────────────────────────────────────────────────
+gbp_sframe_session_create = _bind(
+    "gbp_sframe_session_create", c_int32, [c_int32, c_uint8, c_void_p, c_size_t]
+)
+gbp_sframe_session_free = _bind("gbp_sframe_session_free", None, [c_int32])
+gbp_sframe_encryptor_create = _bind(
+    "gbp_sframe_encryptor_create",
+    c_int32,
+    [c_int32, c_int32, c_uint32, c_uint8, c_void_p, c_size_t],
+)
+gbp_sframe_encryptor_free = _bind("gbp_sframe_encryptor_free", None, [c_int32])
+gbp_sframe_encrypt = _bind(
+    "gbp_sframe_encrypt", GbpBuffer, [c_int32, c_void_p, c_size_t, c_void_p, c_size_t]
+)
+gbp_sframe_decrypt = _bind(
+    "gbp_sframe_decrypt",
+    GbpBuffer,
+    [c_int32, c_void_p, c_size_t, c_void_p, c_size_t, ctypes.POINTER(c_uint32)],
+)
+
 
 def take_buffer(buf: GbpBuffer) -> bytes:
     """Copy a returned :class:`GbpBuffer` into a ``bytes`` object and free it."""

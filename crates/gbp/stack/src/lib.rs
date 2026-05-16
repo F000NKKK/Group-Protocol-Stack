@@ -12,7 +12,7 @@
 //!   │      gbp-node  →  gbp-stack  →  gbp-stack-ffi          │
 //!   ├────────────────────────────────────────────────────────┤
 //!   │  Layer 3 — security & transport                        │
-//!   │      gbp-mls  ·  gbp-transport                         │
+//!   │      gbp-mls  ·  gbp-transport  ·  gbp-sframe          │
 //!   ├────────────────────────────────────────────────────────┤
 //!   │  Layer 2 — sub-protocols on top of GBP                 │
 //!   │      gtp-protocol · gap-protocol · gsp-protocol        │
@@ -54,3 +54,8 @@ pub use gbp_mls::{MlsContext, ProcessedKind, StreamLabel, label_for};
 pub use gbp_node::{DeliveredPayload, Event, GroupNode, NodeError, OutboundFrame, Sealer};
 
 pub use gbp_transport::{MAX_FRAME, WireError, read_blob, read_frame, write_blob, write_frame};
+
+pub use gbp_sframe;
+pub use gbp_sframe::{
+    CipherSuite, SFrameDecryptor, SFrameEncryptor, SFrameError, SFrameHeader, SFrameSession,
+};

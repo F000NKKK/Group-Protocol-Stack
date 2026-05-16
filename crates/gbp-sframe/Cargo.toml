@@ -1,0 +1,22 @@
+[package]
+name        = "gbp-sframe"
+description = "SFrame (draft-ietf-sframe-enc) E2EE for GAP audio streams in the Group Protocol Stack"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+homepage.workspace     = true
+keywords  = ["sframe", "e2ee", "mls", "audio", "encryption"]
+categories = ["cryptography", "multimedia::audio"]
+
+[dependencies]
+gbp-mls   = { workspace = true }
+thiserror = { workspace = true }
+hkdf      = "0.12"
+sha2      = "0.10"
+aes-gcm   = "0.10"
+
+[dev-dependencies]
+gbp-mls   = { workspace = true }

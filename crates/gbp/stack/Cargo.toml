@@ -9,7 +9,7 @@ repository.workspace = true
 homepage.workspace = true
 keywords = ["mls", "rfc9420", "group", "messaging", "e2ee"]
 categories = ["cryptography", "network-programming"]
-description = "Top-level facade for the Group Protocol Stack: re-exports gbp-core, gbp-protocol, gtp-protocol, gap-protocol, gsp-protocol, gbp-mls, gbp-transport and gbp-node."
+description = "Top-level facade for the Group Protocol Stack: re-exports gbp-core, gbp-protocol, gtp-protocol, gap-protocol, gsp-protocol, gbp-mls, gbp-transport, gbp-node and gbp-sframe."
 readme = "README.md"
 
 [lib]
@@ -25,6 +25,7 @@ gsp-protocol  = { workspace = true }
 gbp-mls       = { workspace = true }
 gbp-transport = { workspace = true }
 gbp-node      = { workspace = true }
+gbp-sframe    = { workspace = true }
 
 [dev-dependencies]
 openmls             = { workspace = true }

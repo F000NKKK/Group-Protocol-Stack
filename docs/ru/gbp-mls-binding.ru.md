@@ -36,7 +36,13 @@ mls.accept_welcome(welcome: bytes) -> ()
 mls.epoch() -> u64
 mls.group_id() -> [u8; 16]
 mls.export_key_package() -> bytes
+mls.export_raw(label: str, context: bytes, length: usize) -> bytes
 ```
+
+`export_raw` используется слоем SFrame (`gbp-sframe.ru.md`) для деривации
+`sframe_base_key = MLS.ExportSecret(label, epoch_be8, 32)` без раскрытия
+внутренностей OpenMLS вызывающей стороне. Control-plane GBP не вызывает
+`export_raw` напрямую; только расширение SFrame использует этот метод.
 
 `process_message` MUST уметь обрабатывать Commit-сообщения и REQUIRED каждому существующему члену. `ProcessedMessageKind` различает Commit / Application / Proposal — для control-plane GBP актуален только Commit.
 
@@ -89,3 +95,4 @@ DS не гарантирует, что Welcome joiner'а придёт раньш
 ## 10. References
 - [RFC2119], [RFC8174], [RFC9420]
 - `gbp_rfc.ru.md`, `gbp-control-plane.ru.md`, `gbp-state-machine.ru.md`, `gbp-leave-flow.ru.md`
+- `gbp-sframe.ru.md` — SFrame E2EE расширение для GAP аудио.

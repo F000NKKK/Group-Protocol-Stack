@@ -9,6 +9,7 @@
 //! * **GAP** (`gap_client_*`) — audio sub-protocol.
 //! * **GSP** (`gsp_client_*`) — signalling sub-protocol.
 //! * **MLS** (`gbp_mls_*`) — RFC 9420 context.
+//! * **SFrame** (`gbp_sframe_*`) — E2EE for GAP audio frames.
 //!
 //! Conventions:
 //!
@@ -25,8 +26,9 @@
 
 use gbp_stack::core::{ControlOpcode, NodeState, SignalType, StreamType};
 use gbp_stack::{
-    DeliveredPayload, ErrorObject, Event, GapAccept, GapClient, GbpFrame, GroupNode, GspAccept,
-    GspClient, GtpAccept, GtpClient, MlsContext, OutboundFrame, ProcessedKind, StreamLabel,
+    CipherSuite, DeliveredPayload, ErrorObject, Event, GapAccept, GapClient, GbpFrame, GroupNode,
+    GspAccept, GspClient, GtpAccept, GtpClient, MlsContext, OutboundFrame, ProcessedKind,
+    SFrameDecryptor, SFrameEncryptor, SFrameSession, StreamLabel,
 };
 use openmls::prelude::tls_codec::Serialize as _;
 use openmls::prelude::*;
@@ -157,6 +159,8 @@ registry!(NodeRegistry<GroupNode>);
 registry!(GtpRegistry<GtpClient>);
 registry!(GapRegistry<GapClient>);
 registry!(GspRegistry<GspClient>);
+registry!(SFrameSessionRegistry<SFrameDecryptor>);
+registry!(SFrameEncryptorRegistry<SFrameEncryptor>);
 
 struct MlsBundles {
     map: Mutex<HashMap<i32, KeyPackageBundle>>,
@@ -196,6 +200,16 @@ fn gsps() -> &'static GspRegistry {
     use std::sync::OnceLock;
     static R: OnceLock<GspRegistry> = OnceLock::new();
     R.get_or_init(GspRegistry::new)
+}
+fn sframe_sessions() -> &'static SFrameSessionRegistry {
+    use std::sync::OnceLock;
+    static R: OnceLock<SFrameSessionRegistry> = OnceLock::new();
+    R.get_or_init(SFrameSessionRegistry::new)
+}
+fn sframe_encryptors() -> &'static SFrameEncryptorRegistry {
+    use std::sync::OnceLock;
+    static R: OnceLock<SFrameEncryptorRegistry> = OnceLock::new();
+    R.get_or_init(SFrameEncryptorRegistry::new)
 }
 
 // ============================================================================
@@ -1199,6 +1213,200 @@ const _STATES: [NodeState; 7] = [
     NodeState::Failed,
     NodeState::Closed,
 ];
+
+// ============================================================================
+// SFrame API  (`gbp_sframe_*`)
+// ============================================================================
+
+/// Creates an SFrame session from an existing MLS context.
+///
+/// Derives `sframe_base_key = MLS.ExportSecret(label, epoch_be8, 32)` and
+/// stores a [`SFrameDecryptor`] in the session registry.  Each SFrame
+/// session corresponds to one MLS epoch; create a new session after every
+/// commit.
+///
+/// Returns a positive session handle, or `0` on failure (check
+/// [`gbp_last_error`]).
+///
+/// * `mls_handle` — handle from [`gbp_mls_create`].
+/// * `suite` — `0` = AES-128-GCM, `1` = AES-256-GCM.
+/// * `label_ptr` / `label_len` — UTF-8 export label (e.g. `"gbp/sframe v1"`).
+///
+/// # Safety
+/// `label_ptr` MUST be valid UTF-8 for `label_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_sframe_session_create(
+    mls_handle: i32,
+    suite: u8,
+    label_ptr: *const u8,
+    label_len: usize,
+) -> i32 {
+    clear_last_error();
+    let suite = match CipherSuite::from_u8(suite) {
+        Some(s) => s,
+        None => {
+            set_last_error(format!("unknown ciphersuite {suite}"));
+            return 0;
+        }
+    };
+    let label = unsafe {
+        match std::str::from_utf8(std::slice::from_raw_parts(label_ptr, label_len)) {
+            Ok(s) => s,
+            Err(e) => { set_last_error(e); return 0; }
+        }
+    };
+    let Some(mls_arc) = mls().get(mls_handle) else {
+        set_last_error("invalid MLS handle");
+        return 0;
+    };
+    let mls = mls_arc.lock().unwrap();
+    match SFrameSession::from_mls(&mls, label, suite) {
+        Ok(session) => sframe_sessions().insert(session.decryptor()),
+        Err(e) => { set_last_error(e); 0 }
+    }
+}
+
+/// Frees an SFrame session created by [`gbp_sframe_session_create`].
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_sframe_session_free(handle: i32) {
+    sframe_sessions().remove(handle);
+}
+
+/// Creates an encryptor for the local sender (`leaf_index`) within an epoch.
+///
+/// The session handle MUST be the one returned by [`gbp_sframe_session_create`]
+/// for the same epoch.  One encryptor per sender; do **not** share across
+/// threads.
+///
+/// Returns a positive encryptor handle, or `0` on failure.
+///
+/// # Safety
+/// `mls_handle` and `session_handle` must be valid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_sframe_encryptor_create(
+    mls_handle: i32,
+    session_handle: i32,
+    leaf_index: u32,
+    suite: u8,
+    label_ptr: *const u8,
+    label_len: usize,
+) -> i32 {
+    clear_last_error();
+    let suite = match CipherSuite::from_u8(suite) {
+        Some(s) => s,
+        None => {
+            set_last_error(format!("unknown ciphersuite {suite}"));
+            return 0;
+        }
+    };
+    let label = unsafe {
+        match std::str::from_utf8(std::slice::from_raw_parts(label_ptr, label_len)) {
+            Ok(s) => s,
+            Err(e) => { set_last_error(e); return 0; }
+        }
+    };
+    // Verify the session handle exists (keeps the API consistent).
+    if sframe_sessions().get(session_handle).is_none() {
+        set_last_error("invalid session handle");
+        return 0;
+    }
+    let Some(mls_arc) = mls().get(mls_handle) else {
+        set_last_error("invalid MLS handle");
+        return 0;
+    };
+    let mls = mls_arc.lock().unwrap();
+    match SFrameSession::from_mls(&mls, label, suite) {
+        Ok(session) => sframe_encryptors().insert(session.encryptor(leaf_index)),
+        Err(e) => { set_last_error(e); 0 }
+    }
+}
+
+/// Frees an encryptor created by [`gbp_sframe_encryptor_create`].
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_sframe_encryptor_free(handle: i32) {
+    sframe_encryptors().remove(handle);
+}
+
+/// Encrypts one audio frame.
+///
+/// Returns a [`GbpBuffer`] containing `sframe_header ‖ ciphertext ‖ tag`.
+/// The caller MUST free it with [`gbp_buffer_free`].
+///
+/// On error returns an empty buffer and sets [`gbp_last_error`].
+///
+/// * `aad_ptr` / `aad_len` — additional authenticated data (e.g. RTP header);
+///   pass a null pointer and `0` if none.
+///
+/// # Safety
+/// All pointer/length pairs MUST be valid for their respective lengths.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_sframe_encrypt(
+    enc_handle: i32,
+    plaintext_ptr: *const u8,
+    plaintext_len: usize,
+    aad_ptr: *const u8,
+    aad_len: usize,
+) -> GbpBuffer {
+    clear_last_error();
+    let Some(enc_arc) = sframe_encryptors().get(enc_handle) else {
+        set_last_error("invalid encryptor handle");
+        return GbpBuffer::empty();
+    };
+    let plaintext = unsafe { std::slice::from_raw_parts(plaintext_ptr, plaintext_len) };
+    let aad = if aad_ptr.is_null() || aad_len == 0 {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(aad_ptr, aad_len) }
+    };
+    let mut enc = enc_arc.lock().unwrap();
+    match enc.encrypt(plaintext, aad) {
+        Ok(payload) => GbpBuffer::from_vec(payload),
+        Err(e) => { set_last_error(e); GbpBuffer::empty() }
+    }
+}
+
+/// Decrypts one SFrame payload.
+///
+/// Returns a [`GbpBuffer`] containing the plaintext Opus frame.
+/// The caller MUST free it with [`gbp_buffer_free`].
+///
+/// On success, `*sender_leaf_out` is set to the sender's leaf index.
+/// On error returns an empty buffer and sets [`gbp_last_error`].
+///
+/// # Safety
+/// All pointer/length pairs MUST be valid for their respective lengths.
+/// `sender_leaf_out` MUST be a valid non-null pointer to a `u32`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_sframe_decrypt(
+    session_handle: i32,
+    payload_ptr: *const u8,
+    payload_len: usize,
+    aad_ptr: *const u8,
+    aad_len: usize,
+    sender_leaf_out: *mut u32,
+) -> GbpBuffer {
+    clear_last_error();
+    let Some(session_arc) = sframe_sessions().get(session_handle) else {
+        set_last_error("invalid session handle");
+        return GbpBuffer::empty();
+    };
+    let payload = unsafe { std::slice::from_raw_parts(payload_ptr, payload_len) };
+    let aad = if aad_ptr.is_null() || aad_len == 0 {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(aad_ptr, aad_len) }
+    };
+    let mut dec = session_arc.lock().unwrap();
+    match dec.decrypt(payload, aad) {
+        Ok((plaintext, leaf)) => {
+            if !sender_leaf_out.is_null() {
+                unsafe { *sender_leaf_out = leaf; }
+            }
+            GbpBuffer::from_vec(plaintext)
+        }
+        Err(e) => { set_last_error(e); GbpBuffer::empty() }
+    }
+}
 
 #[cfg(test)]
 mod tests {

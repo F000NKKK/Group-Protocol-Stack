@@ -7,6 +7,7 @@ This package exposes a high-level Python API on top of the native
 * :class:`GroupNode` - GBP-layer group node (the IP-like base).
 * :class:`GtpClient`, :class:`GapClient`, :class:`GspClient` - sub-protocol
   clients (text, audio, signalling).
+* :class:`SFrameSession`, :class:`SFrameEncryptor` - SFrame E2EE for audio.
 * :class:`MessageHistory`, :class:`Watermark` - GTP resync helpers.
 * :class:`JitterBuffer` - GAP reorder buffer.
 * :class:`RoleRegistry`, :class:`Permissions`, :class:`CapabilitiesNegotiator`
@@ -26,8 +27,17 @@ from .history import MessageEntry, MessageHistory, Watermark
 from .jitter import AudioFrame, JitterBuffer, JitterPushOutcome, JitterPushResult
 from .mls_context import MlsContext
 from .roles import Permissions, RoleError, RoleRegistry, RoleSpec
+from .sframe_session import (
+    AES_128_GCM,
+    AES_256_GCM,
+    SFrameDecryptResult,
+    SFrameEncryptor,
+    SFrameSession,
+)
 
 __all__ = [
+    "AES_128_GCM",
+    "AES_256_GCM",
     "AudioFrame",
     "CapabilitiesNegotiator",
     "GapAcceptResult",
@@ -50,6 +60,9 @@ __all__ = [
     "RoleError",
     "RoleRegistry",
     "RoleSpec",
+    "SFrameDecryptResult",
+    "SFrameEncryptor",
+    "SFrameSession",
     "SignalType",
     "StreamType",
     "Watermark",

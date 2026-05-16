@@ -353,6 +353,18 @@ impl MlsContext {
         Ok(out)
     }
 
+    /// Exports `len` bytes under an arbitrary `label` and `context`.
+    ///
+    /// Used by external crates (e.g. `hush-sframe`) that need custom KDF
+    /// labels without depending on OpenMLS directly.
+    pub fn export_raw(&self, label: &str, context: &[u8], len: usize) -> Result<Vec<u8>, MlsError> {
+        let secret = self
+            .group
+            .export_secret(self.provider.crypto(), label, context, len)
+            .map_err(|e| MlsError::OpenMls(format!("export_raw: {e:?}")))?;
+        Ok(secret.to_vec())
+    }
+
     /// Encrypts `plaintext` with ChaCha20-Poly1305 using the stream-labelled
     /// AEAD key and a nonce derived from the per-stream `seq`.
     pub fn seal(

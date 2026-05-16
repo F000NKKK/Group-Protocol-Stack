@@ -8,6 +8,8 @@
 ## Аннотация
 Документ задает GAP — подпротокол низколатентного группового аудио поверх GBP (`StreamType=1`).
 
+GAP payload'ы МОГУТ быть дополнительно защищены SFrame E2EE согласно `gbp-sframe.ru.md`. При использовании SFrame GBP-узел передаёт приложению SFrame payload'ы (не сырой Opus); приложение отвечает за шифрование/дешифрование SFrame перед передачей фреймов в `GapClient`.
+
 ## Статус документа
 Этот Internet-Draft представлен в полном соответствии с BCP 78 и BCP 79.
 Internet-Draft является рабочим документом IETF.
@@ -115,3 +117,4 @@ root_type GAPPayload;
 - [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words".
 - [RFC6716] Valin, J., et al., "Definition of the Opus Audio Codec".
 - [RFC9420] Barnes, R., et al., "The Messaging Layer Security (MLS) Protocol".
+- `gbp-sframe.ru.md` — SFrame E2EE для GAP аудиопотоков.

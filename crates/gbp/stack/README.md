@@ -9,6 +9,7 @@ This crate is a thin re-export of every layer in the stack:
 * `gbp-protocol` — base GBP layer
 * `gtp-protocol`, `gap-protocol`, `gsp-protocol` — sub-protocols
 * `gbp-mls` — MLS / AEAD adapter
+* `gbp-sframe` — SFrame E2EE for GAP audio streams
 * `gbp-transport` — TCP framing helper
 * `gbp-node` — GBP-layer group node
 

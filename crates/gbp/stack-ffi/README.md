@@ -23,6 +23,7 @@ on Unix).
 | `gsp_client_*`     | GSP (signalling) sub-protocol client                      |
 | `gbp_frame_*`      | Frame codec helpers                                       |
 | `gbp_error_*`      | Error registry helpers                                    |
+| `gbp_sframe_*`     | SFrame E2EE session, encryptor, encrypt/decrypt           |
 
 ## Memory protocol
 

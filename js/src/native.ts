@@ -131,6 +131,22 @@ export const gsp_client_send = lib.func(
 );
 export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t)");
 
+// SFrame session / encryptor
+export const gbp_sframe_session_create = lib.func(
+    "int32_t gbp_sframe_session_create(int32_t, uint8_t, void *, size_t)"
+);
+export const gbp_sframe_session_free = lib.func("void gbp_sframe_session_free(int32_t)");
+export const gbp_sframe_encryptor_create = lib.func(
+    "int32_t gbp_sframe_encryptor_create(int32_t, int32_t, uint32_t, uint8_t, void *, size_t)"
+);
+export const gbp_sframe_encryptor_free = lib.func("void gbp_sframe_encryptor_free(int32_t)");
+export const gbp_sframe_encrypt = lib.func(
+    "GbpBuffer gbp_sframe_encrypt(int32_t, void *, size_t, void *, size_t)"
+);
+export const gbp_sframe_decrypt = lib.func(
+    "GbpBuffer gbp_sframe_decrypt(int32_t, void *, size_t, void *, size_t, _Out_ uint32_t *)"
+);
+
 /** Copy a returned ``GbpBuffer`` into a ``Buffer`` and free it. */
 export function takeBuffer(buf: GbpBuffer): Buffer {
     if (!buf.ptr || buf.len === 0) {

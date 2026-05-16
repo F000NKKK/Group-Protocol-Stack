@@ -8,6 +8,8 @@
 ## Abstract
 This document specifies GAP, the low-latency media subprotocol over GBP StreamType 1. GAP defines media payloads, sender ratchets, replay windows, epoch overlap behavior, and operational failure handling.
 
+GAP payloads MAY be additionally protected with SFrame end-to-end encryption as specified in `gbp-sframe.md`.  When SFrame is in use the GBP node delivers SFrame payloads (not raw Opus) to the application layer; the application is responsible for SFrame encrypt/decrypt before submitting frames to `GapClient`.
+
 ## Status of This Memo
 This Internet-Draft is submitted in full conformance with BCP 78 and BCP 79.
 Internet-Drafts are working documents of the Internet Engineering Task Force (IETF).
@@ -137,3 +139,4 @@ Implementations MUST ensure no sender-key/nonce reuse across epoch boundaries an
 - [RFC3711] Baugher, M., et al., "The Secure Real-time Transport Protocol (SRTP)".
 - [RFC6716] Valin, J., et al., "Definition of the Opus Audio Codec".
 - [RFC9420] Barnes, R., et al., "The Messaging Layer Security (MLS) Protocol".
+- `gbp-sframe.md` — SFrame E2EE for GAP audio payloads.

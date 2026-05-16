@@ -36,6 +36,9 @@ Beyond the protocol clients, the package ships ready-made helpers:
   bit-masks and check them with `require` / `has`.
 * `CapabilitiesNegotiator` — track per-member advertisements and query the
   `intersection()`, `union()`, `groupSupports()` and `missing()` views.
+* `SFrameSession` + `SFrameEncryptor` — SFrame (draft-ietf-sframe-enc) E2EE
+  for GAP audio frames; per-sender AES-GCM keys derived from MLS exporter,
+  1024-entry sliding-window replay protection.
 
 ## Install
 

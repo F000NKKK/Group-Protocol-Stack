@@ -18,6 +18,16 @@ export { GtpAcceptResult, GtpClient } from "./gtp";
 export { GapAcceptResult, GapClient } from "./gap";
 export { GspAcceptResult, GspClient, SignalType } from "./gsp";
 
+// SFrame E2EE for GAP audio streams.
+export {
+    AES_128_GCM,
+    AES_256_GCM,
+    SFrameCipherSuite,
+    SFrameDecryptResult,
+    SFrameEncryptor,
+    SFrameSession,
+} from "./sframe";
+
 // GTP utilities — message log & resync watermark.
 export { MessageEntry, MessageHistory, Watermark } from "./history";
 

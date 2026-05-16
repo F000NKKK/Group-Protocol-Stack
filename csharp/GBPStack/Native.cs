@@ -171,6 +171,45 @@ internal static class Native
         byte version, IntPtr groupId16, ulong epoch, uint transitionId, uint streamType,
         uint streamId, ushort flags, uint sequenceNo, IntPtr payloadPtr, nuint payloadLen);
 
+    // ── SFrame ────────────────────────────────────────────────────────────────
+
+    /// <summary>Creates an SFrame session from an MLS context handle.</summary>
+    /// <param name="mlsHandle">Handle from <c>gbp_mls_create</c>.</param>
+    /// <param name="suite">0 = AES-128-GCM, 1 = AES-256-GCM.</param>
+    /// <param name="labelPtr">UTF-8 export label (e.g. "gbp/sframe v1").</param>
+    /// <param name="labelLen">Byte length of the label.</param>
+    /// <returns>Positive session handle, or 0 on failure.</returns>
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int gbp_sframe_session_create(
+        int mlsHandle, byte suite, IntPtr labelPtr, nuint labelLen);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void gbp_sframe_session_free(int handle);
+
+    /// <summary>Creates a per-sender encryptor for the given leaf index.</summary>
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int gbp_sframe_encryptor_create(
+        int mlsHandle, int sessionHandle, uint leafIndex, byte suite,
+        IntPtr labelPtr, nuint labelLen);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void gbp_sframe_encryptor_free(int handle);
+
+    /// <summary>Encrypts one audio frame. Caller must free result with <c>gbp_buffer_free</c>.</summary>
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gbp_sframe_encrypt(
+        int encHandle,
+        IntPtr plaintextPtr, nuint plaintextLen,
+        IntPtr aadPtr, nuint aadLen);
+
+    /// <summary>Decrypts one SFrame payload. Fills <paramref name="senderLeaf"/> with the sender's leaf index.</summary>
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe GbpBuffer gbp_sframe_decrypt(
+        int sessionHandle,
+        IntPtr payloadPtr, nuint payloadLen,
+        IntPtr aadPtr, nuint aadLen,
+        uint* senderLeaf);
+
     public static byte[] CopyAndFree(GbpBuffer buf)
     {
         if (buf.IsEmpty) { gbp_buffer_free(buf); return Array.Empty<byte>(); }

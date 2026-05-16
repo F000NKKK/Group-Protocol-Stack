@@ -9,7 +9,7 @@ repository.workspace = true
 homepage.workspace = true
 keywords = ["ffi", "gbp", "cdylib", "pinvoke", "interop"]
 categories = ["external-ffi-bindings", "cryptography", "network-programming"]
-description = "C ABI surface (cdylib) for the Group Protocol Stack: handle-based API for MLS, the GBP node and the GTP/GAP/GSP clients. Designed to be consumed via P/Invoke or any FFI-capable runtime."
+description = "C ABI surface (cdylib) for the Group Protocol Stack: handle-based API for MLS, the GBP node, the GTP/GAP/GSP clients and SFrame E2EE. Designed to be consumed via P/Invoke or any FFI-capable runtime."
 readme = "README.md"
 
 [lib]
@@ -19,6 +19,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gbp-stack   = { workspace = true }
+gbp-sframe  = { workspace = true }
 openmls     = { workspace = true }
 serde       = { workspace = true }
 serde_bytes = { workspace = true }

@@ -12,6 +12,7 @@ members = [
     "crates/gtp",
     "crates/gap",
     "crates/gsp",
+    "crates/gbp-sframe",
 ]
 
 [workspace.package]
@@ -52,6 +53,11 @@ serde       = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
 
 chacha20poly1305 = "0.10"
+aes-gcm           = "0.10"
+hkdf              = "0.12"
+sha2              = "0.10"
+
+gbp-sframe = { path = "crates/gbp-sframe", version = "1.1.4" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time"] }
 

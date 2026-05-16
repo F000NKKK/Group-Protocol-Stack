@@ -36,7 +36,13 @@ mls.accept_welcome(welcome: bytes) -> ()
 mls.epoch() -> u64
 mls.group_id() -> [u8; 16]
 mls.export_key_package() -> bytes
+mls.export_raw(label: str, context: bytes, length: usize) -> bytes
 ```
+
+`export_raw` is used by the SFrame layer (`gbp-sframe`) to derive
+`sframe_base_key = MLS.ExportSecret(label, epoch_be8, 32)` without exposing
+the OpenMLS internals to the caller.  The GBP control plane does not call
+`export_raw` directly; only the SFrame extension uses it.
 
 `process_message` MUST handle Commit messages and is REQUIRED by every existing member. `ProcessedMessageKind` distinguishes Commit, Application, Proposal so callers know which path to take; for the GBP control plane only Commit is relevant.
 
@@ -102,7 +108,7 @@ The normative MLS ciphersuite for this binding is `MLS_128_DHKEMX25519_AES128GCM
 - An attacker who replays a stale PREPARE+Commit MUST be detected via TransitionID monotonicity (`gbp_rfc.md` §8).
 
 ## 11. References
-### 10.1 Normative References
+### 11.1 Normative References
 - [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels".
 - [RFC8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words".
 - [RFC9420] Barnes, R., et al., "The Messaging Layer Security (MLS) Protocol".
@@ -110,3 +116,4 @@ The normative MLS ciphersuite for this binding is `MLS_128_DHKEMX25519_AES128GCM
 - `gbp-control-plane.md`
 - `gbp-state-machine.md`
 - `gbp-leave-flow.md`
+- `gbp-sframe.md` — SFrame E2EE extension for GAP audio.
