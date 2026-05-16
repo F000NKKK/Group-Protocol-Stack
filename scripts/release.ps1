@@ -187,21 +187,40 @@ function Update-SecurityPolicy([string]$newVersion) {
         }
     }
 
-    # Top 2 minors = candidates for "supported" (latest non-deprecated patch only).
-    $supportedCandidates = [System.Collections.Generic.HashSet[string]]::new(
-        [string[]]($latestByMinor.Values | Select-Object -First 2),
-        [System.StringComparer]::Ordinal
-    )
+    # Top 2 minors (latest non-deprecated patch each) = supported.
+    $supportedMinors = @($latestByMinor.Keys | Select-Object -First 2)
 
-    # Build table rows.
+    # Build compact semver-range table.
+    # For each supported minor:
+    #   - If no deprecated patch exists above the supported one → show "X.Y.x" (whole minor)
+    #   - Otherwise show the exact supported patch "X.Y.Z" (some patches are deprecated)
+    # Then a single catch-all "< oldest_supported_version" → unsupported.
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('| Version | Supported          |')
-    $lines.Add('| ------- | ------------------ |')
-    foreach ($tag in $sorted) {
-        $ver  = ($tag -replace '^v', '').PadRight(7)
-        $ok   = $supportedCandidates.Contains($tag)
-        $mark = if ($ok) { ':white_check_mark:' } else { ':x:' }
-        $lines.Add("| $ver | $($mark.PadRight(18)) |")
+    $lines.Add('| Version      | Supported          |')
+    $lines.Add('| ------------ | ------------------ |')
+
+    $oldestSupportedVer = $null
+    foreach ($minorKey in $supportedMinors) {
+        $supportedTag = $latestByMinor[$minorKey]
+        $supportedVer = $supportedTag -replace '^v', ''
+        $parts = $supportedVer.Split('.')
+        $maj = $parts[0]; $min = $parts[1]; $pat = [int]$parts[2]
+
+        # Check if any higher-patched tag in this minor is deprecated.
+        $hasDeprecatedAbove = $sorted | Where-Object {
+            $_ -match "^v$maj\.$min\.(\d+)$" -and
+            [int]$Matches[1] -gt $pat -and
+            $deprecatedSet.Contains($_)
+        }
+
+        $display = if ($hasDeprecatedAbove) { $supportedVer } else { "$maj.$min.x" }
+        $lines.Add("| $($display.PadRight(12)) | :white_check_mark: |")
+        $oldestSupportedVer = $supportedVer
+    }
+
+    # Catch-all for everything older.
+    if ($oldestSupportedVer) {
+        $lines.Add("| < $($oldestSupportedVer.PadRight(10)) | :x:                |")
     }
 
     # Replace the existing table block in SECURITY.md.
