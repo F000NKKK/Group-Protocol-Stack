@@ -29,4 +29,4 @@ Original text courtesy of the [Speak Up! project](http://web.archive.org/web/201
 
 ## Questions?
 
-If you have questions, please see [FAQ](https://github.com/F000NKKK/Group-Protocol-Stack/blob/master/docs/en/faq.md). If that doesn't answer your questions, feel free to [contact us](mailto:burtelgamerpro@gmail.com).
+If you have questions, please see [FAQ](https://github.com/F000NKKK/Group-Protocol-Stack/blob/master/FAQ.md). If that doesn't answer your questions, feel free to [contact us](mailto:burtelgamerpro@gmail.com).
