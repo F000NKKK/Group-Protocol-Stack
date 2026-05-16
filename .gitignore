@@ -61,3 +61,4 @@ js/dist/
 *.swo
 .DS_Store
 Thumbs.db
+csharp/GBPStack/GBPStack.csproj.lscache
