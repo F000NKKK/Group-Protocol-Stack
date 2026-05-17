@@ -20,3 +20,10 @@ path = "src/lib.rs"
 gbp-protocol = { workspace = true }
 tokio        = { workspace = true }
 thiserror    = { workspace = true }
+quinn        = { workspace = true }
+rustls       = { workspace = true }
+
+[dev-dependencies]
+rcgen    = { workspace = true }
+gbp-core = { workspace = true }
+tokio    = { workspace = true, features = ["rt-multi-thread", "macros"] }

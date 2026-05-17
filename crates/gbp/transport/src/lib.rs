@@ -1,11 +1,16 @@
-//! TCP transport adapter for the Group Protocol Stack.
+//! Transport adapters for the Group Protocol Stack.
 //!
-//! Each on-the-wire message is framed as `u32-LE length || bytes`. This is a
-//! pragmatic stand-in for a QUIC stream; switching to a real QUIC binding
-//! later only requires replacing this crate and the same upper layers
-//! continue to work.
+//! Two transports are available:
+//! - **TCP** (this module): length-prefix framing over `TcpStream`.
+//! - **QUIC** ([`quic`]): the same framing over `quinn` streams.
+//!
+//! Both use identical wire format (`u32-LE length || CBOR bytes`), so a node
+//! can switch transports without any change to upper protocol layers.
 
 #![deny(missing_docs)]
+
+/// QUIC transport backed by quinn.
+pub mod quic;
 
 use gbp::{CodecError, GbpFrame};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -31,6 +36,9 @@ pub enum WireError {
         /// Configured limit.
         max: usize,
     },
+    /// QUIC connection or stream error.
+    #[error("quic: {0}")]
+    Quic(String),
 }
 
 impl WireError {
