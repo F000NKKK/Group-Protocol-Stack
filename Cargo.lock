@@ -973,6 +973,7 @@ dependencies = [
 name = "gbp-stack"
 version = "1.5.1"
 dependencies = [
+ "anyhow",
  "gap-protocol",
  "gbp-core",
  "gbp-mls",
