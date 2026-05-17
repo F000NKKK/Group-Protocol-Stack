@@ -1,4 +1,17 @@
-﻿## 1.5.1 (2026-05-17)
+﻿## 1.5.2 (2026-05-17)
+
+### Documentation
+
+- docs: add C#/Python/JS examples, fix gbp-node README, add Examples column to README (0d247ff)
+- docs: fix README link, expand gbp-node README, add gtp/gap/gsp examples (bba146f)
+
+### Chores
+
+- chore: update Cargo.lock for anyhow dev-dep in gbp-stack examples (9e7402a)
+
+---
+
+## 1.5.1 (2026-05-17)
 
 ### CI
 
@@ -223,6 +236,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 

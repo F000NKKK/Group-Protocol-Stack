@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.5.1"
+version = "1.5.2"
 edition = "2024"
 rust-version = "1.92"
 license = "Apache-2.0"
@@ -32,17 +32,17 @@ categories = ["cryptography", "network-programming"]
 
 [workspace.dependencies]
 # Internal — base layer
-gbp-core      = { path = "crates/gbp/core",      version = "1.5.1" }
-gbp-protocol  = { path = "crates/gbp/base",      version = "1.5.1" }
-gbp-mls       = { path = "crates/gbp/mls",       version = "1.5.1" }
-gbp-transport = { path = "crates/gbp/transport", version = "1.5.1" }
-gbp-node      = { path = "crates/gbp/node",      version = "1.5.1" }
-gbp-stack     = { path = "crates/gbp/stack",     version = "1.5.1" }
+gbp-core      = { path = "crates/gbp/core",      version = "1.5.2" }
+gbp-protocol  = { path = "crates/gbp/base",      version = "1.5.2" }
+gbp-mls       = { path = "crates/gbp/mls",       version = "1.5.2" }
+gbp-transport = { path = "crates/gbp/transport", version = "1.5.2" }
+gbp-node      = { path = "crates/gbp/node",      version = "1.5.2" }
+gbp-stack     = { path = "crates/gbp/stack",     version = "1.5.2" }
 
 # Internal — sub-protocols
-gtp-protocol = { path = "crates/gtp", version = "1.5.1" }
-gap-protocol = { path = "crates/gap", version = "1.5.1" }
-gsp-protocol = { path = "crates/gsp", version = "1.5.1" }
+gtp-protocol = { path = "crates/gtp", version = "1.5.2" }
+gap-protocol = { path = "crates/gap", version = "1.5.2" }
+gsp-protocol = { path = "crates/gsp", version = "1.5.2" }
 
 # External
 openmls                  = "0.8"
@@ -59,9 +59,9 @@ aes-gcm           = "0.10"
 hkdf              = "0.13"
 sha2              = "0.11"
 
-gbp-sframe = { path = "crates/gbp-sframe", version = "1.5.1" }
-gbp-proto  = { path = "crates/gbp-proto",  version = "1.5.1" }
-gbp-flat   = { path = "crates/gbp-flat",   version = "1.5.1" }
+gbp-sframe = { path = "crates/gbp-sframe", version = "1.5.2" }
+gbp-proto  = { path = "crates/gbp-proto",  version = "1.5.2" }
+gbp-flat   = { path = "crates/gbp-flat",   version = "1.5.2" }
 
 prost = "0.14"
 
