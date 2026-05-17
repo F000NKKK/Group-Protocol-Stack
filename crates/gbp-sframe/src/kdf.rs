@@ -47,8 +47,8 @@ impl CipherSuite {
 pub(crate) struct ParticipantKeys {
     /// AES key: 16 bytes for AES-128-GCM, 32 bytes for AES-256-GCM.
     pub key: Vec<u8>,
-    /// 12-byte base nonce (XOR'd with the counter to produce each frame nonce).
-    pub salt: [u8; 12],
+    /// 12-byte base nonce (XOR'd with the per-frame counter to produce each frame nonce).
+    pub base_nonce: [u8; 12],
 }
 
 /// Derives the 32-byte SFrame base key from the MLS `ExportSecret`.
@@ -97,11 +97,11 @@ pub(crate) fn derive_participant(
 
     let mut label = HKDF_LABEL_NONCE.to_vec();
     label.extend_from_slice(&leaf_be);
-    let mut salt = [0u8; 12];
-    hk.expand(&label, &mut salt)
+    let mut base_nonce = [0u8; 12];
+    hk.expand(&label, &mut base_nonce)
         .expect("nonce length (12) is well within 255 * HashLen");
 
-    ParticipantKeys { key, salt }
+    ParticipantKeys { key, base_nonce }
 }
 
 /// Constructs the 12-byte per-frame nonce:

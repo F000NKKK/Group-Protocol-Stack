@@ -72,7 +72,7 @@ impl AeadCipher {
 /// Obtain via [`crate::SFrameSession::encryptor`].
 pub struct SFrameEncryptor {
     cipher: AeadCipher,
-    salt: [u8; 12],
+    base_nonce: [u8; 12],
     kid: u64,
     ctr: u64,
 }
@@ -81,7 +81,7 @@ impl SFrameEncryptor {
     pub(crate) fn new(keys: ParticipantKeys, kid: u64, suite: CipherSuite) -> Self {
         Self {
             cipher: AeadCipher::new(&keys.key, suite),
-            salt: keys.salt,
+            base_nonce: keys.base_nonce,
             kid,
             ctr: 0,
         }
@@ -103,7 +103,7 @@ impl SFrameEncryptor {
         aad.extend_from_slice(&header_bytes);
         aad.extend_from_slice(extra_aad);
 
-        let nonce = make_nonce(&self.salt, self.ctr);
+        let nonce = make_nonce(&self.base_nonce, self.ctr);
         let ciphertext = self.cipher.encrypt(&nonce, plaintext, &aad)?;
 
         self.ctr = self.ctr.wrapping_add(1);
@@ -130,7 +130,7 @@ impl SFrameEncryptor {
 /// Per-sender decryption state maintained inside [`SFrameDecryptor`].
 struct SenderState {
     cipher: AeadCipher,
-    salt: [u8; 12],
+    base_nonce: [u8; 12],
     window: ReplayWindow,
 }
 
@@ -179,7 +179,7 @@ impl SFrameDecryptor {
             let keys = derive_participant(&self.base_key, leaf, self.suite);
             SenderState {
                 cipher: AeadCipher::new(&keys.key, self.suite),
-                salt: keys.salt,
+                base_nonce: keys.base_nonce,
                 window: ReplayWindow::new(),
             }
         });
@@ -200,7 +200,7 @@ impl SFrameDecryptor {
         aad.extend_from_slice(header_bytes);
         aad.extend_from_slice(extra_aad);
 
-        let nonce = make_nonce(&state.salt, header.ctr);
+        let nonce = make_nonce(&state.base_nonce, header.ctr);
         let plaintext = state.cipher.decrypt(&nonce, ciphertext, &aad)?;
 
         Ok((plaintext, leaf))
