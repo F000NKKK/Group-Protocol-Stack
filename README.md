@@ -41,12 +41,12 @@ The same protocol family is published from one source tree to every major
 package manager. Each binding ships pre-built native binaries for `win-x64`,
 `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64` and `osx-arm64`.
 
-| Language | Package | Source | README |
-| --- | --- | --- | --- |
-| Rust    | [`gbp-stack`](https://crates.io/crates/gbp-stack)                              | [`crates/gbp/stack`](crates/gbp/stack)   | [README](crates/gbp/stack/README.md) |
-| .NET    | [`GBPStack`](https://www.nuget.org/packages/GBPStack)                          | [`csharp/GBPStack`](csharp/GBPStack)     | [README](csharp/README.md) |
-| Python  | [`gbp-stack`](https://pypi.org/project/gbp-stack/)                             | [`python`](python)                       | [README](python/README.md) |
-| Node.js | [`@voluntas-progressus/gbp-stack`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack) | [`js`](js) | [README](js/README.md) |
+| Language | Package | Source | README | Examples |
+| --- | --- | --- | --- | --- |
+| Rust    | [`gbp-stack`](https://crates.io/crates/gbp-stack)                              | [`crates/gbp/stack`](crates/gbp/stack) | [README](crates/gbp/stack/README.md) | [gtp_chat](crates/gbp/stack/examples/gtp_chat.rs) · [gap_audio](crates/gbp/stack/examples/gap_audio.rs) · [gsp_signals](crates/gbp/stack/examples/gsp_signals.rs) |
+| .NET    | [`GBPStack`](https://www.nuget.org/packages/GBPStack)                          | [`csharp/GBPStack`](csharp/GBPStack)   | [README](csharp/README.md)           | [GtpChat](csharp/examples/GtpChat.cs) · [GapAudio](csharp/examples/GapAudio.cs) · [GspSignals](csharp/examples/GspSignals.cs) |
+| Python  | [`gbp-stack`](https://pypi.org/project/gbp-stack/)                             | [`python`](python)                     | [README](python/README.md)           | [gtp_chat](python/examples/gtp_chat.py) · [gap_audio](python/examples/gap_audio.py) · [gsp_signals](python/examples/gsp_signals.py) |
+| Node.js | [`@voluntas-progressus/gbp-stack`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack) | [`js`](js) | [README](js/README.md) | [gtpChat](js/examples/gtpChat.ts) · [gapAudio](js/examples/gapAudio.ts) · [gspSignals](js/examples/gspSignals.ts) |
 
 ## Rust crates
 

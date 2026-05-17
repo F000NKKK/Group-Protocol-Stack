@@ -25,32 +25,47 @@ framing, AEAD, replay window, FSM and control plane.
 ## Example
 
 ```rust,ignore
-use gbp_node::GroupNode;
-use gtp::GtpClient;
-use gbp_core::PayloadCodec;
+use gbp_stack::{
+    ControlOpcode, Event, GtpAccept, GtpClient, GroupNode, MlsContext,
+    PayloadCodec, StreamType,
+};
 
-// After MLS handshake:
-let mut alice = GroupNode::new(1, group_id);
-let mut bob   = GroupNode::new(2, group_id);
-alice.bootstrap_as_creator(alice_mls.epoch())?;
-bob.bootstrap_as_joiner(bob_mls.epoch())?;
+// After MLS two-party handshake (alice invites bob):
+let gid = alice_mls.group_id_16();
+let mut alice = GroupNode::new(1, gid);
+let mut bob   = GroupNode::new(2, gid);
+alice.bootstrap_as_creator(0);          // epoch 0
+bob.bootstrap_as_joiner(0, 1);          // epoch 0, expect tid=1
 
+// Apply epoch-1 transition.
+let exec = alice.send_control(
+    &mut alice_mls, 0, ControlOpcode::ExecuteTransition, 1, 7, vec![],
+)?;
+alice.apply_transition(1);
+bob.on_wire(&mut bob_mls, &exec.wire)?;
+
+// Send a text message via GTP.
 let mut gtp_alice = GtpClient::new();
 let mut gtp_bob   = GtpClient::new();
 
-// Send
-let frame = gtp_alice.send(&mut alice, &mut alice_mls,
-                           /*target*/ 2, /*msg_id*/ 1,
-                           "hello", PayloadCodec::Cbor)?;
+let frame = gtp_alice.send(
+    &mut alice, &mut alice_mls, 2, 1, "hello", PayloadCodec::Cbor,
+)?;
 
-// Receive
 for event in bob.on_wire(&mut bob_mls, &frame.wire)? {
-    if let gbp_node::Event::PayloadReceived(p) = event {
-        let r = gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)?;
-        println!("{}", r.text); // → "hello"
+    if let Event::PayloadReceived(p) = event {
+        if p.stream_type == StreamType::Text {
+            match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GtpAccept::New(msg)       => println!("{:?}", msg.text()),
+                GtpAccept::Duplicate(msg) => println!("dup: {:?}", msg.text()),
+            }
+        }
     }
 }
 ```
+
+See [`crates/gbp/stack/examples/`](../stack/examples/) for fully-runnable examples
+covering GTP, GAP and GSP.
 
 ## License
 
