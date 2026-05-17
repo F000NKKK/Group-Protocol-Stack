@@ -1,4 +1,17 @@
-﻿## 1.4.2 (2026-05-17)
+﻿## 1.5.0 (2026-05-17)
+
+### Features
+
+- feat(codec): add PayloadCodec — per-frame CBOR/Protobuf/FlatBuffers selection (365d0fa)
+
+### Documentation
+
+- docs(readme): remove legacy badge (db4bc6a)
+- docs(readme): mark v1.4.2 as legacy/deprecated (190db51)
+
+---
+
+## 1.4.2 (2026-05-17)
 
 ### Bug Fixes
 
@@ -202,6 +215,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
