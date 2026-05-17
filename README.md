@@ -15,8 +15,6 @@
 [![GitHub Issues](https://img.shields.io/github/issues/F000NKKK/Group-Protocol-Stack?logo=github)](https://github.com/F000NKKK/Group-Protocol-Stack/issues)
 [![GitHub Discussions](https://img.shields.io/github/discussions/F000NKKK/Group-Protocol-Stack?logo=github)](https://github.com/F000NKKK/Group-Protocol-Stack/discussions)
 
-[![1.4.2 legacy](https://img.shields.io/badge/1.4.2-legacy%20%2F%20deprecated-orange)](https://github.com/F000NKKK/Group-Protocol-Stack/releases/tag/v1.4.2)
-
 A layered, end-to-end encrypted group-messaging protocol family built on top
 of [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420). One base
 protocol — **GBP** — provides framed, replay-protected, AEAD-encrypted
