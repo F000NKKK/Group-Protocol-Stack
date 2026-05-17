@@ -7,6 +7,13 @@ code registry.
 This crate is dependency-light (only `core` / `alloc`) and is the foundation
 every other crate in the stack builds on.
 
+Key types:
+* `StreamType` — `Audio=1`, `Text=2`, `Signaling=3`
+* `PayloadCodec` — `Cbor=0`, `Protobuf=1`, `FlatBuffers=2`; controls which
+  wire format is used for sub-protocol payloads (signalled via GBP frame `pf`)
+* `ControlOpcode`, `SignalOpcode` — numeric registries
+* `GbpError` / error code constants
+
 ## Stack overview
 
 ```

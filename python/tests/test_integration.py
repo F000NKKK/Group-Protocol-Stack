@@ -23,6 +23,7 @@ from gbp_stack import (
     GtpClient,
     GapClient,
     GspClient,
+    PayloadCodec,
     encode_gbp_frame,
     lookup_error,
 )
@@ -1021,6 +1022,70 @@ class TestSFrameE2EE:
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
+
+class TestCodecRoundtrip:
+    """Codec roundtrip tests: all three sub-protocols × all three codecs."""
+
+    @pytest.mark.parametrize("codec", [PayloadCodec.CBOR, PayloadCodec.PROTOBUF, PayloadCodec.FLATBUFFERS])
+    def test_gtp_roundtrip(self, codec):
+        alice_mls, alice_node, bob_mls, bob_node = _two_member_group()
+        try:
+            gtp_alice = GtpClient.create()
+            gtp_bob = GtpClient.create()
+            frame = gtp_alice.send(alice_node, alice_mls, target=2, message_id=1,
+                                   text="codec test", codec=codec)
+            evs = _text_events(bob_node.on_wire(bob_mls, frame.wire))
+            assert len(evs) == 1
+            assert evs[0].codec == codec
+            result = gtp_bob.accept(_pt(evs[0]), bob_mls.epoch, codec=codec)
+            assert result.status == "new"
+            assert result.text == "codec test"
+            gtp_alice.close(); gtp_bob.close()
+        finally:
+            alice_node.close(); bob_node.close()
+            alice_mls.close(); bob_mls.close()
+
+    @pytest.mark.parametrize("codec", [PayloadCodec.CBOR, PayloadCodec.PROTOBUF, PayloadCodec.FLATBUFFERS])
+    def test_gap_roundtrip(self, codec):
+        alice_mls, alice_node, bob_mls, bob_node = _two_member_group()
+        try:
+            gap_alice = GapClient.create()
+            gap_bob = GapClient.create()
+            frame = gap_alice.send(alice_node, alice_mls, target=2,
+                                   media_source_id=5, rtp_timestamp=0,
+                                   opus=b"\xaa" * 20, codec=codec)
+            evs = _audio_events(bob_node.on_wire(bob_mls, frame.wire))
+            assert len(evs) == 1
+            assert evs[0].codec == codec
+            result = gap_bob.accept(_pt(evs[0]), bob_mls.epoch, codec=codec)
+            assert result.status == "new"
+            assert result.source == 5
+            gap_alice.close(); gap_bob.close()
+        finally:
+            alice_node.close(); bob_node.close()
+            alice_mls.close(); bob_mls.close()
+
+    @pytest.mark.parametrize("codec", [PayloadCodec.CBOR, PayloadCodec.PROTOBUF, PayloadCodec.FLATBUFFERS])
+    def test_gsp_roundtrip(self, codec):
+        from gbp_stack.gsp_client import SignalType
+        alice_mls, alice_node, bob_mls, bob_node = _two_member_group()
+        try:
+            gsp_alice = GspClient.create()
+            gsp_bob = GspClient.create()
+            frame = gsp_alice.send(alice_node, alice_mls, target=2,
+                                   signal=SignalType.JOIN, role_claim=0,
+                                   request_id=1, codec=codec)
+            evs = _signal_events(bob_node.on_wire(bob_mls, frame.wire))
+            assert len(evs) == 1
+            assert evs[0].codec == codec
+            result = gsp_bob.accept(_pt(evs[0]), bob_mls.epoch, codec=codec)
+            assert result.status == "new"
+            assert result.signal_code == SignalType.JOIN
+            gsp_alice.close(); gsp_bob.close()
+        finally:
+            alice_node.close(); bob_node.close()
+            alice_mls.close(); bob_mls.close()
+
 
 class TestUtilities:
     def test_encode_gbp_frame_returns_bytes(self):

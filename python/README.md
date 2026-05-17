@@ -22,6 +22,30 @@ under `gbp_stack/_native/<rid>/`.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Payload codec
+
+Each sub-protocol payload can be encoded as **CBOR** (default), **Protobuf**,
+or **FlatBuffers**. Pass `PayloadCodec` to `send` and `accept`; the chosen
+codec is surfaced in `ev.codec` on `payload_received` events.
+
+```python
+from gbp_stack import GtpClient, PayloadCodec
+
+frame = gtp_alice.send(alice, alice_mls, target=2, message_id=1,
+                       text="hello", codec=PayloadCodec.FLATBUFFERS)
+for ev in bob.on_wire(bob_mls, frame.wire):
+    if ev.kind == "payload_received":
+        codec = ev.codec or PayloadCodec.CBOR
+        result = gtp_bob.accept(ev.plaintext, bob_mls.epoch, codec=codec)
+        print(result.text)
+```
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0`   | `PayloadCodec.CBOR`         | Default; `pf` field omitted from wire |
+| `1`   | `PayloadCodec.PROTOBUF`     | Protobuf via `gbp-proto` |
+| `2`   | `PayloadCodec.FLATBUFFERS`  | FlatBuffers via `gbp-flat`; lowest latency |
+
 ## Sub-protocol toolkits
 
 Beyond the protocol clients, the package ships ready-made helpers:

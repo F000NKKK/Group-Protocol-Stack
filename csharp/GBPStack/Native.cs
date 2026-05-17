@@ -127,10 +127,10 @@ internal static class Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gtp_client_send(
         int ch, int nh, int mh, uint target, ulong messageId,
-        IntPtr textPtr, nuint textLen);
+        IntPtr textPtr, nuint textLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr gtp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);
+    public static extern IntPtr gtp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern int gap_client_create();
@@ -144,10 +144,10 @@ internal static class Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gap_client_send(
         int ch, int nh, int mh, uint target, uint mediaSourceId, ulong rtpTimestamp,
-        IntPtr opusPtr, nuint opusLen);
+        IntPtr opusPtr, nuint opusLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr gap_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);
+    public static extern IntPtr gap_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern int gsp_client_create();
@@ -160,15 +160,15 @@ internal static class Native
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gsp_client_send(
-        int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId);
+        int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gsp_client_send_with_args(
         int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId,
-        IntPtr argsPtr, nuint argsLen);
+        IntPtr argsPtr, nuint argsLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr gsp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);
+    public static extern IntPtr gsp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen, byte codec);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gbp_frame_encode_v(

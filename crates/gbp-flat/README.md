@@ -2,9 +2,11 @@
 
 FlatBuffers codec for the [Group Protocol Stack](https://github.com/F000NKKK/Group-Protocol-Stack) (GBP/GTP/GAP/GSP).
 
-Alternative wire format to CBOR per gbp_rfc §12.2. Schemas are compiled from
-`.fbs` files at build time using [planus](https://crates.io/crates/planus) —
-no `flatc` binary required.
+FlatBuffers wire format (`PayloadCodec::FlatBuffers`, `pf=2`) for the Group
+Protocol Stack. Recommended for real-time audio (GAP) paths — zero-copy
+deserialization minimises decode latency. Selected at runtime via the GBP frame
+`pf` field. Schemas are compiled from `.fbs` files at build time using
+[planus](https://crates.io/crates/planus) — no `flatc` binary required.
 
 ## Messages
 

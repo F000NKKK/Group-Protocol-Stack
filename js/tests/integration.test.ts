@@ -21,7 +21,7 @@ import {
     GroupNode, StreamType, NodeState, ControlOpcode,
     encodeGbpFrame, lookupError, NodeEvent,
 } from "../src/node";
-import { GtpClient } from "../src/gtp";
+import { GtpClient, PayloadCodec } from "../src/gtp";
 import { GapClient } from "../src/gap";
 import { GspClient, SignalType } from "../src/gsp";
 import { SFrameSession, AES_128_GCM, AES_256_GCM } from "../src/sframe";
@@ -944,6 +944,85 @@ describe("SFrameSession", () => {
             expect(() => bobSess.decrypt(ct, Buffer.from("wrong"))).toThrow();
             enc.close(); aliceSess.close(); bobSess.close();
         } finally { alice.close(); bob.close(); }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Payload codec roundtrip tests
+// ---------------------------------------------------------------------------
+
+describe("GtpClient codec roundtrip", () => {
+    test.each([
+        ["cbor",        PayloadCodec.Cbor],
+        ["protobuf",    PayloadCodec.Protobuf],
+        ["flatbuffers", PayloadCodec.FlatBuffers],
+    ])("%s", (_, codec) => {
+        const { aliceMls, aliceNode, bobMls, bobNode } = twoMemberGroup();
+        const gtpA = GtpClient.create();
+        const gtpB = GtpClient.create();
+        try {
+            const frame = gtpA.send(aliceNode, aliceMls, 2, 1n, "codec test", codec as PayloadCodec);
+            const evs   = textEvents(bobNode.onWire(bobMls, frame.wire));
+            expect(evs).toHaveLength(1);
+            expect(evs[0].codec ?? PayloadCodec.Cbor).toBe(codec);
+            const r = gtpB.accept(evs[0].plaintext!, bobMls.epoch, codec as PayloadCodec);
+            expect(r.status).toBe("new");
+            expect(r.text).toBe("codec test");
+        } finally {
+            gtpA.close(); gtpB.close();
+            aliceMls.close(); aliceNode.close();
+            bobMls.close(); bobNode.close();
+        }
+    });
+});
+
+describe("GapClient codec roundtrip", () => {
+    test.each([
+        ["cbor",        PayloadCodec.Cbor],
+        ["protobuf",    PayloadCodec.Protobuf],
+        ["flatbuffers", PayloadCodec.FlatBuffers],
+    ])("%s", (_, codec) => {
+        const { aliceMls, aliceNode, bobMls, bobNode } = twoMemberGroup();
+        const gapA = GapClient.create();
+        const gapB = GapClient.create();
+        try {
+            const frame = gapA.send(aliceNode, aliceMls, 2, 5, 0n, Buffer.alloc(20), codec as PayloadCodec);
+            const evs   = audioEvents(bobNode.onWire(bobMls, frame.wire));
+            expect(evs).toHaveLength(1);
+            expect(evs[0].codec ?? PayloadCodec.Cbor).toBe(codec);
+            const r = gapB.accept(evs[0].plaintext!, bobMls.epoch, codec as PayloadCodec);
+            expect(r.status).toBe("new");
+            expect(r.source).toBe(5);
+        } finally {
+            gapA.close(); gapB.close();
+            aliceMls.close(); aliceNode.close();
+            bobMls.close(); bobNode.close();
+        }
+    });
+});
+
+describe("GspClient codec roundtrip", () => {
+    test.each([
+        ["cbor",        PayloadCodec.Cbor],
+        ["protobuf",    PayloadCodec.Protobuf],
+        ["flatbuffers", PayloadCodec.FlatBuffers],
+    ])("%s", (_, codec) => {
+        const { aliceMls, aliceNode, bobMls, bobNode } = twoMemberGroup();
+        const gspA = GspClient.create();
+        const gspB = GspClient.create();
+        try {
+            const frame = gspA.send(aliceNode, aliceMls, 2, SignalType.Join, 0, 1, codec as PayloadCodec);
+            const evs   = signalEvents(bobNode.onWire(bobMls, frame.wire));
+            expect(evs).toHaveLength(1);
+            expect(evs[0].codec ?? PayloadCodec.Cbor).toBe(codec);
+            const r = gspB.accept(evs[0].plaintext!, bobMls.epoch, codec as PayloadCodec);
+            expect(r.status).toBe("new");
+            expect(r.signalCode).toBe(SignalType.Join);
+        } finally {
+            gspA.close(); gspB.close();
+            aliceMls.close(); aliceNode.close();
+            bobMls.close(); bobNode.close();
+        }
     });
 });
 

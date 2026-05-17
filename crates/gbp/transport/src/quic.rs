@@ -269,7 +269,7 @@ mod tests {
     fn make_test_cert() -> (Vec<u8>, Vec<u8>) {
         let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
         let cert_der = cert.cert.der().to_vec();
-        let key_der = cert.key_pair.serialize_der();
+        let key_der = cert.signing_key.serialize_der();
         (cert_der, key_der)
     }
 
@@ -283,6 +283,7 @@ mod tests {
             0,
             42,
             b"payload".to_vec(),
+            0,
         )
     }
 

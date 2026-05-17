@@ -124,6 +124,12 @@ table GAPPayload {
 root_type GAPPayload;
 ```
 
+## 10.4 Payload Codec Selection
+The codec used to encode a GAPPayload is signalled by the `pf` field of the enclosing GBP frame
+(see `gbp_rfc.md` §6.1 and `schemas.md` §6.5).  Using `pf=2` (FlatBuffers) minimises decode
+latency for real-time audio paths.  Senders pass the desired codec to the `send` API; receivers
+read it from the `payload_received` event and MUST pass the same value to `accept`.
+
 ## 11. IANA Considerations
 This document registers GAP error names and GAP key phase behavior under GBP registries.
 

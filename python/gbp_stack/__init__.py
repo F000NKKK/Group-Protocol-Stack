@@ -17,7 +17,7 @@ See :func:`version` for the underlying library version and the project
 README for a worked example.
 """
 
-from ._native import last_error, version
+from ._native import PayloadCodec, last_error, version
 from .capabilities import CapabilitiesNegotiator
 from .gap_client import GapAcceptResult, GapClient
 from .gbp_node import GroupNode, NodeEvent, NodeState, OutboundFrame, StreamType, encode_gbp_frame, lookup_error

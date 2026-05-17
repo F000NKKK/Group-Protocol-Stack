@@ -63,6 +63,16 @@ BCP 14 language applies as defined in [RFC2119] and [RFC8174].
 ### 6.4 Extension Policy
 All registries in this profile use "Specification Required", except private ranges.
 
+### 6.5 PayloadCodec
+Identifies the codec used to encode the sub-protocol message body inside the AEAD-sealed payload.
+Carried in the GBP frame's `pf` (payload format) field; absent `pf` MUST be treated as `0`.
+
+- `0` CBOR (default; `pf` field omitted from wire when 0 for backward-compat with pre-1.5 peers)
+- `1` Protobuf
+- `2` FlatBuffers
+- `3–127` standards action
+- `128–255` private use
+
 ## 7. Shared Protobuf Envelope (Optional)
 ```proto
 syntax = "proto3";

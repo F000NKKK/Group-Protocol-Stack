@@ -45,8 +45,8 @@ pub use gsp::{CapabilitiesNegotiator, GspAccept, GspClient, GspError, GspSignal}
 pub use gtp::{GtpAccept, GtpClient, GtpError, GtpMessage};
 
 pub use gbp_core::{
-    BoundedSeen, ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SignalType,
-    StreamType, TransitionState, codes, timeouts,
+    BoundedSeen, ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, PayloadCodec,
+    SignalType, StreamType, TransitionState, codes, timeouts,
 };
 
 pub use gbp_mls::{MlsContext, ProcessedKind, StreamLabel, label_for};

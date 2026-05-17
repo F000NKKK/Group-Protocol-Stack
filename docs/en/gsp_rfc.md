@@ -174,6 +174,12 @@ A2       -- map(2)
    02    -- value: 2
 ```
 
+## 11.5 Payload Codec Selection
+The codec used to encode a GSPSignal is signalled by the `pf` field of the enclosing GBP frame
+(see `gbp_rfc.md` §6.1 and `schemas.md` §6.5).  The `args` field inside GSPSignal is **always**
+CBOR regardless of the outer `pf` value.  Senders pass the desired codec to the `send` API;
+receivers read it from the `payload_received` event and MUST pass the same value to `accept`.
+
 ## 12. IANA Considerations
 This document relies on GBP registry policy for signal type extensibility.
 

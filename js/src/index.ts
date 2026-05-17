@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-export { lastError, version } from "./native";
+export { PayloadCodec, lastError, version } from "./native";
 export { MlsContext } from "./mls";
 export {
     ControlOpcode,

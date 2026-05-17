@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from . import _native as _n
+from ._native import PayloadCodec
 from .mls_context import MlsContext
 
 
@@ -98,6 +99,7 @@ class NodeEvent:
     reason: Optional[str] = None
     epoch: Optional[int] = None
     claimant: Optional[int] = None
+    codec: Optional[PayloadCodec] = None
 
     @classmethod
     def _from_dict(cls, d: dict) -> "NodeEvent":
@@ -125,6 +127,7 @@ class NodeEvent:
             reason=d.get("reason"),
             epoch=d.get("epoch"),
             claimant=d.get("claimant"),
+            codec=PayloadCodec(d["codec"]) if "codec" in d else None,
         )
 
 

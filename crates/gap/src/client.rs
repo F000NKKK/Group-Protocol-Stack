@@ -2,7 +2,7 @@
 
 use crate::GapPayload;
 use gbp::CodecError;
-use gbp_core::{GbpFlags, MemberId, StreamType, timeouts};
+use gbp_core::{GbpFlags, MemberId, PayloadCodec, StreamType, timeouts};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -97,6 +97,9 @@ impl GapClient {
     ///
     /// The wire `rtp_sequence` is clamped to the 16-bit RTP range; on
     /// overflow it wraps from `0xFFFF` back to `0x0000`.
+    /// `codec` controls how the payload is encoded; use [`PayloadCodec::Cbor`]
+    /// for maximum compatibility or [`PayloadCodec::FlatBuffers`] for
+    /// lowest decode latency.
     pub fn send<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -105,6 +108,7 @@ impl GapClient {
         media_source_id: u32,
         rtp_timestamp: u64,
         opus: Vec<u8>,
+        codec: PayloadCodec,
     ) -> Result<OutboundFrame, GapError> {
         self.sync_epoch(node.current_epoch);
         let seq = self.out_rtp_seq.entry(media_source_id).or_insert(0);
@@ -124,7 +128,8 @@ impl GapClient {
             StreamType::Audio,
             stream_id,
             GbpFlags::ordered_only(),
-            &payload.to_cbor(),
+            &payload.to_bytes(codec),
+            codec,
         )?)
     }
 
@@ -135,9 +140,15 @@ impl GapClient {
     /// only when `key_phase` refers to an epoch that has already expired its
     /// T_overlap window; frames from epochs still within T_overlap are
     /// accepted normally (gap_rfc §4).
-    pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GapAccept, GapError> {
+    /// `codec` must match [`DeliveredPayload::codec`].
+    pub fn accept(
+        &mut self,
+        plaintext: &[u8],
+        current_epoch: u64,
+        codec: PayloadCodec,
+    ) -> Result<GapAccept, GapError> {
         self.sync_epoch(current_epoch);
-        let p = GapPayload::from_cbor(plaintext)?;
+        let p = GapPayload::from_bytes(plaintext, codec)?;
         if p.key_phase == current_epoch as u32 {
             // Fast path: current epoch.
             let hw = self.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
@@ -218,17 +229,17 @@ mod tests {
             key_phase,
             opus_frame: serde_bytes::ByteBuf::from(b"opus-data".to_vec()),
         }
-        .to_cbor()
+        .to_bytes(PayloadCodec::Cbor)
     }
 
     #[test]
     fn wraparound_after_ffff_is_accepted() {
         let mut client = GapClient::new();
         // Prime the high-water mark near wraparound point.
-        let _ = client.accept(&make_payload(0xFFFE, 1), 1).unwrap();
-        let _ = client.accept(&make_payload(0xFFFF, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(0xFFFE, 1), 1, PayloadCodec::Cbor).unwrap();
+        let _ = client.accept(&make_payload(0xFFFF, 1), 1, PayloadCodec::Cbor).unwrap();
         // After wraparound, seq=0 should be accepted as New, not Late.
-        let result = client.accept(&make_payload(0x0000, 1), 1).unwrap();
+        let result = client.accept(&make_payload(0x0000, 1), 1, PayloadCodec::Cbor).unwrap();
         assert!(
             matches!(result, GapAccept::New(_)),
             "seq=0 after 0xFFFF must be New"
@@ -238,8 +249,8 @@ mod tests {
     #[test]
     fn strict_replay_within_window_is_late() {
         let mut client = GapClient::new();
-        let _ = client.accept(&make_payload(100, 1), 1).unwrap();
-        let result = client.accept(&make_payload(100, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(100, 1), 1, PayloadCodec::Cbor).unwrap();
+        let result = client.accept(&make_payload(100, 1), 1, PayloadCodec::Cbor).unwrap();
         assert!(
             matches!(result, GapAccept::Late(_)),
             "exact dup must be Late"
@@ -249,9 +260,9 @@ mod tests {
     #[test]
     fn epoch_change_clears_window() {
         let mut client = GapClient::new();
-        let _ = client.accept(&make_payload(1, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(1, 1), 1, PayloadCodec::Cbor).unwrap();
         // Epoch change: seq 1 was seen in epoch 1, but in epoch 2 it's new again.
-        let result = client.accept(&make_payload(1, 2), 2).unwrap();
+        let result = client.accept(&make_payload(1, 2), 2, PayloadCodec::Cbor).unwrap();
         assert!(
             matches!(result, GapAccept::New(_)),
             "new epoch resets window"
@@ -264,11 +275,11 @@ mod tests {
     fn old_epoch_frame_accepted_within_overlap() {
         let mut client = GapClient::new();
         // Establish seq 5 in epoch 1.
-        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(5, 1), 1, PayloadCodec::Cbor).unwrap();
         // Advance to epoch 2 — old window is buffered.
-        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        let _ = client.accept(&make_payload(1, 2), 2, PayloadCodec::Cbor).unwrap();
         // A late frame from epoch 1 (seq 6, not seen yet) arrives before T_overlap expires.
-        let result = client.accept(&make_payload(6, 1), 2).unwrap();
+        let result = client.accept(&make_payload(6, 1), 2, PayloadCodec::Cbor).unwrap();
         assert!(
             matches!(result, GapAccept::New(_)),
             "late epoch-1 frame accepted within T_overlap"
@@ -278,11 +289,11 @@ mod tests {
     #[test]
     fn old_epoch_replay_is_late_within_overlap() {
         let mut client = GapClient::new();
-        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(5, 1), 1, PayloadCodec::Cbor).unwrap();
         // Advance epoch.
-        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        let _ = client.accept(&make_payload(1, 2), 2, PayloadCodec::Cbor).unwrap();
         // Same seq from epoch 1 arrives again — replay → Late.
-        let result = client.accept(&make_payload(5, 1), 2).unwrap();
+        let result = client.accept(&make_payload(5, 1), 2, PayloadCodec::Cbor).unwrap();
         assert!(
             matches!(result, GapAccept::Late(_)),
             "duplicate from old epoch is Late"
@@ -292,15 +303,15 @@ mod tests {
     #[test]
     fn expired_old_epoch_frame_is_stale() {
         let mut client = GapClient::new();
-        let _ = client.accept(&make_payload(5, 1), 1).unwrap();
+        let _ = client.accept(&make_payload(5, 1), 1, PayloadCodec::Cbor).unwrap();
         // Advance epoch.
-        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        let _ = client.accept(&make_payload(1, 2), 2, PayloadCodec::Cbor).unwrap();
         // Manually expire the overlap window.
         for w in &mut client.old_windows {
             w.expires = Instant::now() - Duration::from_millis(1);
         }
         // Now a late epoch-1 frame should be rejected.
-        let result = client.accept(&make_payload(6, 1), 2);
+        let result = client.accept(&make_payload(6, 1), 2, PayloadCodec::Cbor);
         assert!(
             matches!(result, Err(GapError::EpochStale { .. })),
             "expired epoch is Stale"
@@ -310,8 +321,8 @@ mod tests {
     #[test]
     fn reset_clears_overlap_buffer() {
         let mut client = GapClient::new();
-        let _ = client.accept(&make_payload(1, 1), 1).unwrap();
-        let _ = client.accept(&make_payload(1, 2), 2).unwrap();
+        let _ = client.accept(&make_payload(1, 1), 1, PayloadCodec::Cbor).unwrap();
+        let _ = client.accept(&make_payload(1, 2), 2, PayloadCodec::Cbor).unwrap();
         assert!(!client.old_windows.is_empty(), "overlap buffer populated");
         client.reset();
         assert!(

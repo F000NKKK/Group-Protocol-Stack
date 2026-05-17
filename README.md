@@ -71,6 +71,22 @@ can depend on individual crates directly.
 | [`gbp-stack-ffi`](https://crates.io/crates/gbp-stack-ffi)        | C ABI / cdylib for non-Rust consumers                         |
 | [`gbp-cli`](https://crates.io/crates/gbp-cli)                    | Reference CLI (`gbp-node listen|connect`)                     |
 
+## Payload codec
+
+Every sub-protocol (GTP, GAP, GSP) can encode its payload as **CBOR**,
+**Protobuf**, or **FlatBuffers**. The codec is negotiated per-frame via
+the `pf` field of the enclosing GBP frame. The default (`pf=0`, CBOR) is
+omitted from the wire for backward compatibility.
+
+```
+PayloadCodec::Cbor        (0) — default; pf field omitted when 0
+PayloadCodec::Protobuf    (1) — via gbp-proto / prost
+PayloadCodec::FlatBuffers (2) — via gbp-flat / planus
+```
+
+Callers pass `codec` to every `send` / `accept` call; the chosen codec is
+echoed back in the `payload_received` event so the receiver can decode correctly.
+
 ## Specifications
 
 See [`docs/`](docs/) for the protocol specifications (English in

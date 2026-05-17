@@ -14,7 +14,8 @@
 //! event surface — they verify the underlying MLS+GBP contract.
 
 use gbp_stack::{
-    ControlOpcode, GbpFlags, GroupNode, MlsContext, NodeState, ProcessedKind, StreamType, label_for,
+    ControlOpcode, GbpFlags, GroupNode, MlsContext, NodeState, PayloadCodec, ProcessedKind,
+    StreamType, label_for,
 };
 
 use openmls::prelude::DeserializeBytes as _;
@@ -101,6 +102,7 @@ fn two_party_add_completes_full_handshake() {
             sid,
             GbpFlags::ordered_reliable_ack(),
             b"hi bob",
+            PayloadCodec::Cbor,
         )
         .unwrap();
     let recv = b_node.on_wire(&mut bob, &msg.wire).unwrap();

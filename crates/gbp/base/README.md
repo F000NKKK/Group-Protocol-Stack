@@ -6,9 +6,11 @@ error object that the three sub-protocols (`gtp-protocol`, `gap-protocol`,
 
 This crate provides:
 
-* [`GbpFrame`] — the CBOR-encoded transport frame with `version`, `group_id`,
-  `epoch`, `transition_id`, `stream_type`, `stream_id`, `flags`, `sequence_no`
-  and the encrypted payload.
+* [`GbpFrame`] — the transport frame with `version`, `group_id`, `epoch`,
+  `transition_id`, `stream_type`, `stream_id`, `flags`, `sequence_no`,
+  `encrypted_payload` and the optional `pf` (payload format) field that
+  identifies the sub-protocol payload codec (`0`=CBOR, `1`=Protobuf,
+  `2`=FlatBuffers); `pf` is omitted from the wire when `0` for backward compat.
 * [`ControlMessage`] — the CBOR-encoded control plane message format.
 * [`ErrorObject`] — the wire-serialisable error object referenced by the
   registry in [`gbp-core`](https://crates.io/crates/gbp-core).

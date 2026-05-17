@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from . import _native as _n
+from ._native import PayloadCodec
 from .gbp_node import GroupNode, OutboundFrame, _unpack
 from .mls_context import MlsContext
 
@@ -86,29 +87,35 @@ class GspClient:
         role_claim: int,
         request_id: int,
         args: bytes = b"",
+        codec: PayloadCodec = PayloadCodec.CBOR,
     ) -> OutboundFrame:
         """Send a signal.
 
         ``args`` carries opcode-specific CBOR-encoded arguments required by
         signals such as MUTE/UNMUTE (``{0: target_member_id}``),
         ROLE_CHANGE (``{0: target_member_id, 1: new_role_id}``), etc.
+        ``codec`` selects the payload encoding (default: CBOR).
         """
         def do_send(ptr, length):
             return _n.gsp_client_send_with_args(
                 self._handle, node.handle, mls.handle, target,
-                int(signal), role_claim, request_id, ptr, length,
+                int(signal), role_claim, request_id, ptr, length, int(codec),
             )
         buf = _n.call_with_bytes(args, do_send)
         return _unpack(buf, "gsp_client_send")
 
-    def accept(self, plaintext: bytes, current_epoch: int) -> GspAcceptResult:
+    def accept(
+        self, plaintext: bytes, current_epoch: int,
+        codec: PayloadCodec = PayloadCodec.CBOR,
+    ) -> GspAcceptResult:
         """Accept a plaintext payload delivered by the GBP layer.
 
         ``current_epoch`` lets the client auto-reset its dedup state
-        when the epoch advances.
+        when the epoch advances. ``codec`` must match the ``codec`` field
+        of the ``payload_received`` event.
         """
         def call(ptr, length):
-            return _n.gsp_client_accept(self._handle, current_epoch, ptr, length)
+            return _n.gsp_client_accept(self._handle, current_epoch, ptr, length, int(codec))
         ptr = _n.call_with_bytes(plaintext, call)
         return GspAcceptResult._parse(_n.take_cstring(ptr))
 

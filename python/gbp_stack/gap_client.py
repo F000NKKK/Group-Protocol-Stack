@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from . import _native as _n
+from ._native import PayloadCodec
 from .gbp_node import GroupNode, OutboundFrame, _unpack
 from .mls_context import MlsContext
 
@@ -66,20 +67,31 @@ class GapClient:
         media_source_id: int,
         rtp_timestamp: int,
         opus: bytes,
+        codec: PayloadCodec = PayloadCodec.CBOR,
     ) -> OutboundFrame:
-        """Send an Opus audio frame."""
+        """Send an Opus audio frame.
+
+        ``codec`` selects the payload encoding; use ``PayloadCodec.FLATBUFFERS``
+        for lowest decode latency.
+        """
         def call(ptr, length):
             return _n.gap_client_send(
                 self._handle, node.handle, mls.handle, target,
-                media_source_id, rtp_timestamp, ptr, length,
+                media_source_id, rtp_timestamp, ptr, length, int(codec),
             )
         buf = _n.call_with_bytes(opus, call)
         return _unpack(buf, "gap_client_send")
 
-    def accept(self, plaintext: bytes, current_epoch: int) -> GapAcceptResult:
-        """Accept a plaintext payload delivered by the GBP layer."""
+    def accept(
+        self, plaintext: bytes, current_epoch: int,
+        codec: PayloadCodec = PayloadCodec.CBOR,
+    ) -> GapAcceptResult:
+        """Accept a plaintext payload delivered by the GBP layer.
+
+        ``codec`` must match the ``codec`` field of the ``payload_received`` event.
+        """
         def call(ptr, length):
-            return _n.gap_client_accept(self._handle, current_epoch, ptr, length)
+            return _n.gap_client_accept(self._handle, current_epoch, ptr, length, int(codec))
         ptr = _n.call_with_bytes(plaintext, call)
         return GapAcceptResult._parse(_n.take_cstring(ptr))
 

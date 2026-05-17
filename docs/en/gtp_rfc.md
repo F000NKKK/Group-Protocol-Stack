@@ -134,6 +134,13 @@ table GTPMessage {
 root_type GTPMessage;
 ```
 
+## 10.4 Payload Codec Selection
+The codec used to encode a GTPMessage is signalled by the `pf` (payload format) field of the enclosing
+GBP frame (see `gbp_rfc.md` §6.1 and `schemas.md` §6.5).  The default value `0` (CBOR) is
+backward-compatible with pre-1.5 implementations.  Senders pass the desired codec to the `send`
+API; receivers read the codec from the `payload_received` event and MUST pass the same value to
+the `accept` API.
+
 ## 11. IANA Considerations
 This document does not require additional IANA actions beyond GBP registries.
 

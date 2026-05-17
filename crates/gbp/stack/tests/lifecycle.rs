@@ -17,7 +17,8 @@
 //! to fan-out frames addressed to `target == 0`.
 
 use gbp_stack::{
-    ControlOpcode, GroupNode, GtpAccept, GtpClient, MlsContext, NodeState, ProcessedKind,
+    ControlOpcode, GroupNode, GtpAccept, GtpClient, MlsContext, NodeState, PayloadCodec,
+    ProcessedKind,
 };
 use openmls::prelude::DeserializeBytes as _;
 use openmls::prelude::{KeyPackage, KeyPackageIn, ProtocolVersion};
@@ -135,12 +136,13 @@ fn full_lifecycle_two_joins_one_leave() {
             /*broadcast*/ 0,
             100,
             "hello bob",
+            PayloadCodec::Cbor,
         )
         .unwrap();
     let evs = bob.node.on_wire(&mut bob.mls, &m.wire).unwrap();
     let pr = first_payload(&evs).expect("bob got alice's text");
     let plain = pr.plaintext.clone();
-    let accept = bob.gtp.accept(&plain, bob.node.current_epoch).unwrap();
+    let accept = bob.gtp.accept(&plain, bob.node.current_epoch, PayloadCodec::Cbor).unwrap();
     match accept {
         GtpAccept::New(msg) => assert_eq!(msg.text().unwrap(), "hello bob"),
         other => panic!("expected New, got {:?}", other),
@@ -220,7 +222,7 @@ fn full_lifecycle_two_joins_one_leave() {
     // ─── 5. 3-way chat ──────────────────────────────────────────────────
     let m2 = bob
         .gtp
-        .send(&mut bob.node, &mut bob.mls, 0, 200, "everyone hi")
+        .send(&mut bob.node, &mut bob.mls, 0, 200, "everyone hi", PayloadCodec::Cbor)
         .unwrap();
 
     {
@@ -229,7 +231,7 @@ fn full_lifecycle_two_joins_one_leave() {
             .expect("alice missed bob")
             .plaintext
             .clone();
-        let acc = alice.gtp.accept(&plain, alice.node.current_epoch).unwrap();
+        let acc = alice.gtp.accept(&plain, alice.node.current_epoch, PayloadCodec::Cbor).unwrap();
         if let GtpAccept::New(m) = acc {
             assert_eq!(m.text().unwrap(), "everyone hi");
         } else {
@@ -242,7 +244,7 @@ fn full_lifecycle_two_joins_one_leave() {
             .expect("carol missed bob")
             .plaintext
             .clone();
-        let acc = carol.gtp.accept(&plain, carol.node.current_epoch).unwrap();
+        let acc = carol.gtp.accept(&plain, carol.node.current_epoch, PayloadCodec::Cbor).unwrap();
         if let GtpAccept::New(m) = acc {
             assert_eq!(m.text().unwrap(), "everyone hi");
         } else {
@@ -317,14 +319,14 @@ fn full_lifecycle_two_joins_one_leave() {
     // ─── 7. Post-leave chat ─────────────────────────────────────────────
     let m3 = carol
         .gtp
-        .send(&mut carol.node, &mut carol.mls, 0, 300, "after-leave")
+        .send(&mut carol.node, &mut carol.mls, 0, 300, "after-leave", PayloadCodec::Cbor)
         .unwrap();
     let evs = alice.node.on_wire(&mut alice.mls, &m3.wire).unwrap();
     let plain = first_payload(&evs)
         .expect("alice missed carol post-leave")
         .plaintext
         .clone();
-    let acc = alice.gtp.accept(&plain, alice.node.current_epoch).unwrap();
+    let acc = alice.gtp.accept(&plain, alice.node.current_epoch, PayloadCodec::Cbor).unwrap();
     if let GtpAccept::New(m) = acc {
         assert_eq!(m.text().unwrap(), "after-leave");
     } else {

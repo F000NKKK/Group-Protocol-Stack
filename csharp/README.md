@@ -23,6 +23,32 @@ library `gbp_stack` for every supported runtime identifier:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Payload codec
+
+Each sub-protocol payload can be encoded as **CBOR** (default), **Protobuf**,
+or **FlatBuffers**. Pass `PayloadCodec` to `Send` and `Accept`; the chosen
+codec is surfaced in `ev.Codec` on `payload_received` events.
+
+```csharp
+using GBPStack;
+
+var frame = aliceGtp.Send(alice, aliceMls, target: 2, messageId: 1,
+                          text: "hi", codec: PayloadCodec.FlatBuffers);
+foreach (var ev in bob.OnWire(bobMls, frame.Wire))
+    if (ev.Kind == "payload_received")
+    {
+        var codec = ev.Codec ?? PayloadCodec.Cbor;
+        var r = bobGtp.Accept(ev.Plaintext!, bobMls.Epoch, codec);
+        Console.WriteLine(r.Text);
+    }
+```
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0`   | `PayloadCodec.Cbor`         | Default; `pf` field omitted from wire |
+| `1`   | `PayloadCodec.Protobuf`     | Protobuf |
+| `2`   | `PayloadCodec.FlatBuffers`  | FlatBuffers; lowest latency |
+
 ## Sub-protocol toolkits
 
 Beyond the protocol clients, the package ships ready-made helpers:

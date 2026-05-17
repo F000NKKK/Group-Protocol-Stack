@@ -21,12 +21,16 @@ public sealed class GtpClient : IDisposable
 
     private GtpClient(int h) => Handle = h;
 
-    /// <summary>Sends a text message to <paramref name="target"/>.</summary>
-    public OutboundFrame Send(GroupNode node, MlsContext mls, uint target, ulong messageId, string text)
+    /// <summary>
+    /// Sends a text message to <paramref name="target"/>.
+    /// <paramref name="codec"/> selects the payload encoding (default: CBOR).
+    /// </summary>
+    public OutboundFrame Send(GroupNode node, MlsContext mls, uint target, ulong messageId, string text,
+        PayloadCodec codec = PayloadCodec.Cbor)
     {
         var bytes = Encoding.UTF8.GetBytes(text);
         var buf = Native.WithBytes(bytes, (p, l) =>
-            Native.gtp_client_send(Handle, node.Handle, mls.Handle, target, messageId, p, l));
+            Native.gtp_client_send(Handle, node.Handle, mls.Handle, target, messageId, p, l, (byte)codec));
         return GroupNode.Unpack(buf, "gtp_client_send");
     }
 
@@ -34,14 +38,15 @@ public sealed class GtpClient : IDisposable
     /// Accepts a plaintext payload delivered by the GBP layer.
     /// <paramref name="currentEpoch"/> lets the client auto-reset its
     /// idempotency state when the epoch advances.
+    /// <paramref name="codec"/> must match <see cref="NodeEvent.Codec"/> from the event.
     /// </summary>
-    public GtpAcceptResult Accept(byte[] plaintext, ulong currentEpoch)
+    public GtpAcceptResult Accept(byte[] plaintext, ulong currentEpoch, PayloadCodec codec = PayloadCodec.Cbor)
     {
         IntPtr cstr;
         unsafe
         {
             fixed (byte* p = plaintext)
-                cstr = Native.gtp_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length);
+                cstr = Native.gtp_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length, (byte)codec);
         }
         return GtpAcceptResult.Parse(Native.CopyAndFree(cstr));
     }

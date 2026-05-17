@@ -2,7 +2,7 @@
 
 use crate::GtpMessage;
 use gbp::CodecError;
-use gbp_core::{BoundedSeen, GbpFlags, MemberId, StreamType};
+use gbp_core::{BoundedSeen, GbpFlags, MemberId, PayloadCodec, StreamType};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 
 /// Errors returned by [`GtpClient`].
@@ -65,6 +65,8 @@ impl GtpClient {
     ///
     /// Returns a wire-ready [`OutboundFrame`] that the caller MUST hand to the
     /// transport. Uses the `O | R | A` profile from GTP §5.
+    /// `codec` controls how the [`GtpMessage`] payload is encoded inside the
+    /// GBP frame; use [`PayloadCodec::Cbor`] for maximum compatibility.
     pub fn send<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -72,6 +74,7 @@ impl GtpClient {
         target: MemberId,
         message_id: u64,
         text: &str,
+        codec: PayloadCodec,
     ) -> Result<OutboundFrame, GtpError> {
         self.sync_epoch(node.current_epoch);
         let msg = GtpMessage::plain(node.member_id, message_id, text);
@@ -82,7 +85,8 @@ impl GtpClient {
             StreamType::Text,
             stream_id,
             GbpFlags::ordered_reliable_ack(),
-            &msg.to_cbor(),
+            &msg.to_bytes(codec),
+            codec,
         )?;
         Ok(of)
     }
@@ -92,11 +96,17 @@ impl GtpClient {
     ///
     /// `current_epoch` is the receiver node's current epoch — passing it lets
     /// the client auto-reset its idempotency set when the epoch advances.
+    /// `codec` must match the value from [`DeliveredPayload::codec`].
     /// Returns either [`GtpAccept::New`] or [`GtpAccept::Duplicate`], or
     /// [`GtpError::Decode`] if the plaintext is not a valid GTP message.
-    pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GtpAccept, GtpError> {
+    pub fn accept(
+        &mut self,
+        plaintext: &[u8],
+        current_epoch: u64,
+        codec: PayloadCodec,
+    ) -> Result<GtpAccept, GtpError> {
         self.sync_epoch(current_epoch);
-        let m = GtpMessage::from_cbor(plaintext)?;
+        let m = GtpMessage::from_bytes(plaintext, codec)?;
         let key = (m.sender_id, m.message_id);
         if !self.seen.insert(key) {
             return Ok(GtpAccept::Duplicate(m));
@@ -135,7 +145,7 @@ mod tests {
         let mut client = GtpClient::new();
         let payload = encode_msg(1, 100);
         assert!(matches!(
-            client.accept(&payload, 0).unwrap(),
+            client.accept(&payload, 0, PayloadCodec::Cbor).unwrap(),
             GtpAccept::New(_)
         ));
     }
@@ -144,8 +154,8 @@ mod tests {
     fn accept_duplicate_returns_duplicate() {
         let mut client = GtpClient::new();
         let payload = encode_msg(1, 100);
-        client.accept(&payload, 0).unwrap();
-        let result = client.accept(&payload, 0).unwrap();
+        client.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
+        let result = client.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
         assert!(matches!(result, GtpAccept::Duplicate(_)));
     }
 
@@ -154,8 +164,8 @@ mod tests {
         let mut client = GtpClient::new();
         let p1 = encode_msg(1, 1);
         let p2 = encode_msg(1, 2);
-        assert!(matches!(client.accept(&p1, 0).unwrap(), GtpAccept::New(_)));
-        assert!(matches!(client.accept(&p2, 0).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
     }
 
     #[test]
@@ -163,17 +173,17 @@ mod tests {
         let mut client = GtpClient::new();
         let p1 = encode_msg(1, 42);
         let p2 = encode_msg(2, 42);
-        assert!(matches!(client.accept(&p1, 0).unwrap(), GtpAccept::New(_)));
-        assert!(matches!(client.accept(&p2, 0).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
     }
 
     #[test]
     fn epoch_advance_clears_seen_set() {
         let mut client = GtpClient::new();
         let payload = encode_msg(1, 100);
-        client.accept(&payload, 0).unwrap();
+        client.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
         // same message, new epoch → New again
-        let result = client.accept(&payload, 1).unwrap();
+        let result = client.accept(&payload, 1, PayloadCodec::Cbor).unwrap();
         assert!(matches!(result, GtpAccept::New(_)));
     }
 
@@ -181,9 +191,9 @@ mod tests {
     fn reset_clears_idempotency_state() {
         let mut client = GtpClient::new();
         let payload = encode_msg(7, 999);
-        client.accept(&payload, 5).unwrap();
+        client.accept(&payload, 5, PayloadCodec::Cbor).unwrap();
         client.reset();
-        let result = client.accept(&payload, 5).unwrap();
+        let result = client.accept(&payload, 5, PayloadCodec::Cbor).unwrap();
         assert!(matches!(result, GtpAccept::New(_)));
     }
 
@@ -191,16 +201,16 @@ mod tests {
     fn sync_epoch_same_value_keeps_state() {
         let mut client = GtpClient::new();
         let payload = encode_msg(1, 1);
-        client.accept(&payload, 3).unwrap();
+        client.accept(&payload, 3, PayloadCodec::Cbor).unwrap();
         client.sync_epoch(3); // same epoch — does not clear
-        let result = client.accept(&payload, 3).unwrap();
+        let result = client.accept(&payload, 3, PayloadCodec::Cbor).unwrap();
         assert!(matches!(result, GtpAccept::Duplicate(_)));
     }
 
     #[test]
     fn invalid_cbor_returns_decode_error() {
         let mut client = GtpClient::new();
-        let result = client.accept(b"\xFF\xFF", 0);
+        let result = client.accept(b"\xFF\xFF", 0, PayloadCodec::Cbor);
         assert!(matches!(result, Err(GtpError::Decode(_))));
     }
 }

@@ -109,30 +109,30 @@ export const gtp_client_create = lib.func("int32_t gtp_client_create()");
 export const gtp_client_destroy = lib.func("void gtp_client_destroy(int32_t)");
 export const gtp_client_reset = lib.func("void gtp_client_reset(int32_t)");
 export const gtp_client_send = lib.func(
-    "GbpBuffer gtp_client_send(int32_t, int32_t, int32_t, uint32_t, uint64_t, void *, size_t)"
+    "GbpBuffer gtp_client_send(int32_t, int32_t, int32_t, uint32_t, uint64_t, void *, size_t, uint8_t)"
 );
-export const gtp_client_accept = lib.func("void *gtp_client_accept(int32_t, uint64_t, void *, size_t)");
+export const gtp_client_accept = lib.func("void *gtp_client_accept(int32_t, uint64_t, void *, size_t, uint8_t)");
 
 // GAP client
 export const gap_client_create = lib.func("int32_t gap_client_create()");
 export const gap_client_destroy = lib.func("void gap_client_destroy(int32_t)");
 export const gap_client_reset = lib.func("void gap_client_reset(int32_t)");
 export const gap_client_send = lib.func(
-    "GbpBuffer gap_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint64_t, void *, size_t)"
+    "GbpBuffer gap_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint64_t, void *, size_t, uint8_t)"
 );
-export const gap_client_accept = lib.func("void *gap_client_accept(int32_t, uint64_t, void *, size_t)");
+export const gap_client_accept = lib.func("void *gap_client_accept(int32_t, uint64_t, void *, size_t, uint8_t)");
 
 // GSP client
 export const gsp_client_create = lib.func("int32_t gsp_client_create()");
 export const gsp_client_destroy = lib.func("void gsp_client_destroy(int32_t)");
 export const gsp_client_reset = lib.func("void gsp_client_reset(int32_t)");
 export const gsp_client_send = lib.func(
-    "GbpBuffer gsp_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t)"
+    "GbpBuffer gsp_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint8_t)"
 );
 export const gsp_client_send_with_args = lib.func(
-    "GbpBuffer gsp_client_send_with_args(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t, void *, size_t)"
+    "GbpBuffer gsp_client_send_with_args(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t, void *, size_t, uint8_t)"
 );
-export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t)");
+export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t, uint8_t)");
 
 // Frame / error helpers
 export const gbp_frame_encode_v = lib.func(
@@ -155,6 +155,13 @@ export const gbp_sframe_encrypt = lib.func(
 export const gbp_sframe_decrypt = lib.func(
     "GbpBuffer gbp_sframe_decrypt(int32_t, void *, size_t, void *, size_t, _Out_ uint32_t *)"
 );
+
+/** Payload encoding for GTP / GAP / GSP send and accept calls. */
+export const enum PayloadCodec {
+    Cbor = 0,
+    Protobuf = 1,
+    FlatBuffers = 2,
+}
 
 /** Copy a returned ``GbpBuffer`` into a ``Buffer`` and free it. */
 export function takeBuffer(buf: GbpBuffer): Buffer {

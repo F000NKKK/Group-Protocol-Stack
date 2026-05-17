@@ -1,6 +1,7 @@
 /** GBP-layer group node wrapper (the IP-like base). */
 
 import * as N from "./native";
+import { PayloadCodec } from "./native";
 import { MlsContext } from "./mls";
 
 /** Stream class. */
@@ -64,6 +65,7 @@ export interface NodeEvent {
     streamId?: number;
     sequenceNo?: number;
     flags?: number;
+    codec?: PayloadCodec;
     plaintext?: Buffer;
     sender?: number;
     opcode?: string;
@@ -100,6 +102,7 @@ function parseEvents(json: string): NodeEvent[] {
             streamId: num("stream_id"),
             sequenceNo: num("sequence_no"),
             flags: num("flags"),
+            codec: num("codec") !== undefined ? (num("codec") as PayloadCodec) : undefined,
             plaintext: b64 ? Buffer.from(b64, "base64") : undefined,
             sender: typeof d["from"] === "number" ? (d["from"] as number) : undefined,
             opcode: str("opcode"),

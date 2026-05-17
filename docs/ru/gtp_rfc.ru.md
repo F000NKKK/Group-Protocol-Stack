@@ -115,6 +115,12 @@ table GTPMessage {
 root_type GTPMessage;
 ```
 
+## 9.4  Выбор кодека полезной нагрузки
+Кодек GTPMessage передаётся в поле `pf` (payload format) кадра GBP (см. `gbp_rfc.ru.md` §6.1 и
+`schemas.ru.md` §6.4). Значение по умолчанию `0` (CBOR) обратно совместимо с pre-1.5 узлами.
+Отправитель передаёт нужный кодек в API `send`; получатель читает его из события `payload_received`
+и MUST передавать то же значение в API `accept`.
+
 ## 10.  IANA Considerations
 Дополнительных действий IANA не требуется.
 

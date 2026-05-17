@@ -1,13 +1,20 @@
 //! GBP transport frame.
 //!
-//! On the wire the frame is a deterministic CBOR map of ten keys:
-//! `v, gid, ep, tid, st, sid, fl, seq, psz, pl`. Field `psz` MUST equal the
-//! actual length of `pl`; this is checked on decode.
+//! On the wire the frame is a deterministic CBOR map of ten keys (eleven when
+//! a non-CBOR payload codec is in use):
+//! `v, gid, ep, tid, st, sid, fl, seq, psz, pl[, pf]`.
+//! Field `psz` MUST equal the actual length of `pl`; this is checked on
+//! decode. Field `pf` is omitted when its value is 0 (CBOR) for
+//! backward-compatibility.
 
 use crate::CodecError;
-use gbp_core::{GroupId, StreamType};
+use gbp_core::{GroupId, PayloadCodec, StreamType};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
+
+fn is_zero_u8(v: &u8) -> bool {
+    *v == 0
+}
 
 /// CBOR-encoded GBP frame.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,12 +49,19 @@ pub struct GbpFrame {
     /// Encrypted payload (an opaque byte string).
     #[serde(rename = "pl")]
     pub encrypted_payload: ByteBuf,
+    /// Payload codec discriminant (see [`gbp_core::PayloadCodec`]).
+    /// Omitted when 0 (CBOR) for backward-compatibility with pre-1.5 peers.
+    #[serde(rename = "pf", default, skip_serializing_if = "is_zero_u8")]
+    pub payload_format: u8,
 }
 
 impl GbpFrame {
     /// Builds a frame from already-encrypted payload bytes.
     ///
     /// `payload_size` is set to `encrypted_payload.len()` automatically.
+    /// Pass `PayloadCodec::Cbor` (or `0`) for the default CBOR encoding; the
+    /// `pf` field is omitted from the wire when the codec is CBOR so older
+    /// peers continue to decode the frame correctly.
     pub fn new(
         group_id: GroupId,
         epoch: u64,
@@ -57,6 +71,7 @@ impl GbpFrame {
         flags: u16,
         sequence_no: u32,
         encrypted_payload: Vec<u8>,
+        payload_format: u8,
     ) -> Self {
         Self {
             version: 1,
@@ -69,7 +84,14 @@ impl GbpFrame {
             sequence_no,
             payload_size: encrypted_payload.len() as u32,
             encrypted_payload: ByteBuf::from(encrypted_payload),
+            payload_format,
         }
+    }
+
+    /// Returns the `payload_format` field as a [`PayloadCodec`], falling back
+    /// to [`PayloadCodec::Cbor`] for unknown discriminants.
+    pub fn payload_codec(&self) -> PayloadCodec {
+        PayloadCodec::from_u8(self.payload_format).unwrap_or(PayloadCodec::Cbor)
     }
 
     /// Serialises the frame into a freshly allocated CBOR byte vector.
@@ -144,6 +166,7 @@ mod tests {
             GbpFlags::ORDERED | GbpFlags::RELIABLE,
             1,
             vec![1, 2, 3, 4, 5],
+            0,
         );
         let bytes = f.to_cbor();
         let back = GbpFrame::from_cbor(&bytes).unwrap();
@@ -151,11 +174,43 @@ mod tests {
         assert_eq!(back.transition_id, 7);
         assert_eq!(back.stream_type_typed().unwrap(), StreamType::Text);
         assert_eq!(back.encrypted_payload.as_slice(), &[1, 2, 3, 4, 5]);
+        assert_eq!(back.payload_format, 0);
+    }
+
+    #[test]
+    fn frame_roundtrip_with_codec() {
+        use gbp_core::PayloadCodec;
+        let f = GbpFrame::new(
+            [0xBB; 16],
+            1,
+            0,
+            StreamType::Audio,
+            1,
+            0,
+            1,
+            vec![0xDE, 0xAD],
+            PayloadCodec::FlatBuffers.as_u8(),
+        );
+        assert_eq!(f.payload_codec(), PayloadCodec::FlatBuffers);
+        let bytes = f.to_cbor();
+        let back = GbpFrame::from_cbor(&bytes).unwrap();
+        assert_eq!(back.payload_format, PayloadCodec::FlatBuffers.as_u8());
+        assert_eq!(back.payload_codec(), PayloadCodec::FlatBuffers);
+    }
+
+    #[test]
+    fn cbor_codec_field_omitted_from_wire() {
+        let f = GbpFrame::new([0; 16], 1, 0, StreamType::Text, 1, 0, 1, vec![0], 0);
+        let bytes = f.to_cbor();
+        // CBOR map should NOT contain the "pf" key when codec is 0.
+        // Decode and confirm pf defaults to 0.
+        let back = GbpFrame::from_cbor(&bytes).unwrap();
+        assert_eq!(back.payload_format, 0);
     }
 
     #[test]
     fn frame_rejects_bad_payload_size() {
-        let mut f = GbpFrame::new([0; 16], 1, 0, StreamType::Text, 1, 0, 1, vec![1, 2, 3]);
+        let mut f = GbpFrame::new([0; 16], 1, 0, StreamType::Text, 1, 0, 1, vec![1, 2, 3], 0);
         f.payload_size = 99;
         let mut bytes = Vec::new();
         ciborium::into_writer(&f, &mut bytes).unwrap();

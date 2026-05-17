@@ -21,7 +21,10 @@ gbp-protocol = { workspace = true }
 gbp-core     = { workspace = true }
 gbp-node     = { workspace = true }
 gbp-mls      = { workspace = true }
+gbp-proto    = { workspace = true }
+gbp-flat     = { workspace = true }
 ciborium     = { workspace = true }
+prost        = { workspace = true }
 serde        = { workspace = true }
 serde_bytes  = { workspace = true }
 thiserror    = { workspace = true }

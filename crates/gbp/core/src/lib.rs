@@ -20,6 +20,7 @@
 #![deny(missing_docs)]
 
 pub mod bounded;
+pub mod codec;
 pub mod conformance;
 pub mod control;
 pub mod errors;
@@ -30,6 +31,7 @@ pub mod state;
 pub mod stream;
 
 pub use bounded::BoundedSeen;
+pub use codec::PayloadCodec;
 pub use conformance::ConformanceClass;
 pub use control::ControlOpcode;
 pub use errors::{ErrorClass, codes};

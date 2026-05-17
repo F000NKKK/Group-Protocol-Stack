@@ -15,9 +15,13 @@ replay protection and epoch-bound key material.
 
 ## What this crate provides
 
-* `GapPayload` — the CBOR-encoded audio frame.
+* `GapPayload` — the audio frame envelope; can be encoded as CBOR,
+  Protobuf, or FlatBuffers (selected by `PayloadCodec`).
+  Using `PayloadCodec::FlatBuffers` (`pf=2`) minimises decode latency for
+  real-time audio paths.
 * `GapClient` — stateful client that maintains a per-source `rtp_sequence`
-  window and validates `key_phase` against the current group epoch.
+  window and validates `key_phase` against the current group epoch; accepts
+  any `PayloadCodec` echoed from the `payload_received` event.
 
 ## License
 

@@ -1,6 +1,7 @@
 /** Group Audio Protocol client wrapper. */
 
 import * as N from "./native";
+import { PayloadCodec } from "./native";
 import { MlsContext } from "./mls";
 import { GroupNode, OutboundFrame, unpackOutbound } from "./node";
 
@@ -44,7 +45,10 @@ export class GapClient {
         return new GapClient(h);
     }
 
-    /** Send an Opus audio frame. */
+    /**
+     * Send an Opus audio frame.
+     * @param codec - payload encoding; use `PayloadCodec.FlatBuffers` for lowest latency.
+     */
     send(
         node: GroupNode,
         mls: MlsContext,
@@ -52,18 +56,23 @@ export class GapClient {
         mediaSourceId: number,
         rtpTimestamp: bigint,
         opus: Buffer,
+        codec: PayloadCodec = PayloadCodec.Cbor,
     ): OutboundFrame {
         const buf = N.gap_client_send(
             this.handle, node.handle, mls.handle, target,
-            mediaSourceId, rtpTimestamp, opus, opus.length,
+            mediaSourceId, rtpTimestamp, opus, opus.length, codec,
         ) as N.GbpBuffer;
         return unpackOutbound(buf, "gap_client_send");
     }
 
-    /** Accept a plaintext payload delivered by the GBP layer. */
-    accept(plaintext: Buffer, currentEpoch: bigint | number): GapAcceptResult {
+    /**
+     * Accept a plaintext payload delivered by the GBP layer.
+     * `codec` must match the `codec` field of the `payload_received` event.
+     */
+    accept(plaintext: Buffer, currentEpoch: bigint | number,
+        codec: PayloadCodec = PayloadCodec.Cbor): GapAcceptResult {
         const ptr = N.gap_client_accept(
-            this.handle, BigInt(currentEpoch), plaintext, plaintext.length,
+            this.handle, BigInt(currentEpoch), plaintext, plaintext.length, codec,
         ) as number;
         return parseAccept(N.takeCString(ptr));
     }

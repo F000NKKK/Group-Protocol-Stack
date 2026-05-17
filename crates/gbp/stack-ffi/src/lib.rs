@@ -24,7 +24,7 @@
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use gbp_stack::core::{ControlOpcode, NodeState, SignalType, StreamType};
+use gbp_stack::core::{ControlOpcode, NodeState, PayloadCodec, SignalType, StreamType};
 use gbp_stack::{
     CipherSuite, DeliveredPayload, ErrorObject, Event, GapAccept, GapClient, GbpFrame, GroupNode,
     GspAccept, GspClient, GtpAccept, GtpClient, MlsContext, OutboundFrame, ProcessedKind,
@@ -727,6 +727,9 @@ pub extern "C" fn gtp_client_reset(h: i32) {
 
 /// Sends a text message via GTP.
 ///
+/// `codec` selects the payload encoding: 0 = CBOR (default), 1 = Protobuf,
+/// 2 = FlatBuffers. Unknown values fall back to CBOR.
+///
 /// # Safety
 /// `text_ptr` MUST be valid UTF-8 for `text_len` bytes.
 #[unsafe(no_mangle)]
@@ -738,6 +741,7 @@ pub unsafe extern "C" fn gtp_client_send(
     message_id: u64,
     text_ptr: *const u8,
     text_len: usize,
+    codec: u8,
 ) -> GbpBuffer {
     clear_last_error();
     let text = unsafe { std::slice::from_raw_parts(text_ptr, text_len) };
@@ -748,6 +752,7 @@ pub unsafe extern "C" fn gtp_client_send(
             return GbpBuffer::empty();
         }
     };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let (c_arc, n_arc, m_arc) = (gtps().get(ch), nodes().get(nh), mls().get(mh));
     let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
@@ -756,7 +761,7 @@ pub unsafe extern "C" fn gtp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut *n, &mut *m, target, message_id, text) {
+    match c.send(&mut *n, &mut *m, target, message_id, text, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -771,6 +776,8 @@ pub unsafe extern "C" fn gtp_client_send(
 ///
 /// `current_epoch` is the receiver node's current epoch — the client uses
 /// it to auto-reset its idempotency state when the epoch advances.
+/// `codec` must match the value from the `DeliveredPayload::codec` field
+/// (0 = CBOR, 1 = Protobuf, 2 = FlatBuffers).
 ///
 /// # Safety
 /// `pt_ptr` MUST be valid for `pt_len` bytes.
@@ -780,9 +787,11 @@ pub unsafe extern "C" fn gtp_client_accept(
     current_epoch: u64,
     pt_ptr: *const u8,
     pt_len: usize,
+    codec: u8,
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let Some(c_arc) = gtps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
@@ -795,7 +804,7 @@ pub unsafe extern "C" fn gtp_client_accept(
         text: Option<String>,
         reason: Option<String>,
     }
-    let out = match c.accept(pt, current_epoch) {
+    let out = match c.accept(pt, current_epoch, codec) {
         Ok(GtpAccept::New(m)) => Out {
             status: "new",
             sender: Some(m.sender_id),
@@ -847,6 +856,9 @@ pub extern "C" fn gap_client_reset(h: i32) {
 
 /// Sends an Opus audio frame via GAP.
 ///
+/// `codec` selects the payload encoding: 0 = CBOR (default), 1 = Protobuf,
+/// 2 = FlatBuffers. For audio use FlatBuffers (2) to minimize decode latency.
+///
 /// # Safety
 /// `opus_ptr` MUST be valid for `opus_len` bytes.
 #[unsafe(no_mangle)]
@@ -859,9 +871,11 @@ pub unsafe extern "C" fn gap_client_send(
     rtp_timestamp: u64,
     opus_ptr: *const u8,
     opus_len: usize,
+    codec: u8,
 ) -> GbpBuffer {
     clear_last_error();
     let opus = unsafe { std::slice::from_raw_parts(opus_ptr, opus_len) }.to_vec();
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let (c_arc, n_arc, m_arc) = (gaps().get(ch), nodes().get(nh), mls().get(mh));
     let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
@@ -877,6 +891,7 @@ pub unsafe extern "C" fn gap_client_send(
         media_source_id,
         rtp_timestamp,
         opus,
+        codec,
     ) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
@@ -888,6 +903,9 @@ pub unsafe extern "C" fn gap_client_send(
 
 /// Accepts a GAP audio payload.
 ///
+/// `codec` must match the value from the `DeliveredPayload::codec` field
+/// (0 = CBOR, 1 = Protobuf, 2 = FlatBuffers).
+///
 /// # Safety
 /// `pt_ptr` MUST be valid for `pt_len` bytes.
 #[unsafe(no_mangle)]
@@ -896,9 +914,11 @@ pub unsafe extern "C" fn gap_client_accept(
     current_epoch: u64,
     pt_ptr: *const u8,
     pt_len: usize,
+    codec: u8,
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let Some(c_arc) = gaps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
@@ -911,7 +931,7 @@ pub unsafe extern "C" fn gap_client_accept(
         bytes: Option<usize>,
         reason: Option<String>,
     }
-    let out = match c.accept(pt, current_epoch) {
+    let out = match c.accept(pt, current_epoch, codec) {
         Ok(GapAccept::New(p)) => Out {
             status: "new",
             source: Some(p.media_source_id),
@@ -962,6 +982,9 @@ pub extern "C" fn gsp_client_reset(h: i32) {
 }
 
 /// Sends a GSP signal.
+///
+/// `codec` selects the payload encoding: 0 = CBOR (default), 1 = Protobuf,
+/// 2 = FlatBuffers. Unknown values fall back to CBOR.
 #[unsafe(no_mangle)]
 pub extern "C" fn gsp_client_send(
     ch: i32,
@@ -971,6 +994,7 @@ pub extern "C" fn gsp_client_send(
     signal_type: u32,
     role_claim: u32,
     request_id: u32,
+    codec: u8,
 ) -> GbpBuffer {
     clear_last_error();
     let sig = match SignalType::try_from(signal_type) {
@@ -980,6 +1004,7 @@ pub extern "C" fn gsp_client_send(
             return GbpBuffer::empty();
         }
     };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let (c_arc, n_arc, m_arc) = (gsps().get(ch), nodes().get(nh), mls().get(mh));
     let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
@@ -988,7 +1013,7 @@ pub extern "C" fn gsp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut *n, &mut *m, target, sig, role_claim, request_id) {
+    match c.send(&mut *n, &mut *m, target, sig, role_claim, request_id, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -1000,6 +1025,9 @@ pub extern "C" fn gsp_client_send(
 /// Sends a GSP signal with opcode-specific CBOR `args` bytes.
 /// Use this for signals that require structured arguments (MUTE, UNMUTE,
 /// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE).
+///
+/// `codec` selects the payload encoding: 0 = CBOR (default), 1 = Protobuf,
+/// 2 = FlatBuffers. Unknown values fall back to CBOR.
 ///
 /// # Safety
 /// `args_ptr` MUST be valid for `args_len` bytes.
@@ -1014,6 +1042,7 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
     request_id: u32,
     args_ptr: *const u8,
     args_len: usize,
+    codec: u8,
 ) -> GbpBuffer {
     clear_last_error();
     let args: &[u8] = if args_len == 0 || args_ptr.is_null() {
@@ -1028,6 +1057,7 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
             return GbpBuffer::empty();
         }
     };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let (c_arc, n_arc, m_arc) = (gsps().get(ch), nodes().get(nh), mls().get(mh));
     let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
         set_last_error("bad handle");
@@ -1036,7 +1066,7 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send_with_args(&mut *n, &mut *m, target, sig, role_claim, request_id, args) {
+    match c.send_with_args(&mut *n, &mut *m, target, sig, role_claim, request_id, args, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -1049,6 +1079,8 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
 ///
 /// `current_epoch` is the receiver node's current epoch — the client uses
 /// it to auto-reset its dedup state when the epoch advances.
+/// `codec` must match the value from the `DeliveredPayload::codec` field
+/// (0 = CBOR, 1 = Protobuf, 2 = FlatBuffers).
 ///
 /// # Safety
 /// `pt_ptr` MUST be valid for `pt_len` bytes.
@@ -1058,9 +1090,11 @@ pub unsafe extern "C" fn gsp_client_accept(
     current_epoch: u64,
     pt_ptr: *const u8,
     pt_len: usize,
+    codec: u8,
 ) -> *mut c_char {
     clear_last_error();
     let pt = unsafe { std::slice::from_raw_parts(pt_ptr, pt_len) };
+    let codec = PayloadCodec::from_u8(codec).unwrap_or(PayloadCodec::Cbor);
     let Some(c_arc) = gsps().get(ch) else {
         return alloc_cstring(r#"{"status":"error","reason":"bad client"}"#);
     };
@@ -1075,7 +1109,7 @@ pub unsafe extern "C" fn gsp_client_accept(
         request_id: Option<u32>,
         reason: Option<String>,
     }
-    let out = match c.accept(pt, current_epoch) {
+    let out = match c.accept(pt, current_epoch, codec) {
         Ok(GspAccept {
             signal,
             sender_id,
@@ -1153,6 +1187,7 @@ pub unsafe extern "C" fn gbp_frame_encode_v(
         stream_id,
         flags,
         sequence_no,
+        payload_format: 0u8,
         payload_size: payload.len() as u32,
         encrypted_payload: serde_bytes::ByteBuf::from(payload),
     };
@@ -1192,6 +1227,7 @@ enum EventDto<'a> {
         stream_id: u32,
         sequence_no: u32,
         flags: u16,
+        codec: u8,
         plaintext_b64: String,
     },
     Control {
@@ -1262,6 +1298,7 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             sequence_no,
             flags,
             plaintext,
+            codec,
         }) => EventDto::PayloadReceived {
             stream_type: match stream_type {
                 StreamType::Control => "control",
@@ -1273,6 +1310,7 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             stream_id: *stream_id,
             sequence_no: *sequence_no,
             flags: *flags,
+            codec: codec.as_u8(),
             plaintext_b64: b64(plaintext),
         },
         Event::Control {

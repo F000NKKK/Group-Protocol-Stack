@@ -107,6 +107,7 @@ async fn run_connector(addr: &str) -> anyhow::Result<()> {
         GbpFlags::ordered_reliable_ack(),
         seq,
         ct,
+        0,
     );
     write_frame(&mut sock, &frame).await?;
     tracing::info!("frame sent");

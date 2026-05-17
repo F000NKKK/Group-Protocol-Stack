@@ -19,23 +19,31 @@ public sealed class GapClient : IDisposable
 
     private GapClient(int h) => Handle = h;
 
-    /// <summary>Sends an Opus frame.</summary>
+    /// <summary>
+    /// Sends an Opus frame.
+    /// <paramref name="codec"/> selects the payload encoding; use
+    /// <see cref="PayloadCodec.FlatBuffers"/> for lowest decode latency.
+    /// </summary>
     public OutboundFrame Send(GroupNode node, MlsContext mls, uint target,
-        uint mediaSourceId, ulong rtpTimestamp, byte[] opus)
+        uint mediaSourceId, ulong rtpTimestamp, byte[] opus,
+        PayloadCodec codec = PayloadCodec.Cbor)
     {
         var buf = Native.WithBytes(opus, (p, l) =>
-            Native.gap_client_send(Handle, node.Handle, mls.Handle, target, mediaSourceId, rtpTimestamp, p, l));
+            Native.gap_client_send(Handle, node.Handle, mls.Handle, target, mediaSourceId, rtpTimestamp, p, l, (byte)codec));
         return GroupNode.Unpack(buf, "gap_client_send");
     }
 
-    /// <summary>Accepts a plaintext payload delivered by the GBP layer.</summary>
-    public GapAcceptResult Accept(byte[] plaintext, ulong currentEpoch)
+    /// <summary>
+    /// Accepts a plaintext payload delivered by the GBP layer.
+    /// <paramref name="codec"/> must match <see cref="NodeEvent.Codec"/> from the event.
+    /// </summary>
+    public GapAcceptResult Accept(byte[] plaintext, ulong currentEpoch, PayloadCodec codec = PayloadCodec.Cbor)
     {
         IntPtr cstr;
         unsafe
         {
             fixed (byte* p = plaintext)
-                cstr = Native.gap_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length);
+                cstr = Native.gap_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length, (byte)codec);
         }
         return GapAcceptResult.Parse(Native.CopyAndFree(cstr));
     }

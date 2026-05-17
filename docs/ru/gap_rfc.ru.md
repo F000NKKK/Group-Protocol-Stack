@@ -105,6 +105,11 @@ table GAPPayload {
 root_type GAPPayload;
 ```
 
+## 9.4  Выбор кодека полезной нагрузки
+Кодек GAPPayload передаётся в поле `pf` кадра GBP (см. `gbp_rfc.ru.md` §6.1 и
+`schemas.ru.md` §6.4). Использование `pf=2` (FlatBuffers) минимизирует задержку
+декодирования для аудиопотоков реального времени.
+
 ## 10.  IANA Considerations
 Дополнительных действий IANA не требуется.
 

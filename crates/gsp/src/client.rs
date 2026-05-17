@@ -2,7 +2,7 @@
 
 use crate::{GspSignal, args::validate_args};
 use gbp::CodecError;
-use gbp_core::{BoundedSeen, GbpFlags, MemberId, SignalType, StreamType};
+use gbp_core::{BoundedSeen, GbpFlags, MemberId, PayloadCodec, SignalType, StreamType};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 use std::collections::HashSet;
 
@@ -75,6 +75,8 @@ impl GspClient {
     }
 
     /// Sends a signal. Uses the `O | R | A` profile required by GSP §3.
+    /// `codec` controls payload encoding; use [`PayloadCodec::Cbor`] for
+    /// maximum compatibility.
     pub fn send<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -83,13 +85,16 @@ impl GspClient {
         signal: SignalType,
         role_claim: u32,
         request_id: u32,
+        codec: PayloadCodec,
     ) -> Result<OutboundFrame, GspError> {
-        self.send_with_args(node, seal, target, signal, role_claim, request_id, &[])
+        self.send_with_args(node, seal, target, signal, role_claim, request_id, &[], codec)
     }
 
-    /// Sends a signal with opcode-specific `args` bytes (CBOR-encoded).
+    /// Sends a signal with opcode-specific `args` bytes.
     /// Use this for signals that require structured arguments (MUTE, UNMUTE,
     /// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE).
+    /// `codec` controls how the [`GspSignal`] envelope is encoded; `args`
+    /// bytes are always opaque and carried as-is regardless of codec.
     pub fn send_with_args<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -99,6 +104,7 @@ impl GspClient {
         role_claim: u32,
         request_id: u32,
         args: &[u8],
+        codec: PayloadCodec,
     ) -> Result<OutboundFrame, GspError> {
         self.sync_epoch(node.current_epoch);
         let mut sig = GspSignal::bare(signal as u32, request_id, node.member_id);
@@ -112,7 +118,8 @@ impl GspClient {
             StreamType::Signal,
             stream_id,
             GbpFlags::ordered_reliable_ack(),
-            &sig.to_cbor(),
+            &sig.to_bytes(codec),
+            codec,
         )?)
     }
 
@@ -121,10 +128,15 @@ impl GspClient {
     ///
     /// `current_epoch` is the receiver node's current epoch — passing it lets
     /// the client auto-reset its `request_id` deduplication set when the
-    /// epoch advances.
-    pub fn accept(&mut self, plaintext: &[u8], current_epoch: u64) -> Result<GspAccept, GspError> {
+    /// epoch advances. `codec` must match [`DeliveredPayload::codec`].
+    pub fn accept(
+        &mut self,
+        plaintext: &[u8],
+        current_epoch: u64,
+        codec: PayloadCodec,
+    ) -> Result<GspAccept, GspError> {
         self.sync_epoch(current_epoch);
-        let s = GspSignal::from_cbor(plaintext)?;
+        let s = GspSignal::from_bytes(plaintext, codec)?;
         let signal = SignalType::try_from(s.signal_type).map_err(GspError::UnknownSignal)?;
         // Per-signal args schema validation (gsp_rfc §6, step 3).
         validate_args(signal, &s.args).map_err(GspError::BadSchema)?;
@@ -185,7 +197,7 @@ mod tests {
     fn join_adds_sender_to_members() {
         let mut c = GspClient::new();
         let payload = encode_bare(SignalType::Join, 1, 42);
-        let accept = c.accept(&payload, 0).unwrap();
+        let accept = c.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
         assert_eq!(accept.signal, SignalType::Join);
         assert!(c.members.contains(&42));
     }
@@ -193,25 +205,25 @@ mod tests {
     #[test]
     fn leave_removes_sender_from_members() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 7), 0).unwrap();
-        c.accept(&encode_bare(SignalType::Leave, 2, 7), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 7), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Leave, 2, 7), 0, PayloadCodec::Cbor).unwrap();
         assert!(!c.members.contains(&7));
     }
 
     #[test]
     fn leave_also_removes_from_muted() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 5), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 5), 0, PayloadCodec::Cbor).unwrap();
         c.muted.insert(5); // manually mute
-        c.accept(&encode_bare(SignalType::Leave, 2, 5), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Leave, 2, 5), 0, PayloadCodec::Cbor).unwrap();
         assert!(!c.muted.contains(&5));
     }
 
     #[test]
     fn duplicate_request_id_is_rejected() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 99, 1), 0).unwrap();
-        let result = c.accept(&encode_bare(SignalType::Leave, 99, 1), 0);
+        c.accept(&encode_bare(SignalType::Join, 99, 1), 0, PayloadCodec::Cbor).unwrap();
+        let result = c.accept(&encode_bare(SignalType::Leave, 99, 1), 0, PayloadCodec::Cbor);
         assert!(matches!(result, Err(GspError::DuplicateRequest(99))));
     }
 
@@ -219,19 +231,19 @@ mod tests {
     fn epoch_advance_clears_request_seen_set() {
         let mut c = GspClient::new();
         let payload = encode_bare(SignalType::Join, 1, 10);
-        c.accept(&payload, 0).unwrap();
+        c.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
         // same request_id is allowed in new epoch
-        let result = c.accept(&encode_bare(SignalType::Leave, 1, 10), 1);
+        let result = c.accept(&encode_bare(SignalType::Leave, 1, 10), 1, PayloadCodec::Cbor);
         assert!(result.is_ok());
     }
 
     #[test]
     fn reset_clears_state() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 3), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 3), 0, PayloadCodec::Cbor).unwrap();
         c.reset();
         // after reset, same request_id allowed again
-        c.accept(&encode_bare(SignalType::Join, 1, 4), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 4), 0, PayloadCodec::Cbor).unwrap();
         // and member state is NOT cleared by reset (only dedup)
         // members accumulated before reset remain
     }
@@ -241,7 +253,7 @@ mod tests {
         let mut c = GspClient::new();
         let bad = GspSignal::bare(999, 1, 1).to_cbor();
         assert!(matches!(
-            c.accept(&bad, 0),
+            c.accept(&bad, 0, PayloadCodec::Cbor),
             Err(GspError::UnknownSignal(999))
         ));
     }
@@ -249,15 +261,18 @@ mod tests {
     #[test]
     fn invalid_cbor_returns_decode_error() {
         let mut c = GspClient::new();
-        assert!(matches!(c.accept(b"\xFF\xFF", 0), Err(GspError::Decode(_))));
+        assert!(matches!(
+            c.accept(b"\xFF\xFF", 0, PayloadCodec::Cbor),
+            Err(GspError::Decode(_))
+        ));
     }
 
     #[test]
     fn multiple_members_join_independently() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 10), 0).unwrap();
-        c.accept(&encode_bare(SignalType::Join, 2, 20), 0).unwrap();
-        c.accept(&encode_bare(SignalType::Join, 3, 30), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 10), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 2, 20), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 3, 30), 0, PayloadCodec::Cbor).unwrap();
         assert_eq!(c.members.len(), 3);
         assert!(c.members.contains(&10));
         assert!(c.members.contains(&20));

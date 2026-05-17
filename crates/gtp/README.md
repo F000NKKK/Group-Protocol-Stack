@@ -8,11 +8,13 @@ on top of the GBP base layer's framing and AEAD.
 
 ## What this crate provides
 
-* `GtpMessage` — the CBOR-encoded text message envelope.
+* `GtpMessage` — the text message envelope; can be encoded as CBOR,
+  Protobuf, or FlatBuffers (selected by `PayloadCodec`).
 * `GtpClient` — stateful client that:
-  * sends text messages through a `gbp_node::GroupNode`;
-  * accepts incoming plaintext payloads delivered by GBP and rejects
-    duplicates by `(sender_id, message_id)`.
+  * sends text messages through a `gbp_node::GroupNode` with a caller-chosen
+    `PayloadCodec` (default `Cbor` for backward compat);
+  * accepts incoming plaintext payloads delivered by GBP (codec echoed from
+    the `payload_received` event) and rejects duplicates by `(sender_id, message_id)`.
 
 ## Example
 

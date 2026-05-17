@@ -129,9 +129,9 @@ gtp_client_reset = _bind("gtp_client_reset", None, [c_int32])
 gtp_client_send = _bind(
     "gtp_client_send",
     GbpBuffer,
-    [c_int32, c_int32, c_int32, c_uint32, c_uint64, c_void_p, c_size_t],
+    [c_int32, c_int32, c_int32, c_uint32, c_uint64, c_void_p, c_size_t, c_uint8],
 )
-gtp_client_accept = _bind("gtp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
+gtp_client_accept = _bind("gtp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t, c_uint8])
 
 gap_client_create = _bind("gap_client_create", c_int32, [])
 gap_client_destroy = _bind("gap_client_destroy", None, [c_int32])
@@ -139,10 +139,10 @@ gap_client_reset = _bind("gap_client_reset", None, [c_int32])
 gap_client_send = _bind(
     "gap_client_send",
     GbpBuffer,
-    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint64, c_void_p, c_size_t],
+    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint64, c_void_p, c_size_t, c_uint8],
 )
 gap_client_accept = _bind(
-    "gap_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t]
+    "gap_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t, c_uint8]
 )
 
 gsp_client_create = _bind("gsp_client_create", c_int32, [])
@@ -151,14 +151,14 @@ gsp_client_reset = _bind("gsp_client_reset", None, [c_int32])
 gsp_client_send = _bind(
     "gsp_client_send",
     GbpBuffer,
-    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32],
+    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32, c_uint8],
 )
 gsp_client_send_with_args = _bind(
     "gsp_client_send_with_args",
     GbpBuffer,
-    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32, c_void_p, c_size_t],
+    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32, c_void_p, c_size_t, c_uint8],
 )
-gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
+gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t, c_uint8])
 
 # ── SFrame ────────────────────────────────────────────────────────────────────
 gbp_sframe_session_create = _bind(
@@ -198,6 +198,16 @@ gbp_frame_encode_v = _bind(
 )
 
 gbp_error_lookup = _bind("gbp_error_lookup", GbpBuffer, [c_uint16])
+
+
+import enum as _enum
+
+
+class PayloadCodec(_enum.IntEnum):
+    """Payload encoding for GTP / GAP / GSP send and accept calls."""
+    CBOR = 0
+    PROTOBUF = 1
+    FLATBUFFERS = 2
 
 
 def take_buffer(buf: GbpBuffer) -> bytes:

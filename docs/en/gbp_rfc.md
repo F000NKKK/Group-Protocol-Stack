@@ -100,8 +100,11 @@ GBPFrame {
   uint32   sequence_no;
   uint32   payload_size;
   bytes    encrypted_payload;
+  uint8    pf;               // optional; omitted when 0 (CBOR) for backward-compat
 }
 ```
+
+`pf` (payload format) identifies the codec used to encode the sub-protocol message inside `encrypted_payload` before AEAD sealing. See §6.5 of the Serialization Profile (schemas.md) for the PayloadCodec registry. Receivers MUST treat an absent `pf` field as `0` (CBOR).
 
 Flags:
 - `0x0001` O ordered delivery

@@ -1,6 +1,7 @@
 /** Group Signaling Protocol client wrapper. */
 
 import * as N from "./native";
+import { PayloadCodec } from "./native";
 import { MlsContext } from "./mls";
 import { GroupNode, OutboundFrame, unpackOutbound } from "./node";
 
@@ -61,7 +62,10 @@ export class GspClient {
         return new GspClient(h);
     }
 
-    /** Send a signal without signal-specific args. */
+    /**
+     * Send a signal without signal-specific args.
+     * @param codec - payload encoding (default: CBOR).
+     */
     send(
         node: GroupNode,
         mls: MlsContext,
@@ -69,15 +73,19 @@ export class GspClient {
         signal: SignalType,
         roleClaim: number,
         requestId: number,
+        codec: PayloadCodec = PayloadCodec.Cbor,
     ): OutboundFrame {
         const buf = N.gsp_client_send(
             this.handle, node.handle, mls.handle, target,
-            signal, roleClaim, requestId,
+            signal, roleClaim, requestId, codec,
         ) as N.GbpBuffer;
         return unpackOutbound(buf, "gsp_client_send");
     }
 
-    /** Send a signal with CBOR-encoded signal-specific args. */
+    /**
+     * Send a signal with opcode-specific args bytes.
+     * @param codec - payload encoding (default: CBOR).
+     */
     sendWithArgs(
         node: GroupNode,
         mls: MlsContext,
@@ -86,11 +94,12 @@ export class GspClient {
         roleClaim: number,
         requestId: number,
         args: Buffer,
+        codec: PayloadCodec = PayloadCodec.Cbor,
     ): OutboundFrame {
         const buf = N.gsp_client_send_with_args(
             this.handle, node.handle, mls.handle, target,
             signal, roleClaim, requestId,
-            args, args.length,
+            args, args.length, codec,
         ) as N.GbpBuffer;
         return unpackOutbound(buf, "gsp_client_send_with_args");
     }
@@ -98,10 +107,14 @@ export class GspClient {
     /**
      * Accept a plaintext payload delivered by the GBP layer.
      * `currentEpoch` lets the client auto-reset its dedup state when the
-     * epoch advances.
+     * epoch advances. `codec` must match the `codec` field of the
+     * `payload_received` event.
      */
-    accept(plaintext: Buffer, currentEpoch: bigint | number): GspAcceptResult {
-        const ptr = N.gsp_client_accept(this.handle, BigInt(currentEpoch), plaintext, plaintext.length) as number;
+    accept(plaintext: Buffer, currentEpoch: bigint | number,
+        codec: PayloadCodec = PayloadCodec.Cbor): GspAcceptResult {
+        const ptr = N.gsp_client_accept(
+            this.handle, BigInt(currentEpoch), plaintext, plaintext.length, codec,
+        ) as number;
         return parseAccept(N.takeCString(ptr));
     }
 

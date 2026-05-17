@@ -19,18 +19,26 @@ public sealed class GspClient : IDisposable
 
     private GspClient(int h) => Handle = h;
 
-    /// <summary>Sends a signal without signal-specific args.</summary>
-    public OutboundFrame Send(GroupNode node, MlsContext mls, uint target, SignalType signal, uint roleClaim, uint requestId)
+    /// <summary>
+    /// Sends a signal without signal-specific args.
+    /// <paramref name="codec"/> selects the payload encoding (default: CBOR).
+    /// </summary>
+    public OutboundFrame Send(GroupNode node, MlsContext mls, uint target, SignalType signal,
+        uint roleClaim, uint requestId, PayloadCodec codec = PayloadCodec.Cbor)
     {
-        var buf = Native.gsp_client_send(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId);
+        var buf = Native.gsp_client_send(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId, (byte)codec);
         return GroupNode.Unpack(buf, "gsp_client_send");
     }
 
-    /// <summary>Sends a signal with CBOR-encoded signal-specific args.</summary>
-    public OutboundFrame SendWithArgs(GroupNode node, MlsContext mls, uint target, SignalType signal, uint roleClaim, uint requestId, byte[] args)
+    /// <summary>
+    /// Sends a signal with opcode-specific args bytes.
+    /// <paramref name="codec"/> selects the payload encoding (default: CBOR).
+    /// </summary>
+    public OutboundFrame SendWithArgs(GroupNode node, MlsContext mls, uint target, SignalType signal,
+        uint roleClaim, uint requestId, byte[] args, PayloadCodec codec = PayloadCodec.Cbor)
     {
         var buf = Native.WithBytes(args, (p, l) =>
-            Native.gsp_client_send_with_args(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId, p, l));
+            Native.gsp_client_send_with_args(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId, p, l, (byte)codec));
         return GroupNode.Unpack(buf, "gsp_client_send_with_args");
     }
 
@@ -38,14 +46,15 @@ public sealed class GspClient : IDisposable
     /// Accepts a plaintext payload delivered by the GBP layer.
     /// <paramref name="currentEpoch"/> lets the client auto-reset its dedup
     /// state when the epoch advances.
+    /// <paramref name="codec"/> must match <see cref="NodeEvent.Codec"/> from the event.
     /// </summary>
-    public GspAcceptResult Accept(byte[] plaintext, ulong currentEpoch)
+    public GspAcceptResult Accept(byte[] plaintext, ulong currentEpoch, PayloadCodec codec = PayloadCodec.Cbor)
     {
         IntPtr cstr;
         unsafe
         {
             fixed (byte* p = plaintext)
-                cstr = Native.gsp_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length);
+                cstr = Native.gsp_client_accept(Handle, currentEpoch, (IntPtr)p, (nuint)plaintext.Length, (byte)codec);
         }
         return GspAcceptResult.Parse(Native.CopyAndFree(cstr));
     }

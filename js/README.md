@@ -24,6 +24,31 @@ package — `npm install @voluntas-progressus/gbp-stack` works out of the box.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Payload codec
+
+Each sub-protocol payload can be encoded as **CBOR** (default), **Protobuf**,
+or **FlatBuffers**. Pass `PayloadCodec` to `send` and `accept`; the chosen
+codec is surfaced in `ev.codec` on `payload_received` events.
+
+```ts
+import { PayloadCodec } from "@voluntas-progressus/gbp-stack";
+
+// FlatBuffers for low-latency audio, Protobuf for text archival, CBOR default
+const frame = gtpAlice.send(alice, aliceMls, 2, 0xCAFEn, "hi", PayloadCodec.FlatBuffers);
+for (const ev of bob.onWire(bobMls, frame.wire)) {
+  if (ev.kind === "payload_received") {
+    const r = gtpBob.accept(ev.plaintext!, bobMls.epoch, ev.codec ?? PayloadCodec.Cbor);
+    console.log(r.text);
+  }
+}
+```
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0`   | `PayloadCodec.Cbor`         | Default; `pf` field omitted from wire |
+| `1`   | `PayloadCodec.Protobuf`     | Protobuf via `gbp-proto` |
+| `2`   | `PayloadCodec.FlatBuffers`  | FlatBuffers via `gbp-flat`; lowest latency |
+
 ## Sub-protocol toolkits
 
 Beyond the protocol clients, the package ships ready-made helpers:

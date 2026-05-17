@@ -1012,6 +1012,82 @@ public class SFrameSessionTests
 }
 
 // ---------------------------------------------------------------------------
+// Payload codec roundtrip tests
+// ---------------------------------------------------------------------------
+
+public class GtpCodecTests
+{
+    [Theory]
+    [InlineData(PayloadCodec.Cbor)]
+    [InlineData(PayloadCodec.Protobuf)]
+    [InlineData(PayloadCodec.FlatBuffers)]
+    public void Roundtrip(PayloadCodec codec)
+    {
+        var (am, an, bm, bn) = H.TwoMemberGroup();
+        using (am) using (an) using (bm) using (bn)
+        using (var gtpA = GtpClient.Create())
+        using (var gtpB = GtpClient.Create())
+        {
+            var frame = gtpA.Send(an, am, 2, 1, "hello codec", codec);
+            var evs = H.TextEvents(bn.OnWire(bm, frame.Wire));
+            Assert.Single(evs);
+            Assert.Equal(codec, evs[0].Codec ?? PayloadCodec.Cbor);
+            var r = gtpB.Accept(evs[0].Plaintext!, bm.Epoch, codec);
+            Assert.Equal("new", r.Status);
+            Assert.Equal("hello codec", r.Text);
+        }
+    }
+}
+
+public class GapCodecTests
+{
+    [Theory]
+    [InlineData(PayloadCodec.Cbor)]
+    [InlineData(PayloadCodec.Protobuf)]
+    [InlineData(PayloadCodec.FlatBuffers)]
+    public void Roundtrip(PayloadCodec codec)
+    {
+        var (am, an, bm, bn) = H.TwoMemberGroup();
+        using (am) using (an) using (bm) using (bn)
+        using (var gapA = GapClient.Create())
+        using (var gapB = GapClient.Create())
+        {
+            var frame = gapA.Send(an, am, 2, 7, 0, new byte[40], codec);
+            var evs = H.AudioEvents(bn.OnWire(bm, frame.Wire));
+            Assert.Single(evs);
+            Assert.Equal(codec, evs[0].Codec ?? PayloadCodec.Cbor);
+            var r = gapB.Accept(evs[0].Plaintext!, bm.Epoch, codec);
+            Assert.Equal("new", r.Status);
+            Assert.Equal(7U, r.Source);
+        }
+    }
+}
+
+public class GspCodecTests
+{
+    [Theory]
+    [InlineData(PayloadCodec.Cbor)]
+    [InlineData(PayloadCodec.Protobuf)]
+    [InlineData(PayloadCodec.FlatBuffers)]
+    public void Roundtrip(PayloadCodec codec)
+    {
+        var (am, an, bm, bn) = H.TwoMemberGroup();
+        using (am) using (an) using (bm) using (bn)
+        using (var gspA = GspClient.Create())
+        using (var gspB = GspClient.Create())
+        {
+            var frame = gspA.Send(an, am, 2, SignalType.Join, 0, 1, codec);
+            var evs = H.SignalEvents(bn.OnWire(bm, frame.Wire));
+            Assert.Single(evs);
+            Assert.Equal(codec, evs[0].Codec ?? PayloadCodec.Cbor);
+            var r = gspB.Accept(evs[0].Plaintext!, bm.Epoch, codec);
+            Assert.Equal("new", r.Status);
+            Assert.Equal(SignalType.Join, r.SignalCode);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // GbpHelpers
 // ---------------------------------------------------------------------------
 

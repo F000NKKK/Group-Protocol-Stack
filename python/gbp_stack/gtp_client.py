@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from . import _native as _n
+from ._native import PayloadCodec
 from .gbp_node import GroupNode, OutboundFrame, _unpack
 from .mls_context import MlsContext
 
@@ -64,24 +65,32 @@ class GtpClient:
         target: int,
         message_id: int,
         text: str,
+        codec: PayloadCodec = PayloadCodec.CBOR,
     ) -> OutboundFrame:
-        """Send a text message."""
+        """Send a text message.
+
+        ``codec`` selects the payload encoding (default: CBOR).
+        """
         data = text.encode("utf-8")
         def call(ptr, length):
             return _n.gtp_client_send(
-                self._handle, node.handle, mls.handle, target, message_id, ptr, length
+                self._handle, node.handle, mls.handle, target, message_id, ptr, length, int(codec)
             )
         buf = _n.call_with_bytes(data, call)
         return _unpack(buf, "gtp_client_send")
 
-    def accept(self, plaintext: bytes, current_epoch: int) -> GtpAcceptResult:
+    def accept(
+        self, plaintext: bytes, current_epoch: int,
+        codec: PayloadCodec = PayloadCodec.CBOR,
+    ) -> GtpAcceptResult:
         """Accept a plaintext payload delivered by the GBP layer.
 
         ``current_epoch`` lets the client auto-reset its idempotency set
-        when the epoch advances.
+        when the epoch advances. ``codec`` must match the ``codec`` field
+        of the ``payload_received`` event.
         """
         def call(ptr, length):
-            return _n.gtp_client_accept(self._handle, current_epoch, ptr, length)
+            return _n.gtp_client_accept(self._handle, current_epoch, ptr, length, int(codec))
         ptr = _n.call_with_bytes(plaintext, call)
         return GtpAcceptResult._parse(_n.take_cstring(ptr))
 

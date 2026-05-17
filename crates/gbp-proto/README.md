@@ -2,8 +2,10 @@
 
 Protobuf codec for the [Group Protocol Stack](https://github.com/F000NKKK/Group-Protocol-Stack) (GBP/GTP/GAP/GSP).
 
-Alternative wire format to CBOR per gbp_rfc §12.2. All message types derive
-[`prost::Message`](https://docs.rs/prost) — no `protoc` compiler required.
+Protobuf wire format (`PayloadCodec::Protobuf`, `pf=1`) for the Group Protocol
+Stack. Selected at runtime via the GBP frame `pf` field; backward-compatible
+with CBOR-only (`pf=0`) receivers that reject unknown codecs. All message types
+derive [`prost::Message`](https://docs.rs/prost) — no `protoc` compiler required.
 
 ## Messages
 

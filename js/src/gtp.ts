@@ -1,8 +1,11 @@
 /** Group Text Protocol client wrapper. */
 
 import * as N from "./native";
+import { PayloadCodec } from "./native";
 import { MlsContext } from "./mls";
 import { GroupNode, OutboundFrame, unpackOutbound } from "./node";
+
+export { PayloadCodec };
 
 /** Outcome of {@link GtpClient.accept}. */
 export interface GtpAcceptResult {
@@ -43,12 +46,16 @@ export class GtpClient {
         return new GtpClient(h);
     }
 
-    /** Send a text message. */
-    send(node: GroupNode, mls: MlsContext, target: number, messageId: bigint, text: string): OutboundFrame {
+    /**
+     * Send a text message.
+     * @param codec - payload encoding (default: CBOR).
+     */
+    send(node: GroupNode, mls: MlsContext, target: number, messageId: bigint, text: string,
+        codec: PayloadCodec = PayloadCodec.Cbor): OutboundFrame {
         const data = Buffer.from(text, "utf8");
         const buf = N.gtp_client_send(
             this.handle, node.handle, mls.handle, target, messageId,
-            data, data.length,
+            data, data.length, codec,
         ) as N.GbpBuffer;
         return unpackOutbound(buf, "gtp_client_send");
     }
@@ -56,10 +63,14 @@ export class GtpClient {
     /**
      * Accept a plaintext payload delivered by the GBP layer.
      * `currentEpoch` lets the client auto-reset its idempotency state
-     * when the epoch advances.
+     * when the epoch advances. `codec` must match the `codec` field of the
+     * `payload_received` event.
      */
-    accept(plaintext: Buffer, currentEpoch: bigint | number): GtpAcceptResult {
-        const ptr = N.gtp_client_accept(this.handle, BigInt(currentEpoch), plaintext, plaintext.length) as number;
+    accept(plaintext: Buffer, currentEpoch: bigint | number,
+        codec: PayloadCodec = PayloadCodec.Cbor): GtpAcceptResult {
+        const ptr = N.gtp_client_accept(
+            this.handle, BigInt(currentEpoch), plaintext, plaintext.length, codec,
+        ) as number;
         return parseAccept(N.takeCString(ptr));
     }
 

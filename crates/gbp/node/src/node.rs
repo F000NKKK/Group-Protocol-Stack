@@ -21,8 +21,8 @@
 
 use gbp::{CodecError, ControlMessage, ErrorObject, GbpFrame};
 use gbp_core::{
-    ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SequenceNo, StreamId,
-    StreamType, TransitionId, TransitionState, codes, errors::ErrorSpec, timeouts,
+    ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, PayloadCodec, SequenceNo,
+    StreamId, StreamType, TransitionId, TransitionState, codes, errors::ErrorSpec, timeouts,
 };
 use gbp_mls::{MlsError, label_for};
 use std::collections::HashMap;
@@ -64,6 +64,8 @@ pub struct DeliveredPayload {
     pub flags: u16,
     /// Decrypted plaintext bytes.
     pub plaintext: Vec<u8>,
+    /// Codec used to encode the plaintext (from the frame's `pf` field).
+    pub codec: PayloadCodec,
 }
 
 /// Events surfaced by the GBP layer.
@@ -241,8 +243,10 @@ impl GroupNode {
 
     /// Sends an opaque plaintext payload on the given stream.
     ///
-    /// Used by the sub-protocol clients: each one CBOR-encodes its message
-    /// and forwards the resulting bytes here.
+    /// Used by the sub-protocol clients: each one encodes its message and
+    /// forwards the resulting bytes here together with the codec that was used.
+    /// Pass [`PayloadCodec::Cbor`] for the default encoding; it is
+    /// backward-compatible with pre-1.5 peers.
     pub fn send_payload<S: Sealer>(
         &mut self,
         seal: &mut S,
@@ -251,6 +255,7 @@ impl GroupNode {
         stream_id: StreamId,
         flags: u16,
         plaintext: &[u8],
+        codec: PayloadCodec,
     ) -> Result<OutboundFrame, NodeError> {
         self.assert_can_send()?;
         let seq = self.next_seq(stream_type, stream_id);
@@ -264,6 +269,7 @@ impl GroupNode {
             flags,
             seq,
             ciphertext,
+            codec.as_u8(),
         );
         Ok(OutboundFrame {
             to: target,
@@ -338,6 +344,7 @@ impl GroupNode {
             stream_id,
             flags,
             &ctl.to_cbor(),
+            PayloadCodec::Cbor,
         )
     }
 
@@ -464,6 +471,7 @@ impl GroupNode {
                 sequence_no: frame.sequence_no,
                 flags: frame.flags,
                 plaintext: plain,
+                codec: frame.payload_codec(),
             })),
         }
         Ok(())
@@ -857,6 +865,7 @@ mod tests {
                 sid,
                 GbpFlags::ordered_reliable_ack(),
                 b"hi",
+                PayloadCodec::Cbor,
             )
             .unwrap();
         let _ = bob.on_wire(&mut s, &f.wire).unwrap();
@@ -887,6 +896,7 @@ mod tests {
                 sid,
                 GbpFlags::ordered_reliable_ack(),
                 b"x",
+                PayloadCodec::Cbor,
             )
             .unwrap();
         let _ = bob.on_wire(&mut s, &f.wire).unwrap();
@@ -909,6 +919,7 @@ mod tests {
                 sid,
                 GbpFlags::ordered_reliable_ack(),
                 b"payload",
+                PayloadCodec::Cbor,
             )
             .unwrap();
         let evs = bob.on_wire(&mut s, &f.wire).unwrap();
@@ -1491,6 +1502,7 @@ mod tests {
                 sid,
                 GbpFlags::ordered_reliable_ack(),
                 b"x",
+                PayloadCodec::Cbor,
             )
             .unwrap();
         let mut fail = OpenFailSealer;
