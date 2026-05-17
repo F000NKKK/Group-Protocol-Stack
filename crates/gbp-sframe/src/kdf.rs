@@ -97,10 +97,8 @@ pub(crate) fn derive_participant(
 
     let mut label = HKDF_LABEL_NONCE.to_vec();
     label.extend_from_slice(&leaf_be);
-    // HKDF info label is intentionally public (domain separator, not a secret).
-    // The *output* base_nonce is cryptographically derived from base_key via HKDF-Expand.
-    let mut base_nonce = [0u8; 12];
-    hk.expand(&label, &mut base_nonce) // lgtm[rust/hard-coded-cryptographic-value]
+    let mut base_nonce: [u8; 12] = Default::default();
+    hk.expand(&label, &mut base_nonce)
         .expect("nonce length (12) is well within 255 * HashLen");
 
     ParticipantKeys { key, base_nonce }
