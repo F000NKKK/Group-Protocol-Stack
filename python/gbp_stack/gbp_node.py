@@ -69,7 +69,12 @@ class NodeEvent:
     * ``control`` — populates ``sender``, ``opcode`` and ``transition_id``;
     * ``error`` — populates ``code``, ``code_hex``, ``class_``, ``retryable``,
       ``fatal`` and ``reason``;
-    * ``epoch_advanced`` — populates ``epoch`` and ``transition_id``.
+    * ``epoch_advanced`` — populates ``epoch`` and ``transition_id``;
+    * ``coordinator_election_needed`` — no extra fields; the local node should
+      start the coordinator-election handshake (GSP ``COORDINATOR_CLAIM``);
+    * ``became_coordinator`` — no extra fields; this node won the election;
+    * ``coordinator_claim`` — populates ``claimant`` (member id of the peer
+      that sent a ``COORDINATOR_CLAIM`` signal).
     """
 
     kind: str
@@ -92,6 +97,7 @@ class NodeEvent:
     fatal: Optional[bool] = None
     reason: Optional[str] = None
     epoch: Optional[int] = None
+    claimant: Optional[int] = None
 
     @classmethod
     def _from_dict(cls, d: dict) -> "NodeEvent":
@@ -118,6 +124,7 @@ class NodeEvent:
             fatal=d.get("fatal"),
             reason=d.get("reason"),
             epoch=d.get("epoch"),
+            claimant=d.get("claimant"),
         )
 
 
@@ -135,6 +142,51 @@ def _unpack(buf: _n.GbpBuffer, what: str) -> OutboundFrame:
         raise OSError(f"{what}: buffer too short")
     target = int.from_bytes(raw[:4], byteorder="little", signed=False)
     return OutboundFrame(target=target, wire=raw[4:])
+
+
+def encode_gbp_frame(
+    version: int,
+    group_id: bytes,
+    epoch: int,
+    transition_id: int,
+    stream_type: int,
+    stream_id: int,
+    flags: int,
+    sequence_no: int,
+    payload: bytes,
+) -> bytes:
+    """Encode a raw GBP frame to CBOR bytes.
+
+    Low-level helper — most callers should use :meth:`GroupNode.send_control`
+    or the sub-protocol ``send`` methods instead.
+    """
+    if len(group_id) != 16:
+        raise ValueError("group_id must be 16 bytes")
+    gid = (ctypes.c_uint8 * 16).from_buffer_copy(group_id)
+
+    def call(ptr, length):
+        return _n.gbp_frame_encode_v(
+            version,
+            ctypes.cast(gid, ctypes.c_void_p),
+            epoch,
+            transition_id,
+            stream_type,
+            stream_id,
+            flags,
+            sequence_no,
+            ptr,
+            length,
+        )
+
+    buf = _n.call_with_bytes(payload, call)
+    return _n.take_buffer(buf)
+
+
+def lookup_error(code: int) -> Optional[bytes]:
+    """Return the CBOR-encoded ``ErrorObject`` for *code*, or ``None`` if unknown."""
+    buf = _n.gbp_error_lookup(code)
+    data = _n.take_buffer(buf)
+    return data if data else None
 
 
 class GroupNode:

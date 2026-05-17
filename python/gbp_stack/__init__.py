@@ -20,7 +20,7 @@ README for a worked example.
 from ._native import last_error, version
 from .capabilities import CapabilitiesNegotiator
 from .gap_client import GapAcceptResult, GapClient
-from .gbp_node import GroupNode, NodeEvent, NodeState, OutboundFrame, StreamType
+from .gbp_node import GroupNode, NodeEvent, NodeState, OutboundFrame, StreamType, encode_gbp_frame, lookup_error
 from .gsp_client import GspAcceptResult, GspClient, SignalType
 from .gtp_client import GtpAcceptResult, GtpClient
 from .history import MessageEntry, MessageHistory, Watermark
@@ -66,7 +66,9 @@ __all__ = [
     "SignalType",
     "StreamType",
     "Watermark",
+    "encode_gbp_frame",
     "last_error",
+    "lookup_error",
     "version",
 ]
 

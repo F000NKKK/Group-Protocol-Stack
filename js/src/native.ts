@@ -131,6 +131,12 @@ export const gsp_client_send = lib.func(
 );
 export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t)");
 
+// Frame / error helpers
+export const gbp_frame_encode_v = lib.func(
+    "GbpBuffer gbp_frame_encode_v(uint8_t, void *, uint64_t, uint32_t, uint32_t, uint32_t, uint16_t, uint32_t, void *, size_t)"
+);
+export const gbp_error_lookup = lib.func("GbpBuffer gbp_error_lookup(uint16_t)");
+
 // SFrame session / encryptor
 export const gbp_sframe_session_create = lib.func(
     "int32_t gbp_sframe_session_create(int32_t, uint8_t, void *, size_t)"

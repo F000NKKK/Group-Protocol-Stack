@@ -162,7 +162,20 @@ public sealed class GroupNode : IDisposable
     ~GroupNode() { Dispose(); }
 }
 
-/// <summary>Event surfaced by the GBP layer.</summary>
+/// <summary>
+/// Event surfaced by the GBP layer.
+/// <para><c>Kind</c> determines which optional fields are populated:</para>
+/// <list type="bullet">
+///   <item><term>state_changed</term><description>FromState, ToState.</description></item>
+///   <item><term>payload_received</term><description>StreamTypeName, StreamType, StreamId, SequenceNo, Flags, Plaintext.</description></item>
+///   <item><term>control</term><description>Sender, Opcode, OpcodeCode, TransitionId, RequestId, Args.</description></item>
+///   <item><term>error</term><description>Code, CodeHex, Class, Retryable, Fatal, Reason.</description></item>
+///   <item><term>epoch_advanced</term><description>Epoch, TransitionId.</description></item>
+///   <item><term>coordinator_election_needed</term><description>No extra fields — the local node should start the coordinator-election handshake (GSP COORDINATOR_CLAIM).</description></item>
+///   <item><term>became_coordinator</term><description>No extra fields — this node won the election.</description></item>
+///   <item><term>coordinator_claim</term><description>Claimant — member id of the peer that sent COORDINATOR_CLAIM.</description></item>
+/// </list>
+/// </summary>
 public sealed record NodeEvent(
     string Kind,
     string? FromState = null,
@@ -185,7 +198,8 @@ public sealed record NodeEvent(
     bool? Retryable = null,
     bool? Fatal = null,
     string? Reason = null,
-    ulong? Epoch = null)
+    ulong? Epoch = null,
+    uint? Claimant = null)
 {
     internal static NodeEvent FromJson(JsonElement el)
     {
@@ -234,6 +248,55 @@ public sealed record NodeEvent(
             Retryable: B("retryable"),
             Fatal: B("fatal"),
             Reason: S("reason"),
-            Epoch: U64("epoch"));
+            Epoch: U64("epoch"),
+            Claimant: U32("claimant"));
+    }
+}
+
+/// <summary>Low-level GBP frame and error-code utilities.</summary>
+public static class GbpHelpers
+{
+    /// <summary>
+    /// Encodes a raw GBP frame to CBOR bytes.
+    /// Most callers should use <see cref="GroupNode.SendControl"/> or the
+    /// sub-protocol <c>Send</c> methods instead.
+    /// </summary>
+    public static byte[] EncodeFrame(
+        byte version,
+        byte[] groupId16,
+        ulong epoch,
+        uint transitionId,
+        uint streamType,
+        uint streamId,
+        ushort flags,
+        uint sequenceNo,
+        byte[] payload)
+    {
+        if (groupId16.Length != 16) throw new ArgumentException("groupId must be 16 bytes");
+        Native.GbpBuffer buf;
+        unsafe
+        {
+            fixed (byte* gid = groupId16)
+            fixed (byte* pay = payload)
+            {
+                buf = Native.gbp_frame_encode_v(
+                    version, (IntPtr)gid, epoch, transitionId, streamType,
+                    streamId, flags, sequenceNo, (IntPtr)pay, (nuint)payload.Length);
+            }
+        }
+        var data = Native.CopyAndFree(buf);
+        if (data.Length == 0) throw new InvalidOperationException(Native.LastError());
+        return data;
+    }
+
+    /// <summary>
+    /// Returns the CBOR-encoded <c>ErrorObject</c> for <paramref name="code"/>,
+    /// or <c>null</c> if the code is unknown.
+    /// </summary>
+    public static byte[]? LookupError(ushort code)
+    {
+        var buf = Native.gbp_error_lookup(code);
+        var data = Native.CopyAndFree(buf);
+        return data.Length > 0 ? data : null;
     }
 }

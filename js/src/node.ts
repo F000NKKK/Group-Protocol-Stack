@@ -42,7 +42,19 @@ export interface OutboundFrame {
     wire: Buffer;
 }
 
-/** Event surfaced by the GBP layer. */
+/**
+ * Event surfaced by the GBP layer.
+ *
+ * `kind` determines which optional fields are set:
+ * - `state_changed` — `fromState`, `toState`
+ * - `payload_received` — `streamTypeName`, `streamType`, `streamId`, `sequenceNo`, `flags`, `plaintext`
+ * - `control` — `sender`, `opcode`, `opcodeCode`, `transitionId`
+ * - `error` — `code`, `codeHex`, `classCode`, `retryable`, `fatal`, `reason`
+ * - `epoch_advanced` — `epoch`, `transitionId`
+ * - `coordinator_election_needed` — no extra fields; the local node should start the coordinator-election handshake
+ * - `became_coordinator` — no extra fields; this node won the election
+ * - `coordinator_claim` — `claimant` (member id of the peer that sent COORDINATOR_CLAIM)
+ */
 export interface NodeEvent {
     kind: string;
     fromState?: string;
@@ -64,6 +76,7 @@ export interface NodeEvent {
     fatal?: boolean;
     reason?: string;
     epoch?: bigint;
+    claimant?: number;
 }
 
 function parseEvents(json: string): NodeEvent[] {
@@ -99,8 +112,43 @@ function parseEvents(json: string): NodeEvent[] {
             fatal: bool("fatal"),
             reason: str("reason"),
             epoch: big("epoch"),
+            claimant: num("claimant"),
         };
     });
+}
+
+/**
+ * Encode a raw GBP frame to CBOR bytes.
+ *
+ * Low-level helper — most callers should use {@link GroupNode.sendControl}
+ * or the sub-protocol `send` methods instead.
+ */
+export function encodeGbpFrame(
+    version: number,
+    groupId: Buffer,
+    epoch: bigint | number,
+    transitionId: number,
+    streamType: number,
+    streamId: number,
+    flags: number,
+    sequenceNo: number,
+    payload: Buffer,
+): Buffer {
+    if (groupId.length !== 16) throw new Error("groupId must be 16 bytes");
+    const buf = N.gbp_frame_encode_v(
+        version, groupId, BigInt(epoch), transitionId, streamType,
+        streamId, flags, sequenceNo, payload, payload.length,
+    ) as N.GbpBuffer;
+    return N.takeBuffer(buf);
+}
+
+/**
+ * Return the CBOR-encoded `ErrorObject` for `code`, or `null` if unknown.
+ */
+export function lookupError(code: number): Buffer | null {
+    const buf = N.gbp_error_lookup(code) as N.GbpBuffer;
+    const data = N.takeBuffer(buf);
+    return data.length > 0 ? data : null;
 }
 
 /** @internal Decode the (target, wire) pair returned by ``send_*``. */

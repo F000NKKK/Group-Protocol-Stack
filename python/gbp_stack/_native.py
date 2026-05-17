@@ -175,6 +175,25 @@ gbp_sframe_decrypt = _bind(
     [c_int32, c_void_p, c_size_t, c_void_p, c_size_t, ctypes.POINTER(c_uint32)],
 )
 
+gbp_frame_encode_v = _bind(
+    "gbp_frame_encode_v",
+    GbpBuffer,
+    [
+        c_uint8,   # version
+        c_void_p,  # group_id_16
+        c_uint64,  # epoch
+        c_uint32,  # transition_id
+        c_uint32,  # stream_type
+        c_uint32,  # stream_id
+        c_uint16,  # flags
+        c_uint32,  # sequence_no
+        c_void_p,  # payload_ptr
+        c_size_t,  # payload_len
+    ],
+)
+
+gbp_error_lookup = _bind("gbp_error_lookup", GbpBuffer, [c_uint16])
+
 
 def take_buffer(buf: GbpBuffer) -> bytes:
     """Copy a returned :class:`GbpBuffer` into a ``bytes`` object and free it."""

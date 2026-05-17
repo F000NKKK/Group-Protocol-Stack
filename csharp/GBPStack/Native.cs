@@ -171,6 +171,10 @@ internal static class Native
         byte version, IntPtr groupId16, ulong epoch, uint transitionId, uint streamType,
         uint streamId, ushort flags, uint sequenceNo, IntPtr payloadPtr, nuint payloadLen);
 
+    /// <summary>Returns a CBOR-encoded <c>ErrorObject</c> for the given error code, or empty on unknown code.</summary>
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gbp_error_lookup(ushort code);
+
     // ── SFrame ────────────────────────────────────────────────────────────────
 
     /// <summary>Creates an SFrame session from an MLS context handle.</summary>

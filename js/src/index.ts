@@ -13,6 +13,8 @@ export {
     NodeState,
     OutboundFrame,
     StreamType,
+    encodeGbpFrame,
+    lookupError,
 } from "./node";
 export { GtpAcceptResult, GtpClient } from "./gtp";
 export { GapAcceptResult, GapClient } from "./gap";
