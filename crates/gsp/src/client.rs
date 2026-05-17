@@ -153,3 +153,93 @@ impl GspClient {
         self.current_epoch = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GspSignal;
+
+    fn encode_bare(signal: SignalType, request_id: u32, sender_id: u32) -> Vec<u8> {
+        GspSignal::bare(signal as u32, request_id, sender_id).to_cbor()
+    }
+
+    #[test]
+    fn join_adds_sender_to_members() {
+        let mut c = GspClient::new();
+        let payload = encode_bare(SignalType::Join, 1, 42);
+        let accept = c.accept(&payload, 0).unwrap();
+        assert_eq!(accept.signal, SignalType::Join);
+        assert!(c.members.contains(&42));
+    }
+
+    #[test]
+    fn leave_removes_sender_from_members() {
+        let mut c = GspClient::new();
+        c.accept(&encode_bare(SignalType::Join, 1, 7), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Leave, 2, 7), 0).unwrap();
+        assert!(!c.members.contains(&7));
+    }
+
+    #[test]
+    fn leave_also_removes_from_muted() {
+        let mut c = GspClient::new();
+        c.accept(&encode_bare(SignalType::Join, 1, 5), 0).unwrap();
+        c.muted.insert(5); // manually mute
+        c.accept(&encode_bare(SignalType::Leave, 2, 5), 0).unwrap();
+        assert!(!c.muted.contains(&5));
+    }
+
+    #[test]
+    fn duplicate_request_id_is_rejected() {
+        let mut c = GspClient::new();
+        c.accept(&encode_bare(SignalType::Join, 99, 1), 0).unwrap();
+        let result = c.accept(&encode_bare(SignalType::Leave, 99, 1), 0);
+        assert!(matches!(result, Err(GspError::DuplicateRequest(99))));
+    }
+
+    #[test]
+    fn epoch_advance_clears_request_seen_set() {
+        let mut c = GspClient::new();
+        let payload = encode_bare(SignalType::Join, 1, 10);
+        c.accept(&payload, 0).unwrap();
+        // same request_id is allowed in new epoch
+        let result = c.accept(&encode_bare(SignalType::Leave, 1, 10), 1);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn reset_clears_state() {
+        let mut c = GspClient::new();
+        c.accept(&encode_bare(SignalType::Join, 1, 3), 0).unwrap();
+        c.reset();
+        // after reset, same request_id allowed again
+        c.accept(&encode_bare(SignalType::Join, 1, 4), 0).unwrap();
+        // and member state is NOT cleared by reset (only dedup)
+        // members accumulated before reset remain
+    }
+
+    #[test]
+    fn unknown_signal_type_rejected() {
+        let mut c = GspClient::new();
+        let bad = GspSignal::bare(999, 1, 1).to_cbor();
+        assert!(matches!(c.accept(&bad, 0), Err(GspError::UnknownSignal(999))));
+    }
+
+    #[test]
+    fn invalid_cbor_returns_decode_error() {
+        let mut c = GspClient::new();
+        assert!(matches!(c.accept(b"\xFF\xFF", 0), Err(GspError::Decode(_))));
+    }
+
+    #[test]
+    fn multiple_members_join_independently() {
+        let mut c = GspClient::new();
+        c.accept(&encode_bare(SignalType::Join, 1, 10), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 2, 20), 0).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 3, 30), 0).unwrap();
+        assert_eq!(c.members.len(), 3);
+        assert!(c.members.contains(&10));
+        assert!(c.members.contains(&20));
+        assert!(c.members.contains(&30));
+    }
+}

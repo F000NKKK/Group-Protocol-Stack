@@ -71,3 +71,35 @@ impl ErrorObject {
         ciborium::from_reader(data).map_err(|e| CodecError::Decode(e.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_round_trip() {
+        let err = ErrorObject::new(404, ErrorClass::Schema, true, false, "not found");
+        let bytes = err.to_cbor();
+        let decoded = ErrorObject::from_cbor(&bytes).unwrap();
+        assert_eq!(decoded.code, 404);
+        assert_eq!(decoded.class, ErrorClass::Schema as u8);
+        assert!(decoded.retryable);
+        assert!(!decoded.fatal);
+        assert_eq!(decoded.reason, "not found");
+        assert!(decoded.details_cbor.is_empty());
+    }
+
+    #[test]
+    fn fatal_error_round_trip() {
+        let err = ErrorObject::new(500, ErrorClass::Crypto, false, true, "aead failure");
+        let decoded = ErrorObject::from_cbor(&err.to_cbor()).unwrap();
+        assert_eq!(decoded.code, 500);
+        assert!(decoded.fatal);
+        assert!(!decoded.retryable);
+    }
+
+    #[test]
+    fn invalid_cbor_returns_decode_error() {
+        assert!(matches!(ErrorObject::from_cbor(b"\xFF\xFF"), Err(CodecError::Decode(_))));
+    }
+}

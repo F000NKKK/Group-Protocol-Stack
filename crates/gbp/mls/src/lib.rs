@@ -398,3 +398,158 @@ impl MlsContext {
             .map_err(|e| MlsError::Aead(e.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn alice() -> (MlsContext, openmls::prelude::KeyPackageBundle) {
+        MlsContext::new_member(b"alice").unwrap()
+    }
+
+    fn bob() -> (MlsContext, openmls::prelude::KeyPackageBundle) {
+        MlsContext::new_member(b"bob").unwrap()
+    }
+
+    #[test]
+    fn stream_label_strings_are_correct() {
+        assert_eq!(StreamLabel::Control.as_str(), "gbp/control");
+        assert_eq!(StreamLabel::Audio.as_str(), "gbp/audio");
+        assert_eq!(StreamLabel::Text.as_str(), "gbp/text");
+        assert_eq!(StreamLabel::Signal.as_str(), "gbp/signal");
+    }
+
+    #[test]
+    fn label_for_maps_every_stream_type() {
+        assert_eq!(label_for(StreamType::Control), StreamLabel::Control);
+        assert_eq!(label_for(StreamType::Audio), StreamLabel::Audio);
+        assert_eq!(label_for(StreamType::Text), StreamLabel::Text);
+        assert_eq!(label_for(StreamType::Signal), StreamLabel::Signal);
+    }
+
+    #[test]
+    fn new_member_starts_at_epoch_zero() {
+        let (ctx, _kp) = alice();
+        assert_eq!(ctx.epoch(), 0);
+    }
+
+    #[test]
+    fn group_id_16_is_16_bytes() {
+        let (ctx, _kp) = alice();
+        let id = ctx.group_id_16();
+        assert_eq!(id.len(), 16);
+    }
+
+    #[test]
+    fn export_stream_key_is_32_bytes_and_stable() {
+        let (ctx, _kp) = alice();
+        let k1 = ctx.export_stream_key(StreamLabel::Text).unwrap();
+        let k2 = ctx.export_stream_key(StreamLabel::Text).unwrap();
+        assert_eq!(k1.len(), 32);
+        assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn different_labels_produce_different_keys() {
+        let (ctx, _kp) = alice();
+        let k_ctrl = ctx.export_stream_key(StreamLabel::Control).unwrap();
+        let k_text = ctx.export_stream_key(StreamLabel::Text).unwrap();
+        assert_ne!(k_ctrl, k_text);
+    }
+
+    #[test]
+    fn seal_open_single_member_round_trip() {
+        let (ctx, _kp) = alice();
+        let plaintext = b"hello world";
+        let ciphertext = ctx.seal(StreamLabel::Text, 1, plaintext).unwrap();
+        assert_ne!(ciphertext, plaintext);
+        let recovered = ctx.open(StreamLabel::Text, 1, &ciphertext).unwrap();
+        assert_eq!(recovered, plaintext);
+    }
+
+    #[test]
+    fn seal_wrong_seq_fails_to_open() {
+        let (ctx, _kp) = alice();
+        let ciphertext = ctx.seal(StreamLabel::Text, 1, b"secret").unwrap();
+        assert!(ctx.open(StreamLabel::Text, 2, &ciphertext).is_err());
+    }
+
+    #[test]
+    fn seal_wrong_label_fails_to_open() {
+        let (ctx, _kp) = alice();
+        let ciphertext = ctx.seal(StreamLabel::Text, 0, b"secret").unwrap();
+        assert!(ctx.open(StreamLabel::Audio, 0, &ciphertext).is_err());
+    }
+
+    #[test]
+    fn two_member_invite_and_welcome() {
+        let (mut alice, _akp) = alice();
+        let (mut bob, bob_kp) = bob();
+
+        let welcome = alice.invite(&[bob_kp.key_package().clone()]).unwrap();
+        // Alice's epoch advances after invite.
+        assert_eq!(alice.epoch(), 1);
+
+        bob.accept_welcome(&welcome).unwrap();
+        // Bob joins at epoch 1.
+        assert_eq!(bob.epoch(), 1);
+    }
+
+    #[test]
+    fn two_member_seal_open_cross_member() {
+        let (mut alice, _akp) = alice();
+        let (mut bob, bob_kp) = bob();
+
+        let welcome = alice.invite(&[bob_kp.key_package().clone()]).unwrap();
+        bob.accept_welcome(&welcome).unwrap();
+
+        let plaintext = b"cross-member secret";
+        let ct = alice.seal(StreamLabel::Control, 0, plaintext).unwrap();
+        let recovered = bob.open(StreamLabel::Control, 0, &ct).unwrap();
+        assert_eq!(recovered, plaintext);
+    }
+
+    #[test]
+    fn export_raw_returns_requested_length() {
+        let (ctx, _kp) = alice();
+        let raw = ctx.export_raw("test/label", b"ctx", 48).unwrap();
+        assert_eq!(raw.len(), 48);
+    }
+
+    #[test]
+    fn clear_pending_commit_is_idempotent() {
+        let (mut ctx, _kp) = alice();
+        ctx.clear_pending_commit().unwrap();
+        ctx.clear_pending_commit().unwrap();
+    }
+
+    #[test]
+    fn finalize_pending_commit_on_fresh_group_is_ok() {
+        let (mut ctx, _kp) = alice();
+        ctx.finalize_pending_commit().unwrap();
+    }
+
+    #[test]
+    fn invite_full_does_not_advance_epoch_until_finalize() {
+        let (mut alice, _akp) = alice();
+        let (_bob, bob_kp) = bob();
+
+        let (_commit, _welcome) = alice.invite_full(&[bob_kp.key_package().clone()]).unwrap();
+        // invite_full does NOT merge → epoch still 0
+        assert_eq!(alice.epoch(), 0);
+
+        alice.finalize_pending_commit().unwrap();
+        // after finalize → epoch 1
+        assert_eq!(alice.epoch(), 1);
+
+        // New members join via welcome, not via commit.
+        let (mut alice2, _akp2) = MlsContext::new_member(b"alice2").unwrap();
+        let (mut bob2, bob2_kp) = MlsContext::new_member(b"bob2").unwrap();
+        let (_commit_bytes, welcome_bytes) =
+            alice2.invite_full(&[bob2_kp.key_package().clone()]).unwrap();
+        alice2.finalize_pending_commit().unwrap();
+        bob2.accept_welcome(&welcome_bytes).unwrap();
+        assert_eq!(alice2.epoch(), 1);
+        assert_eq!(bob2.epoch(), 1);
+    }
+}

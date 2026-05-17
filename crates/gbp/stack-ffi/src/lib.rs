@@ -1119,6 +1119,11 @@ enum EventDto<'a> {
         epoch: u64,
         transition_id: u32,
     },
+    CoordinatorElectionNeeded {},
+    BecameCoordinator {},
+    CoordinatorClaim {
+        claimant: u32,
+    },
 }
 
 fn b64(b: &[u8]) -> String {
@@ -1195,6 +1200,9 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             epoch: *epoch,
             transition_id: *transition_id,
         },
+        Event::CoordinatorElectionNeeded => EventDto::CoordinatorElectionNeeded {},
+        Event::BecameCoordinator => EventDto::BecameCoordinator {},
+        Event::CoordinatorClaim { claimant } => EventDto::CoordinatorClaim { claimant: *claimant },
     }
 }
 

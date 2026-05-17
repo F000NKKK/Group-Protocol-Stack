@@ -74,3 +74,49 @@ impl ControlMessage {
         Ok(m)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bare_message_round_trip() {
+        let msg = ControlMessage::bare(3, 99, 1, 2);
+        let bytes = msg.to_cbor();
+        let decoded = ControlMessage::from_cbor(&bytes).unwrap();
+        assert_eq!(decoded.opcode, 3);
+        assert_eq!(decoded.request_id, 99);
+        assert_eq!(decoded.sender_id, 1);
+        assert_eq!(decoded.transition_id, 2);
+        assert_eq!(decoded.args_length, 0);
+        assert!(decoded.args.is_empty());
+    }
+
+    #[test]
+    fn with_args_round_trip() {
+        let args = vec![0xA1u8, 0x00, 0xF5];
+        let msg = ControlMessage::with_args(7, 1, 2, 3, args.clone());
+        assert_eq!(msg.args_length, 3);
+        let decoded = ControlMessage::from_cbor(&msg.to_cbor()).unwrap();
+        assert_eq!(decoded.args.as_ref(), args.as_slice());
+        assert_eq!(decoded.args_length, 3);
+    }
+
+    #[test]
+    fn args_length_mismatch_rejected() {
+        let mut msg = ControlMessage::bare(1, 0, 0, 0);
+        msg.args = serde_bytes::ByteBuf::from(vec![0xFFu8; 5]);
+        // args_length still 0, args has 5 bytes → mismatch
+        let bytes = {
+            let mut buf = Vec::new();
+            ciborium::into_writer(&msg, &mut buf).unwrap();
+            buf
+        };
+        assert!(matches!(ControlMessage::from_cbor(&bytes), Err(CodecError::PayloadSizeMismatch)));
+    }
+
+    #[test]
+    fn invalid_cbor_returns_decode_error() {
+        assert!(matches!(ControlMessage::from_cbor(b"\xFF\xFF"), Err(CodecError::Decode(_))));
+    }
+}

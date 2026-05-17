@@ -117,3 +117,84 @@ impl GtpClient {
         self.current_epoch = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GtpMessage;
+
+    fn encode_msg(sender_id: u32, message_id: u64) -> Vec<u8> {
+        GtpMessage::plain(sender_id, message_id, "hello").to_cbor()
+    }
+
+    #[test]
+    fn accept_new_message_returns_new() {
+        let mut client = GtpClient::new();
+        let payload = encode_msg(1, 100);
+        assert!(matches!(client.accept(&payload, 0).unwrap(), GtpAccept::New(_)));
+    }
+
+    #[test]
+    fn accept_duplicate_returns_duplicate() {
+        let mut client = GtpClient::new();
+        let payload = encode_msg(1, 100);
+        client.accept(&payload, 0).unwrap();
+        let result = client.accept(&payload, 0).unwrap();
+        assert!(matches!(result, GtpAccept::Duplicate(_)));
+    }
+
+    #[test]
+    fn different_message_ids_both_new() {
+        let mut client = GtpClient::new();
+        let p1 = encode_msg(1, 1);
+        let p2 = encode_msg(1, 2);
+        assert!(matches!(client.accept(&p1, 0).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p2, 0).unwrap(), GtpAccept::New(_)));
+    }
+
+    #[test]
+    fn different_senders_same_message_id_both_new() {
+        let mut client = GtpClient::new();
+        let p1 = encode_msg(1, 42);
+        let p2 = encode_msg(2, 42);
+        assert!(matches!(client.accept(&p1, 0).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(client.accept(&p2, 0).unwrap(), GtpAccept::New(_)));
+    }
+
+    #[test]
+    fn epoch_advance_clears_seen_set() {
+        let mut client = GtpClient::new();
+        let payload = encode_msg(1, 100);
+        client.accept(&payload, 0).unwrap();
+        // same message, new epoch → New again
+        let result = client.accept(&payload, 1).unwrap();
+        assert!(matches!(result, GtpAccept::New(_)));
+    }
+
+    #[test]
+    fn reset_clears_idempotency_state() {
+        let mut client = GtpClient::new();
+        let payload = encode_msg(7, 999);
+        client.accept(&payload, 5).unwrap();
+        client.reset();
+        let result = client.accept(&payload, 5).unwrap();
+        assert!(matches!(result, GtpAccept::New(_)));
+    }
+
+    #[test]
+    fn sync_epoch_same_value_keeps_state() {
+        let mut client = GtpClient::new();
+        let payload = encode_msg(1, 1);
+        client.accept(&payload, 3).unwrap();
+        client.sync_epoch(3); // same epoch — does not clear
+        let result = client.accept(&payload, 3).unwrap();
+        assert!(matches!(result, GtpAccept::Duplicate(_)));
+    }
+
+    #[test]
+    fn invalid_cbor_returns_decode_error() {
+        let mut client = GtpClient::new();
+        let result = client.accept(b"\xFF\xFF", 0);
+        assert!(matches!(result, Err(GtpError::Decode(_))));
+    }
+}
