@@ -169,8 +169,17 @@ function Update-SecurityPolicy([string]$newVersion) {
         $objType = git for-each-ref "refs/tags/$tag" --format='%(objecttype)' 2>$null
         if ($objType -eq 'tag') {
             $msg = git for-each-ref "refs/tags/$tag" --format='%(contents)' 2>$null
-            if (($msg -join ' ') -match '\b(deprecated|eol|end.of.life)\b') {
-                [void]$deprecatedSet.Add($tag)
+            $msgStr = ($msg -join ' ')
+            if ($msgStr -match '\b(deprecated|eol|end.of.life)\b') {
+                # Only mark THIS tag as deprecated/eol if the message is about this version.
+                # Ignore messages that announce another minor series going eol
+                # (e.g. "eol: 1.1.x series end-of-life" on v1.3.0 is about 1.1.x, not 1.3.x).
+                $tagMinor = if ($tag -match '^v(\d+\.\d+)\.') { $Matches[1] } else { '' }
+                $mentionsDiffMinor = $tagMinor -and
+                    ($msgStr -match '\b(\d+\.\d+)[.x]' -and $Matches[1] -ne $tagMinor)
+                if (-not $mentionsDiffMinor) {
+                    [void]$deprecatedSet.Add($tag)
+                }
             }
         }
     }
