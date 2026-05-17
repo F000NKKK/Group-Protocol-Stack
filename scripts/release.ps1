@@ -233,7 +233,7 @@ function Update-SecurityPolicy([string]$newVersion) {
         '(?m)^\| Version\s*\|[^\n]*\r?\n(?:\|[^\n]*\r?\n)+',
         $newTable)
     [System.IO.File]::WriteAllText($path, $md, [System.Text.UTF8Encoding]::new($false))
-    if ($md -eq $before) { Write-Host "  WARNING: SECURITY.md table pattern not found — file unchanged" -ForegroundColor Yellow }
+    if ($md -eq $before) { Write-Host "  WARNING: SECURITY.md table pattern not found - file unchanged" -ForegroundColor Yellow }
     else { Write-Host "  updated: SECURITY.md" -ForegroundColor Green }
 }
 
