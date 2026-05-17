@@ -58,13 +58,15 @@ can depend on individual crates directly.
 | ---------------------------------------------------------------- | ------------------------------------------------------------- |
 | [`gbp-core`](https://crates.io/crates/gbp-core)                  | Shared type vocabulary (StreamType, flags, FSMs, error codes) |
 | [`gbp-protocol`](https://crates.io/crates/gbp-protocol)          | Base GBP layer: GbpFrame, control plane, ErrorObject          |
-| [`gtp-protocol`](https://crates.io/crates/gtp-protocol)          | Group Text Protocol (text + history/watermark)                |
-| [`gap-protocol`](https://crates.io/crates/gap-protocol)          | Group Audio Protocol (Opus + jitter buffer)                   |
-| [`gsp-protocol`](https://crates.io/crates/gsp-protocol)          | Group Signaling Protocol (signals + roles + capabilities)     |
+| [`gtp-protocol`](https://crates.io/crates/gtp-protocol)          | Group Text Protocol (text + attachments + history/watermark)  |
+| [`gap-protocol`](https://crates.io/crates/gap-protocol)          | Group Audio Protocol (Opus + key-overlap buffer + jitter)     |
+| [`gsp-protocol`](https://crates.io/crates/gsp-protocol)          | Group Signaling Protocol (signals + per-signal validation + roles + capabilities) |
 | [`gbp-mls`](https://crates.io/crates/gbp-mls)                    | MLS (RFC 9420) integration via openmls                        |
-| [`gbp-transport`](https://crates.io/crates/gbp-transport)        | Length-prefixed TCP adapter (QUIC planned)                    |
-| [`gbp-node`](https://crates.io/crates/gbp-node)                  | GBP-layer group node (FSM, replay, control plane)             |
+| [`gbp-transport`](https://crates.io/crates/gbp-transport)        | Length-prefixed TCP adapter + async QUIC transport (quinn)    |
+| [`gbp-node`](https://crates.io/crates/gbp-node)                  | GBP-layer group node (FSM, replay, control plane, coordinator handover, timer engine, tie-break) |
 | [`gbp-sframe`](https://crates.io/crates/gbp-sframe)              | SFrame (draft-ietf-sframe-enc) E2EE for GAP audio streams     |
+| [`gbp-proto`](https://crates.io/crates/gbp-proto)                | Protobuf schemas for GBP/GTP/GAP/GSP (via prost, no protoc)  |
+| [`gbp-flat`](https://crates.io/crates/gbp-flat)                  | FlatBuffers schemas for GBP/GTP/GAP/GSP (via planus, no flatc) |
 | [`gbp-stack`](https://crates.io/crates/gbp-stack)                | Top-level facade re-exporting every layer                     |
 | [`gbp-stack-ffi`](https://crates.io/crates/gbp-stack-ffi)        | C ABI / cdylib for non-Rust consumers                         |
 | [`gbp-cli`](https://crates.io/crates/gbp-cli)                    | Reference CLI (`gbp-node listen|connect`)                     |

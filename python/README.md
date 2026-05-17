@@ -37,6 +37,18 @@ Beyond the protocol clients, the package ships ready-made helpers:
 * `SFrameSession` + `SFrameEncryptor` — SFrame (draft-ietf-sframe-enc) E2EE
   for GAP audio frames; per-sender AES-GCM keys derived from MLS exporter,
   1024-entry sliding-window replay protection.
+* `encode_gbp_frame` — low-level helper to construct a raw CBOR GBP frame.
+* `lookup_error` — return the CBOR `ErrorObject` for a known error code.
+
+### Coordinator events
+
+`NodeEvent` surfaces three new event kinds for coordinator election:
+
+| `kind` | Extra fields | Meaning |
+|--------|-------------|---------|
+| `coordinator_election_needed` | — | The local node should initiate GSP `COORDINATOR_CLAIM` |
+| `became_coordinator` | — | This node won the election |
+| `coordinator_claim` | `claimant` | A peer sent `COORDINATOR_CLAIM` with this member id |
 
 ## Install
 
