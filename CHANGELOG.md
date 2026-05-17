@@ -1,4 +1,12 @@
-﻿## 1.5.0 (2026-05-17)
+﻿## 1.5.1 (2026-05-17)
+
+### CI
+
+- ci: publish gbp-proto and gbp-flat before sub-protocols (56455fb)
+
+---
+
+## 1.5.0 (2026-05-17)
 
 ### Features
 
@@ -215,6 +223,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 

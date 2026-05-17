@@ -80,7 +80,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-npm install @voluntas-progressus/gbp-stack@1.5.0
+npm install @voluntas-progressus/gbp-stack@1.5.1
 ```
 
 ## Quick start
