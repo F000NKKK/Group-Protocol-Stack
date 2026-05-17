@@ -228,11 +228,13 @@ function Update-SecurityPolicy([string]$newVersion) {
     $path    = Join-Path $root 'SECURITY.md'
     $md      = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false))
     $newTable = ($lines -join "`n") + "`n"
+    $before = $md
     $md = [regex]::Replace($md,
-        '(?m)^\| Version \|[^\n]*\n(?:\|[^\n]*\n)+',
+        '(?m)^\| Version\s*\|[^\n]*\r?\n(?:\|[^\n]*\r?\n)+',
         $newTable)
     [System.IO.File]::WriteAllText($path, $md, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "  updated: SECURITY.md" -ForegroundColor Green
+    if ($md -eq $before) { Write-Host "  WARNING: SECURITY.md table pattern not found — file unchanged" -ForegroundColor Yellow }
+    else { Write-Host "  updated: SECURITY.md" -ForegroundColor Green }
 }
 
 # --- main ---------------------------------------------------------------------
