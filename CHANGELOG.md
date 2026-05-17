@@ -1,4 +1,38 @@
-﻿## 1.3.0 (2026-05-16)
+﻿## 1.4.0 (2026-05-17)
+
+### Features
+
+- feat: integration tests, API fixes, and documentation audit (v1.3.0) (89fbd52)
+- feat(bindings): add coordinator events and frame/error helpers to all bindings (c8afc00)
+- feat(transport): add QUIC transport via quinn (b2a8eeb)
+- feat(gbp-flat): add FlatBuffers codec crate for GBP/GTP/GAP/GSP (f5c4e11)
+- feat(gbp-proto): add Protobuf codec crate for GBP/GTP/GAP/GSP (b2cae42)
+- feat(gsp): per-signal args validation; feat(core): ConformanceClass A/B/C (4b7bcf9)
+- feat(node): timer engine, coordinator handover, tie-break; feat(gap): T_overlap buffer (e47ee86)
+
+### Refactoring
+
+- refactor(csharp): one type per file — split all multi-type .cs files (0425324)
+- refactor(csharp): move GbpHelpers to its own file (502fae1)
+
+### Tests
+
+- test: add unit tests for mls, gtp, gsp, gbp-base, fix FFI event match (91a9cf6)
+
+### Documentation
+
+- docs(changelog): remove manually written Unreleased block (auto-generated) (c09cc92)
+- docs: update all READMEs and CHANGELOG for 1.4.0 feature set (9093d0c)
+- docs(gbp-proto): add README.md required for crates.io publish (a13efbb)
+
+### Chores
+
+- chore(deps): bump prost from 0.13.5 to 0.14.3 (#14) (b73fbda)
+- chore(deps): bump rcgen from 0.13.2 to 0.14.8 (#13) (05a3357)
+
+---
+
+## 1.3.0 (2026-05-16)
 
 ### Bug Fixes
 
@@ -138,6 +172,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
