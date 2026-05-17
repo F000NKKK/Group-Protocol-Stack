@@ -67,10 +67,16 @@ pub fn derive_base_key(mls: &MlsContext, label: &str, epoch: u64) -> Result<[u8;
     Ok(out)
 }
 
-/// Derives the encryption key and base salt for participant `leaf_index`.
+// Protocol-defined HKDF domain-separation labels (public constants, not secret values).
+// HKDF-Expand takes an `info` parameter that is intentionally a well-known, fixed label;
+// the *output* is the derived key material, which is cryptographically bound to `base_key`.
+const HKDF_LABEL_KEY: &[u8] = b"gbp sframe key ";
+const HKDF_LABEL_NONCE: &[u8] = b"gbp sframe salt ";
+
+/// Derives the encryption key and base nonce for participant `leaf_index`.
 ///
 /// Uses HKDF-Expand (SHA-256) over the epoch's `base_key` with
-/// deterministic info strings so every member can reproduce any sender's
+/// deterministic domain labels so every member can reproduce any sender's
 /// key material.
 pub(crate) fn derive_participant(
     base_key: &[u8; 32],
@@ -83,17 +89,17 @@ pub(crate) fn derive_participant(
 
     let leaf_be = leaf_index.to_be_bytes();
 
-    let mut key_info = b"gbp sframe key ".to_vec();
-    key_info.extend_from_slice(&leaf_be);
+    let mut label = HKDF_LABEL_KEY.to_vec();
+    label.extend_from_slice(&leaf_be);
     let mut key = vec![0u8; suite.key_len()];
-    hk.expand(&key_info, &mut key)
+    hk.expand(&label, &mut key)
         .expect("key length is well within 255 * HashLen");
 
-    let mut salt_info = b"gbp sframe salt ".to_vec();
-    salt_info.extend_from_slice(&leaf_be);
+    let mut label = HKDF_LABEL_NONCE.to_vec();
+    label.extend_from_slice(&leaf_be);
     let mut salt = [0u8; 12];
-    hk.expand(&salt_info, &mut salt)
-        .expect("salt length (12) is well within 255 * HashLen");
+    hk.expand(&label, &mut salt)
+        .expect("nonce length (12) is well within 255 * HashLen");
 
     ParticipantKeys { key, salt }
 }
