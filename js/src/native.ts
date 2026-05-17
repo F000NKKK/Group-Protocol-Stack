@@ -37,7 +37,7 @@ function candidates(): string[] {
     ];
 }
 
-function load(): koffi.IKoffiLib {
+function load(): koffi.LibraryHandle {
     let lastErr: unknown;
     for (const path of candidates()) {
         try {

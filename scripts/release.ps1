@@ -272,11 +272,24 @@ try {
     Update-Changelog $entry
     Write-Host "CHANGELOG.md updated"
 
-    # 3. Regenerate SECURITY.md supported-versions table.
+    # 3. Regenerate lock files so they reflect the new version in package.json / Cargo.toml.
+    Write-Host "Regenerating lock files..." -ForegroundColor Cyan
+    $savedPref = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    Push-Location (Join-Path $root 'js')
+    npm install --prefer-offline 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: npm install failed" -ForegroundColor Yellow }
+    else { Write-Host "  updated: js/package-lock.json" -ForegroundColor Green }
+    Pop-Location
+    Push-Location $root
+    cargo update --workspace --quiet 2>&1 | Out-Null
+    $ErrorActionPreference = $savedPref
+    Write-Host "  updated: Cargo.lock" -ForegroundColor Green
+
+    # 4. Regenerate SECURITY.md supported-versions table.
     #    Called before `git add -A` so the updated file is included in the commit.
     Update-SecurityPolicy $next
 
-    # 4. Commit (manifests + READMEs + CHANGELOG + SECURITY.md) + annotated tag.
+    # 5. Commit (manifests + READMEs + CHANGELOG + SECURITY.md + lock files) + annotated tag.
     git add -A
     git commit -m "chore(release): $next"
     git tag -a "v$next" -m "Release v$next"

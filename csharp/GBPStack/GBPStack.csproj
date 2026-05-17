@@ -35,7 +35,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
 
     <!-- Pack every native binary that was placed under runtimes/<rid>/native/. -->
     <None Include="$(NativeRuntimesDir)\**\*"
