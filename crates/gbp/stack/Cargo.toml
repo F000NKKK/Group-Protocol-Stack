@@ -31,3 +31,4 @@ gbp-sframe    = { workspace = true }
 openmls             = { workspace = true }
 openmls_traits      = { workspace = true }
 openmls_rust_crypto = { workspace = true }
+anyhow              = "1"

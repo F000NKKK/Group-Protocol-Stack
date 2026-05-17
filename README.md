@@ -44,7 +44,7 @@ package manager. Each binding ships pre-built native binaries for `win-x64`,
 | Language | Package | Source | README |
 | --- | --- | --- | --- |
 | Rust    | [`gbp-stack`](https://crates.io/crates/gbp-stack)                              | [`crates/gbp/stack`](crates/gbp/stack)   | [README](crates/gbp/stack/README.md) |
-| .NET    | [`GBPStack`](https://www.nuget.org/packages/GBPStack)                          | [`csharp/GBPStack`](csharp/GBPStack)     | [README](csharp/GBPStack/README.md) |
+| .NET    | [`GBPStack`](https://www.nuget.org/packages/GBPStack)                          | [`csharp/GBPStack`](csharp/GBPStack)     | [README](csharp/README.md) |
 | Python  | [`gbp-stack`](https://pypi.org/project/gbp-stack/)                             | [`python`](python)                       | [README](python/README.md) |
 | Node.js | [`@voluntas-progressus/gbp-stack`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack) | [`js`](js) | [README](js/README.md) |
 
