@@ -73,12 +73,12 @@ impl SFrameHeader {
         let flags = data[0];
         // V must be 0.
         if flags & 0x80 != 0 {
-            return Err(SFrameError::Header(
-                format!("unsupported SFrame version (V bit set in flags {flags:#04x})"),
-            ));
+            return Err(SFrameError::Header(format!(
+                "unsupported SFrame version (V bit set in flags {flags:#04x})"
+            )));
         }
         let kid_len = ((flags >> 4) & 0x07) as usize + 1; // 1-8 bytes
-        let ctr_len = (flags & 0x0F) as usize + 1;         // 1-16 bytes
+        let ctr_len = (flags & 0x0F) as usize + 1; // 1-16 bytes
         let total = 1 + kid_len + ctr_len;
 
         if data.len() < total {

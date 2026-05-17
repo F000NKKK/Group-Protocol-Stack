@@ -24,11 +24,18 @@ struct SourceState {
 
 impl SourceState {
     fn new() -> Self {
-        Self { waiting: VecDeque::new(), next: None }
+        Self {
+            waiting: VecDeque::new(),
+            next: None,
+        }
     }
 
     fn insert(&mut self, p: GapPayload, capacity: usize) -> Option<GapPayload> {
-        if self.waiting.iter().any(|q| q.rtp_sequence == p.rtp_sequence) {
+        if self
+            .waiting
+            .iter()
+            .any(|q| q.rtp_sequence == p.rtp_sequence)
+        {
             return None;
         }
         // O(n) linear scan — n ≤ 16 in practice (Opus frame window), so this

@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 
 namespace GBPStack;
@@ -162,6 +161,11 @@ internal static class Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern GbpBuffer gsp_client_send(
         int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gsp_client_send_with_args(
+        int ch, int nh, int mh, uint target, uint signalType, uint roleClaim, uint requestId,
+        IntPtr argsPtr, nuint argsLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr gsp_client_accept(int ch, ulong currentEpoch, IntPtr ptPtr, nuint ptLen);

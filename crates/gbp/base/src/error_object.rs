@@ -100,6 +100,9 @@ mod tests {
 
     #[test]
     fn invalid_cbor_returns_decode_error() {
-        assert!(matches!(ErrorObject::from_cbor(b"\xFF\xFF"), Err(CodecError::Decode(_))));
+        assert!(matches!(
+            ErrorObject::from_cbor(b"\xFF\xFF"),
+            Err(CodecError::Decode(_))
+        ));
     }
 }

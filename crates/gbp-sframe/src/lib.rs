@@ -91,7 +91,11 @@ impl SFrameSession {
     /// Prefer [`from_mls`](Self::from_mls) when an [`MlsContext`] is
     /// available; this constructor is mainly for testing.
     pub fn new(base_key: [u8; 32], epoch: u64, suite: CipherSuite) -> Self {
-        Self { base_key, epoch, suite }
+        Self {
+            base_key,
+            epoch,
+            suite,
+        }
     }
 
     /// Derives a session from the current MLS group state.

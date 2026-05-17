@@ -29,15 +29,27 @@ GBP REQUIRES различать пути доставки:
 GBP MLS-обёртка MUST предоставлять:
 
 ```
-mls.invite(key_packages: [KeyPackage]) -> { commit: bytes, welcome: bytes }
-mls.remove_members(leaf_indices: [u32]) -> { commit: bytes }
-mls.process_message(message: bytes) -> ProcessedMessageKind
+mls.invite(key_package: KeyPackage) -> welcome: bytes          # первый invite; авто-финализирует
+mls.invite_full(key_package: KeyPackage) -> { commit, welcome }# n≥2 invite; вызывающий MUST finalize_commit
+mls.finalize_commit() -> ()                                    # применить pending commit, эпоха ++
+mls.clear_pending_commit() -> ()                               # отменить pending commit на ABORT
+mls.remove_members(leaf_indices: [u32]) -> commit: bytes       # вызывающий MUST finalize_commit
+mls.process_message(message: bytes) -> ProcessedMessageKind    # применить Commit от пира; вызывающий MUST finalize_commit
 mls.accept_welcome(welcome: bytes) -> ()
-mls.epoch() -> u64
+mls.epoch() -> u64                                             # 0 на новом контексте; +1 на каждом Commit
 mls.group_id() -> [u8; 16]
 mls.export_key_package() -> bytes
 mls.export_raw(label: str, context: bytes, length: usize) -> bytes
 ```
+
+`invite` (однострочный сокращённый вариант) автоматически финализирует pending commit,
+эпоха Координатора продвигается немедленно, возвращается только Welcome.
+`invite_full` откладывает финализацию — вызывающий MUST вызвать `finalize_commit()` после
+рассылки Commit существующим членам; пир, вызвавший `process_message`, тоже MUST вызвать
+`finalize_commit()` перед использованием ключей новой эпохи.
+
+Свежесозданный контекст начинает с `epoch = 0`; первый успешный invite продвигает
+обе стороны до `epoch = 1`.
 
 `export_raw` используется слоем SFrame (`gbp-sframe.ru.md`) для деривации
 `sframe_base_key = MLS.ExportSecret(label, epoch_be8, 32)` без раскрытия
@@ -45,8 +57,6 @@ mls.export_raw(label: str, context: bytes, length: usize) -> bytes
 `export_raw` напрямую; только расширение SFrame использует этот метод.
 
 `process_message` MUST уметь обрабатывать Commit-сообщения и REQUIRED каждому существующему члену. `ProcessedMessageKind` различает Commit / Application / Proposal — для control-plane GBP актуален только Commit.
-
-`invite` и `remove_members` MUST продвигать локальный MLS-state немедленно (через `merge_pending_commit`), чтобы видение Координатора совпадало с post-transition state'ом, использованным для деривации PREPARE-байт.
 
 ## 4. Соответствие MLS Epoch и GBP TransitionID
 - Каждый принятый MLS Commit увеличивает `mls.epoch` на 1.

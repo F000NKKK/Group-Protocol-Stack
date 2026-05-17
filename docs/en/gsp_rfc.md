@@ -136,6 +136,44 @@ table GSPSignal {
 root_type GSPSignal;
 ```
 
+### 11.4 Per-Signal `args` CBOR Schemas
+
+Implementations MUST validate the `args` field according to the following
+per-signal schemas. Signals marked **no args** MUST be sent with empty `args`
+(`args_length = 0`). Signals with a required schema MUST NOT be accepted if
+`args` is empty or does not conform — the receiver MUST return
+`ERR_GSP_BAD_SCHEMA`.
+
+| Signal type | Code | args CBOR schema | Keys |
+|------------|------|------------------|------|
+| JOIN | 100 | *(empty)* | — |
+| LEAVE | 101 | *(empty)* | — |
+| ROLE_CHANGE | 102 | `{0: target_member_id, 1: new_role_id}` | 0=uint target, 1=uint role |
+| MUTE | 200 | `{0: target_member_id}` | 0=uint target |
+| UNMUTE | 201 | `{0: target_member_id}` | 0=uint target |
+| STREAM_START | 300 | `{0: stream_type}` | 0=uint stream\_type |
+| STREAM_STOP | 301 | `{0: stream_type}` | 0=uint stream\_type |
+| CODEC_UPDATE | 400 | `{0: codec_id}` | 0=uint codec\_id |
+
+All map keys are CBOR unsigned integers (major type 0). All values are
+unsigned integers. The CBOR map format MUST be definite-length.
+
+Example — MUTE targeting member 3 (CBOR hex: `A1 00 03`):
+```
+A1       -- map(1)
+   00    -- key: 0 (target_member_id)
+   03    -- value: 3
+```
+
+Example — ROLE_CHANGE targeting member 5 to role 2 (CBOR hex: `A2 00 05 01 02`):
+```
+A2       -- map(2)
+   00    -- key: 0 (target_member_id)
+   05    -- value: 5
+   01    -- key: 1 (new_role_id)
+   02    -- value: 2
+```
+
 ## 12. IANA Considerations
 This document relies on GBP registry policy for signal type extensibility.
 

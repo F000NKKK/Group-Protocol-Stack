@@ -67,7 +67,7 @@ const aliceMls = MlsContext.create("alice");
 const bobMls   = MlsContext.create("bob");
 
 const bobKp   = bobMls.exportKeyPackage();
-const welcome = aliceMls.invite(bobKp);
+const welcome = aliceMls.invite(bobKp);   // alice auto-finalizes; epoch advances to 1n
 bobMls.acceptWelcome(welcome);
 
 const gid = aliceMls.groupId;
@@ -82,9 +82,66 @@ const gtpBob   = GtpClient.create();
 const frame = gtpAlice.send(alice, aliceMls, 2, 0xCAFEF00Dn, "hello");
 for (const ev of bob.onWire(bobMls, frame.wire)) {
   if (ev.kind === "payload_received" && ev.streamType === StreamType.Text) {
-    console.log(gtpBob.accept(ev.plaintext!).text);
+    const r = gtpBob.accept(ev.plaintext!, bobMls.epoch);
+    console.log(r.text);   // → "hello"
+    // r.status is "new" (first message from this sender)
+    // subsequent messages → "new"; duplicates → "duplicate"
   }
 }
+```
+
+## GSP signals with per-signal arguments
+
+Signals that target a specific member or resource require CBOR-encoded arguments.
+Use `GspClient.sendWithArgs` for these signals:
+
+```ts
+import { GspClient, SignalType } from "@voluntas-progressus/gbp-stack";
+
+// Minimal CBOR helpers
+function cborUint(n: number): number[] {
+  if (n <= 23)     return [n];
+  if (n <= 0xFF)   return [0x18, n];
+  if (n <= 0xFFFF) return [0x19, (n >> 8) & 0xFF, n & 0xFF];
+  return [0x1A, (n>>24)&0xFF, (n>>16)&0xFF, (n>>8)&0xFF, n&0xFF];
+}
+function cborMap1(k: number, v: number): Buffer {
+  return Buffer.from([0xA1, ...cborUint(k), ...cborUint(v)]);
+}
+
+// Signal-specific args schemas:
+//   MUTE / Unmute  → {0: target_member_id}
+//   RoleChange     → {0: target_member_id, 1: new_role_id}
+//   StreamStart / StreamStop → {0: stream_type}
+//   CodecUpdate    → {0: codec_id}
+//   Join / Leave   → no args; use GspClient.send
+
+const gsp = GspClient.create();
+
+// Mute member 3
+const frame = gsp.sendWithArgs(
+  aliceNode, aliceMls,
+  0,                        // target: 0 = broadcast
+  SignalType.Mute,
+  0,                        // roleClaim
+  1,                        // requestId
+  cborMap1(0, 3),           // args: {0: target_member_id=3}
+);
+```
+
+## MLS multi-member group pattern
+
+When inviting a member to an **existing** group (not the first invite), use
+`inviteFull` so that existing members can process the commit:
+
+```ts
+// Alice adds Carol to an alice+bob group
+const { commit, welcome } = aliceMls.inviteFull(carolMls.exportKeyPackage());
+aliceMls.finalizeCommit();          // alice's epoch advances
+bobMls.processMessage(commit);      // bob stages the commit
+bobMls.finalizeCommit();            // bob's epoch advances to match alice
+carolMls.acceptWelcome(welcome);    // carol joins
+console.assert(aliceMls.epoch === bobMls.epoch && bobMls.epoch === carolMls.epoch);
 ```
 
 ## License

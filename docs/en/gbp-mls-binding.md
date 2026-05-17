@@ -29,15 +29,27 @@ A bug-class implementation that distributes only Welcome (RFC 9420 §11) leaves 
 The GBP MLS wrapper MUST expose:
 
 ```
-mls.invite(key_packages: [KeyPackage]) -> { commit: bytes, welcome: bytes }
-mls.remove_members(leaf_indices: [u32]) -> { commit: bytes }
-mls.process_message(message: bytes) -> ProcessedMessageKind
+mls.invite(key_package: KeyPackage) -> welcome: bytes          # first-member invite; auto-finalizes
+mls.invite_full(key_package: KeyPackage) -> { commit, welcome }# n≥2 invite; caller MUST finalize_commit
+mls.finalize_commit() -> ()                                    # apply pending commit, advance epoch
+mls.clear_pending_commit() -> ()                               # discard pending commit on ABORT
+mls.remove_members(leaf_indices: [u32]) -> commit: bytes       # caller MUST finalize_commit
+mls.process_message(message: bytes) -> ProcessedMessageKind    # apply Commit from peer; caller MUST finalize_commit
 mls.accept_welcome(welcome: bytes) -> ()
-mls.epoch() -> u64
+mls.epoch() -> u64                                             # 0 on fresh context; advances +1 per Commit
 mls.group_id() -> [u8; 16]
 mls.export_key_package() -> bytes
 mls.export_raw(label: str, context: bytes, length: usize) -> bytes
 ```
+
+`invite` (single-member shorthand) automatically finalizes the pending commit so
+the caller's epoch advances immediately and only the Welcome is returned.
+`invite_full` defers finalization — the caller MUST call `finalize_commit()` after
+broadcasting the Commit to existing members; a peer that calls `process_message`
+on that Commit MUST also call `finalize_commit()` before using the new epoch keys.
+
+A freshly created context starts at `epoch = 0`; the first successful invite
+advances both parties to `epoch = 1`.
 
 `export_raw` is used by the SFrame layer (`gbp-sframe`) to derive
 `sframe_base_key = MLS.ExportSecret(label, epoch_be8, 32)` without exposing
@@ -46,7 +58,7 @@ the OpenMLS internals to the caller.  The GBP control plane does not call
 
 `process_message` MUST handle Commit messages and is REQUIRED by every existing member. `ProcessedMessageKind` distinguishes Commit, Application, Proposal so callers know which path to take; for the GBP control plane only Commit is relevant.
 
-The `invite` and `remove_members` calls MUST advance the local MLS state immediately (via `merge_pending_commit`) so that the Coordinator's view matches the post-transition state used to derive PREPARE bytes.
+The `invite` call advances the local MLS state immediately (via `merge_pending_commit`). The `remove_members` call stages a pending commit but does NOT advance the epoch immediately — the Coordinator MUST call `finalize_commit()` only after receiving the READY quorum (see `gbp-leave-flow.md` §4 step 6); the PREPARE is sealed under the pre-merge epoch so existing members can decrypt and apply the embedded Commit.
 
 ## 4. Mapping MLS Epoch to GBP TransitionID
 - Each accepted MLS Commit advances `mls.epoch` by 1.
@@ -74,7 +86,7 @@ A joiner that receives a Welcome MUST:
 The Coordinator's transition_id `T` MUST be transmitted to the joiner together with the Welcome (in the demo: as a side-channel field on the `welcome` envelope). The MLS Welcome itself does not carry the GBP transition id.
 
 ## 7. Coordinator State After Invite
-The Coordinator that calls `mls.invite`:
+The Coordinator that calls `mls.invite_full`:
 1. Has `mls.epoch()` already advanced (via `merge_pending_commit`).
 2. MUST NOT send any application data frame yet — `node.current_epoch` is still old.
 3. MUST send `PREPARE_TRANSITION` with the new `transition_id` and embed the commit bytes.

@@ -112,11 +112,17 @@ mod tests {
             ciborium::into_writer(&msg, &mut buf).unwrap();
             buf
         };
-        assert!(matches!(ControlMessage::from_cbor(&bytes), Err(CodecError::PayloadSizeMismatch)));
+        assert!(matches!(
+            ControlMessage::from_cbor(&bytes),
+            Err(CodecError::PayloadSizeMismatch)
+        ));
     }
 
     #[test]
     fn invalid_cbor_returns_decode_error() {
-        assert!(matches!(ControlMessage::from_cbor(b"\xFF\xFF"), Err(CodecError::Decode(_))));
+        assert!(matches!(
+            ControlMessage::from_cbor(b"\xFF\xFF"),
+            Err(CodecError::Decode(_))
+        ));
     }
 }

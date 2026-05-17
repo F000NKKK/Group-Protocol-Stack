@@ -20,7 +20,7 @@ on Unix).
 | `gbp_node_*`       | GBP-layer group node (framing, AEAD, replay, control)     |
 | `gtp_client_*`     | GTP (text) sub-protocol client                            |
 | `gap_client_*`     | GAP (audio) sub-protocol client                           |
-| `gsp_client_*`     | GSP (signalling) sub-protocol client                      |
+| `gsp_client_*`     | GSP (signalling) sub-protocol client (`send`, `send_with_args`, `accept`, `reset`) |
 | `gbp_frame_*`      | Frame codec helpers                                       |
 | `gbp_error_*`      | Error registry helpers                                    |
 | `gbp_sframe_*`     | SFrame E2EE session, encryptor, encrypt/decrypt           |

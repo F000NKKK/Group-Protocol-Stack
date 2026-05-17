@@ -25,7 +25,11 @@ impl<T: Eq + Hash + Clone> BoundedSeen<T> {
     ///
     /// N=10000 is the recommended default per epoch (GTP §5, GSP §5).
     pub fn new(cap: usize) -> Self {
-        Self { set: HashSet::with_capacity(cap.min(1024)), order: VecDeque::with_capacity(cap.min(1024)), cap }
+        Self {
+            set: HashSet::with_capacity(cap.min(1024)),
+            order: VecDeque::with_capacity(cap.min(1024)),
+            cap,
+        }
     }
 
     /// Inserts an item. Returns `true` if the item is new and was added,

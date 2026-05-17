@@ -85,12 +85,20 @@ class GspClient:
         signal: SignalType,
         role_claim: int,
         request_id: int,
+        args: bytes = b"",
     ) -> OutboundFrame:
-        """Send a signal."""
-        buf = _n.gsp_client_send(
-            self._handle, node.handle, mls.handle, target,
-            int(signal), role_claim, request_id,
-        )
+        """Send a signal.
+
+        ``args`` carries opcode-specific CBOR-encoded arguments required by
+        signals such as MUTE/UNMUTE (``{0: target_member_id}``),
+        ROLE_CHANGE (``{0: target_member_id, 1: new_role_id}``), etc.
+        """
+        def do_send(ptr, length):
+            return _n.gsp_client_send_with_args(
+                self._handle, node.handle, mls.handle, target,
+                int(signal), role_claim, request_id, ptr, length,
+            )
+        buf = _n.call_with_bytes(args, do_send)
         return _unpack(buf, "gsp_client_send")
 
     def accept(self, plaintext: bytes, current_epoch: int) -> GspAcceptResult:

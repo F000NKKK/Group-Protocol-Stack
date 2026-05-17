@@ -54,6 +54,8 @@ js/dist/
 **/.pnpm-store/
 *.tgz
 .npm/
+js/jest_err.txt
+js/jest_out.txt
 
 # ----- IDE / OS ------------------------------------------------------------
 .idea/
@@ -62,3 +64,4 @@ js/dist/
 .DS_Store
 Thumbs.db
 csharp/GBPStack/GBPStack.csproj.lscache
+/csharp/GBPStack.Tests/GBPStack.Tests.csproj.lscache

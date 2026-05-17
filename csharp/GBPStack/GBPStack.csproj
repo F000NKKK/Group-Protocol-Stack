@@ -21,6 +21,19 @@
     <NativeRuntimesDir>$(MSBuildThisFileDirectory)runtimes</NativeRuntimesDir>
   </PropertyGroup>
 
+  <!-- Resolve host-platform native library name and path. -->
+  <PropertyGroup>
+    <HostNativeName Condition="$([MSBuild]::IsOsPlatform('Windows'))">gbp_stack.dll</HostNativeName>
+    <HostNativeName Condition="$([MSBuild]::IsOsPlatform('Linux'))">libgbp_stack.so</HostNativeName>
+    <HostNativeName Condition="$([MSBuild]::IsOsPlatform('OSX'))">libgbp_stack.dylib</HostNativeName>
+    <HostArch Condition="'$(PROCESSOR_ARCHITECTURE)' == 'ARM64' Or '$(PROCESSOR_ARCHITEW6432)' == 'ARM64'">arm64</HostArch>
+    <HostArch Condition="'$(HostArch)' == ''">x64</HostArch>
+    <HostRid Condition="$([MSBuild]::IsOsPlatform('Windows'))">win-$(HostArch)</HostRid>
+    <HostRid Condition="$([MSBuild]::IsOsPlatform('Linux'))">linux-$(HostArch)</HostRid>
+    <HostRid Condition="$([MSBuild]::IsOsPlatform('OSX'))">osx-$(HostArch)</HostRid>
+    <HostNativeFile>$(NativeRuntimesDir)\$(HostRid)\native\$(HostNativeName)</HostNativeFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
 
@@ -30,6 +43,17 @@
           Pack="true"
           PackagePath="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
+
+    <!--
+      Also copy the host-platform DLL to the output root so that framework-
+      dependent `dotnet test` finds it via P/Invoke (without a full publish
+      step that would trigger the runtimes/ probing logic).
+    -->
+    <None Include="$(HostNativeFile)"
+          Condition="'$(HostNativeFile)' != '' And Exists('$(HostNativeFile)')"
+          CopyToOutputDirectory="PreserveNewest">
+      <TargetPath>$(HostNativeName)</TargetPath>
+    </None>
   </ItemGroup>
 
   <!--

@@ -1,5 +1,3 @@
-using System;
-
 namespace GBPStack;
 
 /// <summary>Low-level GBP frame and error-code utilities.</summary>

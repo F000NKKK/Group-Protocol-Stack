@@ -1,5 +1,3 @@
-using System;
-
 namespace GBPStack;
 
 /// <summary>Errors thrown by <see cref="RoleRegistry"/>.</summary>

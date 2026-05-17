@@ -14,8 +14,7 @@
 //! event surface — they verify the underlying MLS+GBP contract.
 
 use gbp_stack::{
-    ControlOpcode, GbpFlags, GroupNode, MlsContext, NodeState, ProcessedKind, StreamType,
-    label_for,
+    ControlOpcode, GbpFlags, GroupNode, MlsContext, NodeState, ProcessedKind, StreamType, label_for,
 };
 
 use openmls::prelude::DeserializeBytes as _;
@@ -34,10 +33,9 @@ fn two_party_add_completes_full_handshake() {
     // Alice creates the group; Bob will join.
     let (mut alice, _alice_kp) = MlsContext::new_member(b"alice").unwrap();
     let (mut bob, bob_kp_bundle) = MlsContext::new_member(b"bob").unwrap();
-    let bob_kp_bytes = openmls::prelude::tls_codec::Serialize::tls_serialize_detached(
-        bob_kp_bundle.key_package(),
-    )
-    .unwrap();
+    let bob_kp_bytes =
+        openmls::prelude::tls_codec::Serialize::tls_serialize_detached(bob_kp_bundle.key_package())
+            .unwrap();
 
     // 1. invite_full produces both messages, stages but does NOT merge.
     let validated = validated_kp(&alice, &bob_kp_bytes);
@@ -64,15 +62,28 @@ fn two_party_add_completes_full_handshake() {
 
     // 5. Alice broadcasts EXECUTE, both apply.
     let exec = a_node
-        .send_control(&mut alice, 0, ControlOpcode::ExecuteTransition, 1, 7, vec![])
+        .send_control(
+            &mut alice,
+            0,
+            ControlOpcode::ExecuteTransition,
+            1,
+            7,
+            vec![],
+        )
         .unwrap();
     a_node.apply_transition(1);
     let evs = b_node.on_wire(&mut bob, &exec.wire).unwrap();
-    let errs: Vec<u16> = evs.iter().filter_map(|e| match e {
-        gbp_stack::Event::Error { code, .. } => Some(*code),
-        _ => None,
-    }).collect();
-    assert!(errs.is_empty(), "got errors during EXECUTE delivery: {errs:?}");
+    let errs: Vec<u16> = evs
+        .iter()
+        .filter_map(|e| match e {
+            gbp_stack::Event::Error { code, .. } => Some(*code),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        errs.is_empty(),
+        "got errors during EXECUTE delivery: {errs:?}"
+    );
     assert_eq!(a_node.last_transition_id, 1);
     assert_eq!(b_node.last_transition_id, 1);
     assert_eq!(a_node.current_epoch, 1);
@@ -107,10 +118,9 @@ fn two_party_add_completes_full_handshake() {
 fn abort_rolls_back_pending_commit() {
     let (mut alice, _) = MlsContext::new_member(b"alice").unwrap();
     let (_bob, bob_kp_bundle) = MlsContext::new_member(b"bob").unwrap();
-    let bob_kp_bytes = openmls::prelude::tls_codec::Serialize::tls_serialize_detached(
-        bob_kp_bundle.key_package(),
-    )
-    .unwrap();
+    let bob_kp_bytes =
+        openmls::prelude::tls_codec::Serialize::tls_serialize_detached(bob_kp_bundle.key_package())
+            .unwrap();
     let validated = validated_kp(&alice, &bob_kp_bytes);
     let _ = alice.invite_full(&[validated]).unwrap();
     assert_eq!(alice.epoch(), 0);
@@ -123,10 +133,9 @@ fn process_message_on_existing_member_advances_epoch() {
     // Three-way: alice (creator), bob (existing member), carol (new joiner).
     let (mut alice, _) = MlsContext::new_member(b"alice").unwrap();
     let (mut bob, bob_kp_bundle) = MlsContext::new_member(b"bob").unwrap();
-    let bob_kp_bytes = openmls::prelude::tls_codec::Serialize::tls_serialize_detached(
-        bob_kp_bundle.key_package(),
-    )
-    .unwrap();
+    let bob_kp_bytes =
+        openmls::prelude::tls_codec::Serialize::tls_serialize_detached(bob_kp_bundle.key_package())
+            .unwrap();
 
     // First invite: alice adds bob.
     let v_bob = validated_kp(&alice, &bob_kp_bytes);

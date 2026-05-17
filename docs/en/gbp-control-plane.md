@@ -60,7 +60,7 @@ The Coordinator MUST NOT have more than one outstanding transition at any time. 
 
 ### 5.3 Welcome / PREPARE Ordering for Add
 When the Coordinator admits a new member:
-1. The Coordinator computes the MLS commit + Welcome (`mls.invite`) producing both messages.
+1. The Coordinator computes the MLS commit + Welcome (`mls.invite_full`) — both messages are returned.
 2. The Coordinator broadcasts `PREPARE_TRANSITION` (target=0) to existing members carrying the new `transition_id` and the **MLS Commit** message in `args.commit`.
 3. The Coordinator unicasts the **MLS Welcome** to the new member's transport address (target=joiner_member_id_to_be) **in parallel** with step 2.
 4. The new member becomes a "candidate" for the duration of the transition. It is included in the READY quorum only after it has accepted the Welcome and emitted its own `READY_FOR_TRANSITION`.

@@ -65,7 +65,7 @@ with MlsContext.create("alice") as alice_mls, \
      MlsContext.create("bob")   as bob_mls:
 
     bob_kp  = bob_mls.export_key_package()
-    welcome = alice_mls.invite(bob_kp)
+    welcome = alice_mls.invite(bob_kp)       # alice auto-finalizes; epoch advances to 1
     bob_mls.accept_welcome(welcome)
 
     group_id = alice_mls.group_id
@@ -80,8 +80,67 @@ with MlsContext.create("alice") as alice_mls, \
         frame = gtp_alice.send(alice, alice_mls, target=2,
                                 message_id=0xCAFE_F00D, text="hello")
         for ev in bob.on_wire(bob_mls, frame.wire):
-            if ev.kind == "payload_received" and ev.stream_type == 2:
-                print(gtp_bob.accept(ev.plaintext).text)
+            if ev.kind == "payload_received" and ev.stream_type == 2:  # StreamType.Text
+                result = gtp_bob.accept(ev.plaintext, bob_mls.epoch)
+                print(result.text)   # → "hello"
+                # result.status is "new" (first message from this sender)
+                # subsequent messages → "new"; duplicates → "duplicate"
+```
+
+## GSP signals with per-signal arguments
+
+Signals that target a specific member or resource require CBOR-encoded `args`.
+The `send` method accepts an optional `args: bytes` keyword argument.
+
+```python
+import struct
+from gbp_stack import GspClient, SignalType
+
+# Minimal CBOR helpers
+def cbor_uint(n: int) -> bytes:
+    if n <= 23:     return bytes([n])
+    if n <= 0xFF:   return bytes([0x18, n])
+    if n <= 0xFFFF: return bytes([0x19, n >> 8, n & 0xFF])
+    return bytes([0x1A, (n>>24)&0xFF, (n>>16)&0xFF, (n>>8)&0xFF, n&0xFF])
+
+def cbor_map1(k: int, v: int) -> bytes:
+    return bytes([0xA1]) + cbor_uint(k) + cbor_uint(v)
+
+def cbor_map2(k0: int, v0: int, k1: int, v1: int) -> bytes:
+    return bytes([0xA2]) + cbor_uint(k0) + cbor_uint(v0) + cbor_uint(k1) + cbor_uint(v1)
+
+# Signal-specific args schemas:
+#   MUTE / UNMUTE  → {0: target_member_id}
+#   ROLE_CHANGE    → {0: target_member_id, 1: new_role_id}
+#   STREAM_START / STREAM_STOP → {0: stream_type}
+#   CODEC_UPDATE   → {0: codec_id}
+#   JOIN / LEAVE   → no args required
+
+with GspClient.create() as gsp_alice:
+    # Mute member 3 (no role_claim needed for self-moderation)
+    frame = gsp_alice.send(
+        alice_node, alice_mls,
+        target=0,  # 0 = broadcast
+        signal=SignalType.MUTE,
+        role_claim=0,
+        request_id=1,
+        args=cbor_map1(0, 3),  # {0: target_member_id=3}
+    )
+```
+
+## MLS multi-member group pattern
+
+When inviting a member to an **existing** group (not the first invite), use
+`invite_full` so that existing members can process the commit:
+
+```python
+# Alice adds Carol to an alice+bob group
+commit, welcome = alice_mls.invite_full(carol_mls.export_key_package())
+alice_mls.finalize_commit()          # alice's epoch advances
+bob_mls.process_message(commit)      # bob stages the commit
+bob_mls.finalize_commit()            # bob's epoch advances to match alice
+carol_mls.accept_welcome(welcome)    # carol joins
+assert alice_mls.epoch == bob_mls.epoch == carol_mls.epoch
 ```
 
 ## License

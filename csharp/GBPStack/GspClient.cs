@@ -1,5 +1,3 @@
-using System;
-
 namespace GBPStack;
 
 /// <summary>
@@ -21,11 +19,19 @@ public sealed class GspClient : IDisposable
 
     private GspClient(int h) => Handle = h;
 
-    /// <summary>Sends a signal.</summary>
+    /// <summary>Sends a signal without signal-specific args.</summary>
     public OutboundFrame Send(GroupNode node, MlsContext mls, uint target, SignalType signal, uint roleClaim, uint requestId)
     {
         var buf = Native.gsp_client_send(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId);
         return GroupNode.Unpack(buf, "gsp_client_send");
+    }
+
+    /// <summary>Sends a signal with CBOR-encoded signal-specific args.</summary>
+    public OutboundFrame SendWithArgs(GroupNode node, MlsContext mls, uint target, SignalType signal, uint roleClaim, uint requestId, byte[] args)
+    {
+        var buf = Native.WithBytes(args, (p, l) =>
+            Native.gsp_client_send_with_args(Handle, node.Handle, mls.Handle, target, (uint)signal, roleClaim, requestId, p, l));
+        return GroupNode.Unpack(buf, "gsp_client_send_with_args");
     }
 
     /// <summary>

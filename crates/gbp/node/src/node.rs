@@ -22,9 +22,7 @@
 use gbp::{CodecError, ControlMessage, ErrorObject, GbpFrame};
 use gbp_core::{
     ControlOpcode, ErrorClass, GbpFlags, GroupId, MemberId, NodeState, SequenceNo, StreamId,
-    StreamType, TransitionId, TransitionState, codes,
-    errors::ErrorSpec,
-    timeouts,
+    StreamType, TransitionId, TransitionState, codes, errors::ErrorSpec, timeouts,
 };
 use gbp_mls::{MlsError, label_for};
 use std::collections::HashMap;
@@ -233,7 +231,11 @@ impl GroupNode {
     /// This is used so that the receiver's replay window does not conflate
     /// streams that originate from different members.
     pub fn member_stream_id(&self, base: u32) -> StreamId {
-        debug_assert!(self.member_id < 1_000_000, "member_id overflow: {0}", self.member_id);
+        debug_assert!(
+            self.member_id < 1_000_000,
+            "member_id overflow: {0}",
+            self.member_id
+        );
         base + self.member_id * 100
     }
 
@@ -263,7 +265,10 @@ impl GroupNode {
             seq,
             ciphertext,
         );
-        Ok(OutboundFrame { to: target, wire: frame.to_cbor() })
+        Ok(OutboundFrame {
+            to: target,
+            wire: frame.to_cbor(),
+        })
     }
 
     /// Sends a control plane message on Stream 0. Wrapper around
@@ -326,7 +331,14 @@ impl GroupNode {
             _ => {}
         }
         let stream_id = self.member_stream_id(0);
-        self.send_payload(seal, target, StreamType::Control, stream_id, flags, &ctl.to_cbor())
+        self.send_payload(
+            seal,
+            target,
+            StreamType::Control,
+            stream_id,
+            flags,
+            &ctl.to_cbor(),
+        )
     }
 
     /// Feeds wire bytes to the node.
@@ -402,7 +414,10 @@ impl GroupNode {
         {
             self.emit_err_spec(
                 codes::TRANSITION_MISMATCH,
-                format!("got tid={}, expected {}", frame.transition_id, self.last_transition_id),
+                format!(
+                    "got tid={}, expected {}",
+                    frame.transition_id, self.last_transition_id
+                ),
             );
             return Ok(());
         }
@@ -433,8 +448,8 @@ impl GroupNode {
                 self.emit_err_named(
                     codes::DECRYPT_FAILED,
                     ErrorClass::Crypto,
-                    true,   // retryable: caller may resync via digest
-                    false,  // non-fatal
+                    true,  // retryable: caller may resync via digest
+                    false, // non-fatal
                     format!("aead open: {e}"),
                 );
                 return Ok(());
@@ -483,8 +498,7 @@ impl GroupNode {
             ControlOpcode::ReadyForTransition
             | ControlOpcode::ExecuteTransition
             | ControlOpcode::AbortTransition => {
-                self.pending_transition_id != 0
-                    && c.transition_id == self.pending_transition_id
+                self.pending_transition_id != 0 && c.transition_id == self.pending_transition_id
             }
             // Digest / capability / ack / nack: tid is informational, no
             // ordering constraint at the GBP layer.
@@ -564,7 +578,9 @@ impl GroupNode {
                     if self.is_coordinator && c.sender_id < self.member_id {
                         self.is_coordinator = false;
                     }
-                    self.events.push(Event::CoordinatorClaim { claimant: c.sender_id });
+                    self.events.push(Event::CoordinatorClaim {
+                        claimant: c.sender_id,
+                    });
                 }
             }
             _ => {}
@@ -628,7 +644,10 @@ impl GroupNode {
         }) {
             self.coordinator_last_seen = None;
             self.is_coordinator = false;
-            self.emit_err_spec(codes::COORDINATOR_GONE, "coordinator silence exceeded T_coordinator_grace");
+            self.emit_err_spec(
+                codes::COORDINATOR_GONE,
+                "coordinator silence exceeded T_coordinator_grace",
+            );
             self.events.push(Event::CoordinatorElectionNeeded);
         }
 
@@ -665,8 +684,14 @@ impl GroupNode {
         self.is_coordinator = true;
         self.coordinator_last_seen = Some(Instant::now());
         self.events.push(Event::BecameCoordinator);
-        self.send_control(seal, target, ControlOpcode::CapabilitiesAdvertise,
-                          self.last_transition_id, 0, args)
+        self.send_control(
+            seal,
+            target,
+            ControlOpcode::CapabilitiesAdvertise,
+            self.last_transition_id,
+            0,
+            args,
+        )
     }
 
     /// Returns `true` if the raw args bytes of a `CAPABILITIES_ADVERTISE`
@@ -691,7 +716,10 @@ impl GroupNode {
         if !self.state.can_transition_to(next) {
             let from = self.state;
             self.state = NodeState::Failed;
-            self.events.push(Event::StateChanged { from, to: NodeState::Failed });
+            self.events.push(Event::StateChanged {
+                from,
+                to: NodeState::Failed,
+            });
             return;
         }
         let from = self.state;
@@ -706,7 +734,10 @@ impl GroupNode {
         ) {
             Ok(())
         } else {
-            Err(NodeError::InvalidState(format!("cannot send in state {}", self.state)))
+            Err(NodeError::InvalidState(format!(
+                "cannot send in state {}",
+                self.state
+            )))
         }
     }
 
@@ -741,11 +772,20 @@ impl GroupNode {
             (class, retryable, fatal)
         };
         let _ = ErrorObject::new(code, class, retryable, fatal, reason.clone()).to_cbor();
-        self.events.push(Event::Error { code, class, retryable, fatal, reason });
+        self.events.push(Event::Error {
+            code,
+            class,
+            retryable,
+            fatal,
+            reason,
+        });
         if fatal {
             let from = self.state;
             self.state = NodeState::Failed;
-            self.events.push(Event::StateChanged { from, to: NodeState::Failed });
+            self.events.push(Event::StateChanged {
+                from,
+                to: NodeState::Failed,
+            });
         }
     }
 }
@@ -777,10 +817,20 @@ mod tests {
 
     struct PlainSealer;
     impl Sealer for PlainSealer {
-        fn seal(&mut self, _st: StreamType, _seq: SequenceNo, pt: &[u8]) -> Result<Vec<u8>, MlsError> {
+        fn seal(
+            &mut self,
+            _st: StreamType,
+            _seq: SequenceNo,
+            pt: &[u8],
+        ) -> Result<Vec<u8>, MlsError> {
             Ok(pt.to_vec())
         }
-        fn open(&mut self, _st: StreamType, _seq: SequenceNo, ct: &[u8]) -> Result<Vec<u8>, MlsError> {
+        fn open(
+            &mut self,
+            _st: StreamType,
+            _seq: SequenceNo,
+            ct: &[u8],
+        ) -> Result<Vec<u8>, MlsError> {
             Ok(ct.to_vec())
         }
     }
@@ -800,12 +850,23 @@ mod tests {
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
         let f = alice
-            .send_payload(&mut s, 2, StreamType::Text, sid, GbpFlags::ordered_reliable_ack(), b"hi")
+            .send_payload(
+                &mut s,
+                2,
+                StreamType::Text,
+                sid,
+                GbpFlags::ordered_reliable_ack(),
+                b"hi",
+            )
             .unwrap();
         let _ = bob.on_wire(&mut s, &f.wire).unwrap();
         let evs = bob.on_wire(&mut s, &f.wire).unwrap();
         assert!(evs.iter().any(|e| matches!(
-            e, Event::Error { code: codes::REPLAY_DETECTED, .. }
+            e,
+            Event::Error {
+                code: codes::REPLAY_DETECTED,
+                ..
+            }
         )));
     }
 
@@ -819,7 +880,14 @@ mod tests {
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
         let f = alice
-            .send_payload(&mut s, 2, StreamType::Text, sid, GbpFlags::ordered_reliable_ack(), b"x")
+            .send_payload(
+                &mut s,
+                2,
+                StreamType::Text,
+                sid,
+                GbpFlags::ordered_reliable_ack(),
+                b"x",
+            )
             .unwrap();
         let _ = bob.on_wire(&mut s, &f.wire).unwrap();
         assert_eq!(bob.state, NodeState::Resyncing);
@@ -834,13 +902,23 @@ mod tests {
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
         let f = alice
-            .send_payload(&mut s, 2, StreamType::Text, sid, GbpFlags::ordered_reliable_ack(), b"payload")
+            .send_payload(
+                &mut s,
+                2,
+                StreamType::Text,
+                sid,
+                GbpFlags::ordered_reliable_ack(),
+                b"payload",
+            )
             .unwrap();
         let evs = bob.on_wire(&mut s, &f.wire).unwrap();
-        let pr = evs.into_iter().find_map(|e| match e {
-            Event::PayloadReceived(p) => Some(p),
-            _ => None,
-        }).expect("payload");
+        let pr = evs
+            .into_iter()
+            .find_map(|e| match e {
+                Event::PayloadReceived(p) => Some(p),
+                _ => None,
+            })
+            .expect("payload");
         assert_eq!(pr.stream_type, StreamType::Text);
         assert_eq!(pr.plaintext, b"payload");
     }
@@ -848,17 +926,27 @@ mod tests {
     // ---- Control-plane handshake -----------------------------------------
 
     fn drain_errs(events: &[Event]) -> Vec<u16> {
-        events.iter().filter_map(|e| match e {
-            Event::Error { code, .. } => Some(*code),
-            _ => None,
-        }).collect()
+        events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Error { code, .. } => Some(*code),
+                _ => None,
+            })
+            .collect()
     }
 
     fn drain_controls(events: &[Event]) -> Vec<(ControlOpcode, TransitionId)> {
-        events.iter().filter_map(|e| match e {
-            Event::Control { opcode, transition_id, .. } => Some((*opcode, *transition_id)),
-            _ => None,
-        }).collect()
+        events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Control {
+                    opcode,
+                    transition_id,
+                    ..
+                } => Some((*opcode, *transition_id)),
+                _ => None,
+            })
+            .collect()
     }
 
     #[test]
@@ -869,12 +957,25 @@ mod tests {
         peer.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
         // Coordinator sends PREPARE for tid=1
-        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 100, b"commit-blob".to_vec()).unwrap();
+        let f = coord
+            .send_control(
+                &mut s,
+                0,
+                ControlOpcode::PrepareTransition,
+                1,
+                100,
+                b"commit-blob".to_vec(),
+            )
+            .unwrap();
         assert_eq!(coord.pending_transition_id, 1, "sender mirrors pending");
         assert_eq!(coord.transition_state, TransitionState::TPrepared);
         let evs = peer.on_wire(&mut s, &f.wire).unwrap();
         assert_eq!(peer.pending_transition_id, 1, "receiver records pending");
-        assert!(drain_errs(&evs).is_empty(), "no error: {:?}", drain_errs(&evs));
+        assert!(
+            drain_errs(&evs).is_empty(),
+            "no error: {:?}",
+            drain_errs(&evs)
+        );
         let ctls = drain_controls(&evs);
         assert_eq!(ctls, vec![(ControlOpcode::PrepareTransition, 1)]);
     }
@@ -886,10 +987,14 @@ mod tests {
         coord.bootstrap_as_creator(0);
         peer.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
-        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let f = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         peer.on_wire(&mut s, &f.wire).unwrap();
         // Peer fakes a READY for the wrong tid
-        let bogus = peer.send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 7, 1, vec![]).unwrap();
+        let bogus = peer
+            .send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 7, 1, vec![])
+            .unwrap();
         let evs = coord.on_wire(&mut s, &bogus.wire).unwrap();
         let errs = drain_errs(&evs);
         assert!(errs.contains(&codes::TRANSITION_MISMATCH), "got {:?}", errs);
@@ -902,10 +1007,14 @@ mod tests {
         coord.bootstrap_as_creator(0);
         peer.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
-        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let prep = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         peer.on_wire(&mut s, &prep.wire).unwrap();
         // Coordinator broadcasts EXECUTE; both sides apply (coord locally, peer via on_wire)
-        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        let exec = coord
+            .send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![])
+            .unwrap();
         coord.apply_transition(1);
         let evs = peer.on_wire(&mut s, &exec.wire).unwrap();
         assert_eq!(coord.last_transition_id, 1);
@@ -913,7 +1022,13 @@ mod tests {
         assert_eq!(peer.last_transition_id, 1);
         assert_eq!(peer.current_epoch, 1);
         assert_eq!(peer.pending_transition_id, 0);
-        assert!(evs.iter().any(|e| matches!(e, Event::EpochAdvanced { transition_id: 1, .. })));
+        assert!(evs.iter().any(|e| matches!(
+            e,
+            Event::EpochAdvanced {
+                transition_id: 1,
+                ..
+            }
+        )));
     }
 
     #[test]
@@ -923,9 +1038,13 @@ mod tests {
         coord.bootstrap_as_creator(0);
         peer.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
-        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let prep = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         peer.on_wire(&mut s, &prep.wire).unwrap();
-        let abort = coord.send_control(&mut s, 0, ControlOpcode::AbortTransition, 1, 2, vec![]).unwrap();
+        let abort = coord
+            .send_control(&mut s, 0, ControlOpcode::AbortTransition, 1, 2, vec![])
+            .unwrap();
         peer.on_wire(&mut s, &abort.wire).unwrap();
         assert_eq!(peer.pending_transition_id, 0);
         assert_eq!(peer.current_epoch, 0);
@@ -943,12 +1062,20 @@ mod tests {
         assert_eq!(joiner.pending_transition_id, 1);
         let mut s = PlainSealer;
         // Coordinator must mirror its pending too — simulate by sending PREPARE
-        let _ = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let _ = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         // EXECUTE should be accepted by the joiner without ever seeing PREPARE
-        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        let exec = coord
+            .send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![])
+            .unwrap();
         let evs = joiner.on_wire(&mut s, &exec.wire).unwrap();
         let errs = drain_errs(&evs);
-        assert!(errs.is_empty(), "expected clean apply, got errors {:?}", errs);
+        assert!(
+            errs.is_empty(),
+            "expected clean apply, got errors {:?}",
+            errs
+        );
         assert_eq!(joiner.last_transition_id, 1);
         assert_eq!(joiner.current_epoch, 1);
     }
@@ -973,7 +1100,10 @@ mod tests {
         member.bootstrap_as_joiner(0, 0);
         member.coordinator_last_seen = Some(Instant::now() - Duration::from_millis(11_000));
         let evs = member.check_timeouts();
-        assert!(evs.iter().any(|e| matches!(e, Event::CoordinatorElectionNeeded)));
+        assert!(
+            evs.iter()
+                .any(|e| matches!(e, Event::CoordinatorElectionNeeded))
+        );
         assert!(!member.is_coordinator, "flag cleared on silence");
     }
 
@@ -988,8 +1118,14 @@ mod tests {
         let f = coord.claim_coordinator(&mut s, 2).unwrap();
         // on_wire already drains events — use the returned vec.
         let evs = member.on_wire(&mut s, &f.wire).unwrap();
-        assert!(member.coordinator_last_seen.is_some(), "silence timer reset");
-        assert!(evs.iter().any(|e| matches!(e, Event::CoordinatorClaim { claimant: 1 })));
+        assert!(
+            member.coordinator_last_seen.is_some(),
+            "silence timer reset"
+        );
+        assert!(
+            evs.iter()
+                .any(|e| matches!(e, Event::CoordinatorClaim { claimant: 1 }))
+        );
     }
 
     #[test]
@@ -1034,14 +1170,36 @@ mod tests {
         // Build a PREPARE from member 1 (lower id).
         let mut sender1 = GroupNode::new(1, group_id());
         sender1.bootstrap_as_creator(0);
-        let f1 = sender1.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 1, b"commit-A".to_vec()).unwrap();
+        let f1 = sender1
+            .send_control(
+                &mut s,
+                10,
+                ControlOpcode::PrepareTransition,
+                1,
+                1,
+                b"commit-A".to_vec(),
+            )
+            .unwrap();
         node.on_wire(&mut s, &f1.wire).unwrap();
-        assert_eq!(node.pending_commit_sender, Some(1), "member 1 is initial winner");
+        assert_eq!(
+            node.pending_commit_sender,
+            Some(1),
+            "member 1 is initial winner"
+        );
 
         // Build a PREPARE from member 3 (higher id, same tid).
         let mut sender3 = GroupNode::new(3, group_id());
         sender3.bootstrap_as_creator(0);
-        let f3 = sender3.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 2, b"commit-B".to_vec()).unwrap();
+        let f3 = sender3
+            .send_control(
+                &mut s,
+                10,
+                ControlOpcode::PrepareTransition,
+                1,
+                2,
+                b"commit-B".to_vec(),
+            )
+            .unwrap();
         node.on_wire(&mut s, &f3.wire).unwrap();
         // Lower sender (1) keeps the win.
         assert_eq!(node.pending_commit_sender, Some(1), "member 1 still wins");
@@ -1057,15 +1215,37 @@ mod tests {
 
         let mut sender5 = GroupNode::new(5, group_id());
         sender5.bootstrap_as_creator(0);
-        let f5 = sender5.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 1, b"commit-X".to_vec()).unwrap();
+        let f5 = sender5
+            .send_control(
+                &mut s,
+                10,
+                ControlOpcode::PrepareTransition,
+                1,
+                1,
+                b"commit-X".to_vec(),
+            )
+            .unwrap();
         node.on_wire(&mut s, &f5.wire).unwrap();
         assert_eq!(node.pending_commit_sender, Some(5));
 
         let mut sender2 = GroupNode::new(2, group_id());
         sender2.bootstrap_as_creator(0);
-        let f2 = sender2.send_control(&mut s, 10, ControlOpcode::PrepareTransition, 1, 2, b"commit-Y".to_vec()).unwrap();
+        let f2 = sender2
+            .send_control(
+                &mut s,
+                10,
+                ControlOpcode::PrepareTransition,
+                1,
+                2,
+                b"commit-Y".to_vec(),
+            )
+            .unwrap();
         node.on_wire(&mut s, &f2.wire).unwrap();
-        assert_eq!(node.pending_commit_sender, Some(2), "member 2 displaces member 5");
+        assert_eq!(
+            node.pending_commit_sender,
+            Some(2),
+            "member 2 displaces member 5"
+        );
     }
 
     #[test]
@@ -1073,7 +1253,9 @@ mod tests {
         let mut coord = GroupNode::new(1, group_id());
         coord.bootstrap_as_creator(0);
         let mut s = PlainSealer;
-        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         coord.apply_transition(1);
         assert_eq!(coord.pending_commit_sender, None);
     }
@@ -1085,13 +1267,28 @@ mod tests {
         let mut coord = GroupNode::new(1, group_id());
         coord.bootstrap_as_creator(0);
         let mut s = PlainSealer;
-        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         // Manually backdate the deadline so it appears expired.
         coord.prepare_deadline = Some(Instant::now() - Duration::from_millis(1));
         let evs = coord.check_timeouts();
-        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::PREPARE_TIMEOUT, .. })),
-            "expected PREPARE_TIMEOUT, got {:?}", evs);
-        assert_eq!(coord.transition_state, TransitionState::TAborted, "transition aborted");
+        assert!(
+            evs.iter().any(|e| matches!(
+                e,
+                Event::Error {
+                    code: codes::PREPARE_TIMEOUT,
+                    ..
+                }
+            )),
+            "expected PREPARE_TIMEOUT, got {:?}",
+            evs
+        );
+        assert_eq!(
+            coord.transition_state,
+            TransitionState::TAborted,
+            "transition aborted"
+        );
         assert_eq!(coord.prepare_deadline, None, "deadline cleared");
     }
 
@@ -1103,12 +1300,23 @@ mod tests {
         // Simulate READY sent → execute_deadline armed.
         member.pending_transition_id = 1;
         member.transition_state = TransitionState::TPrepared;
-        member.send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 1, 1, vec![]).unwrap();
+        member
+            .send_control(&mut s, 1, ControlOpcode::ReadyForTransition, 1, 1, vec![])
+            .unwrap();
         // Backdate.
         member.execute_deadline = Some(Instant::now() - Duration::from_millis(1));
         let evs = member.check_timeouts();
-        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::EXECUTE_TIMEOUT, .. })),
-            "expected EXECUTE_TIMEOUT, got {:?}", evs);
+        assert!(
+            evs.iter().any(|e| matches!(
+                e,
+                Event::Error {
+                    code: codes::EXECUTE_TIMEOUT,
+                    ..
+                }
+            )),
+            "expected EXECUTE_TIMEOUT, got {:?}",
+            evs
+        );
         assert_eq!(member.execute_deadline, None, "deadline cleared");
     }
 
@@ -1119,8 +1327,17 @@ mod tests {
         // Simulate coordinator was seen 11 seconds ago (> T_COORDINATOR_GRACE_MS = 10_000).
         member.coordinator_last_seen = Some(Instant::now() - Duration::from_millis(11_000));
         let evs = member.check_timeouts();
-        assert!(evs.iter().any(|e| matches!(e, Event::Error { code: codes::COORDINATOR_GONE, .. })),
-            "expected COORDINATOR_GONE, got {:?}", evs);
+        assert!(
+            evs.iter().any(|e| matches!(
+                e,
+                Event::Error {
+                    code: codes::COORDINATOR_GONE,
+                    ..
+                }
+            )),
+            "expected COORDINATOR_GONE, got {:?}",
+            evs
+        );
         assert_eq!(member.coordinator_last_seen, None, "timer cleared");
     }
 
@@ -1133,8 +1350,16 @@ mod tests {
         // Reset.
         member.note_coordinator_activity();
         let evs = member.check_timeouts();
-        assert!(!evs.iter().any(|e| matches!(e, Event::Error { code: codes::COORDINATOR_GONE, .. })),
-            "should NOT fire after reset");
+        assert!(
+            !evs.iter().any(|e| matches!(
+                e,
+                Event::Error {
+                    code: codes::COORDINATOR_GONE,
+                    ..
+                }
+            )),
+            "should NOT fire after reset"
+        );
     }
 
     #[test]
@@ -1142,11 +1367,18 @@ mod tests {
         let mut coord = GroupNode::new(1, group_id());
         coord.bootstrap_as_creator(0);
         let mut s = PlainSealer;
-        coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         assert!(coord.prepare_deadline.is_some(), "deadline armed");
-        coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        coord
+            .send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![])
+            .unwrap();
         assert_eq!(coord.prepare_deadline, None, "deadline cleared on EXECUTE");
-        assert_eq!(coord.execute_deadline, None, "execute_deadline also cleared");
+        assert_eq!(
+            coord.execute_deadline, None,
+            "execute_deadline also cleared"
+        );
     }
 
     #[test]
@@ -1156,9 +1388,14 @@ mod tests {
         coord.bootstrap_as_creator(0);
         member.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
-        let f = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let f = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         member.on_wire(&mut s, &f.wire).unwrap();
-        assert!(member.execute_deadline.is_some(), "execute_deadline armed on receiving PREPARE");
+        assert!(
+            member.execute_deadline.is_some(),
+            "execute_deadline armed on receiving PREPARE"
+        );
     }
 
     #[test]
@@ -1168,9 +1405,13 @@ mod tests {
         coord.bootstrap_as_creator(0);
         member.bootstrap_as_joiner(0, 0);
         let mut s = PlainSealer;
-        let prep = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let prep = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         member.on_wire(&mut s, &prep.wire).unwrap();
-        let exec = coord.send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![]).unwrap();
+        let exec = coord
+            .send_control(&mut s, 0, ControlOpcode::ExecuteTransition, 1, 2, vec![])
+            .unwrap();
         member.on_wire(&mut s, &exec.wire).unwrap();
         assert_eq!(member.execute_deadline, None, "cleared on EXECUTE");
     }
@@ -1191,7 +1432,9 @@ mod tests {
         let mut coord = GroupNode::new(1, group_id());
         coord.bootstrap_as_creator(0);
         let mut s = PlainSealer;
-        let _ = coord.send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![]).unwrap();
+        let _ = coord
+            .send_control(&mut s, 0, ControlOpcode::PrepareTransition, 1, 1, vec![])
+            .unwrap();
         coord.apply_transition(1);
         assert_eq!(coord.last_transition_id, 1);
         assert_eq!(coord.pending_transition_id, 0);
@@ -1200,10 +1443,16 @@ mod tests {
         // post-apply epoch).
         let mut peer = GroupNode::new(2, group_id());
         peer.bootstrap_as_joiner(coord.current_epoch, 0);
-        let stale = peer.send_control(&mut s, 1, ControlOpcode::PrepareTransition, 1, 9, vec![]).unwrap();
+        let stale = peer
+            .send_control(&mut s, 1, ControlOpcode::PrepareTransition, 1, 9, vec![])
+            .unwrap();
         let evs = coord.on_wire(&mut s, &stale.wire).unwrap();
         let errs = drain_errs(&evs);
-        assert!(errs.contains(&codes::TRANSITION_MISMATCH), "expected TRANSITION_MISMATCH, got {:?}", errs);
+        assert!(
+            errs.contains(&codes::TRANSITION_MISMATCH),
+            "expected TRANSITION_MISMATCH, got {:?}",
+            errs
+        );
     }
 
     #[test]
@@ -1211,8 +1460,22 @@ mod tests {
         // Simulate a frame our open() can't unlock: a sealer that fails on `open`.
         struct OpenFailSealer;
         impl Sealer for OpenFailSealer {
-            fn seal(&mut self, _: StreamType, _: SequenceNo, p: &[u8]) -> Result<Vec<u8>, MlsError> { Ok(p.to_vec()) }
-            fn open(&mut self, _: StreamType, _: SequenceNo, _: &[u8]) -> Result<Vec<u8>, MlsError> { Err(MlsError::Aead("simulated".into())) }
+            fn seal(
+                &mut self,
+                _: StreamType,
+                _: SequenceNo,
+                p: &[u8],
+            ) -> Result<Vec<u8>, MlsError> {
+                Ok(p.to_vec())
+            }
+            fn open(
+                &mut self,
+                _: StreamType,
+                _: SequenceNo,
+                _: &[u8],
+            ) -> Result<Vec<u8>, MlsError> {
+                Err(MlsError::Aead("simulated".into()))
+            }
         }
         let mut alice = GroupNode::new(1, group_id());
         let mut bob = GroupNode::new(2, group_id());
@@ -1220,13 +1483,30 @@ mod tests {
         bob.bootstrap_as_joiner(1, 0);
         let mut s = PlainSealer;
         let sid = alice.member_stream_id(2);
-        let f = alice.send_payload(&mut s, 2, StreamType::Text, sid, GbpFlags::ordered_reliable_ack(), b"x").unwrap();
+        let f = alice
+            .send_payload(
+                &mut s,
+                2,
+                StreamType::Text,
+                sid,
+                GbpFlags::ordered_reliable_ack(),
+                b"x",
+            )
+            .unwrap();
         let mut fail = OpenFailSealer;
         let evs = bob.on_wire(&mut fail, &f.wire).unwrap();
-        let err = evs.iter().find_map(|e| match e {
-            Event::Error { code, fatal, retryable, .. } => Some((*code, *fatal, *retryable)),
-            _ => None,
-        }).expect("error event");
+        let err = evs
+            .iter()
+            .find_map(|e| match e {
+                Event::Error {
+                    code,
+                    fatal,
+                    retryable,
+                    ..
+                } => Some((*code, *fatal, *retryable)),
+                _ => None,
+            })
+            .expect("error event");
         assert_eq!(err.0, codes::DECRYPT_FAILED);
         assert!(!err.1, "must be non-fatal");
         assert!(err.2, "must be retryable");

@@ -105,6 +105,44 @@ table GSPSignal {
 root_type GSPSignal;
 ```
 
+### 9.4 CBOR-схемы аргументов по типу сигнала
+
+Реализации MUST валидировать поле `args` в соответствии со следующими
+схемами. Сигналы без аргументов MUST передаваться с пустым `args`
+(`args_length = 0`). Сигналы с обязательной схемой MUST NOT приниматься при
+пустом `args` или несоответствии схеме — получатель MUST вернуть
+`ERR_GSP_BAD_SCHEMA`.
+
+| Тип сигнала | Код | Схема CBOR `args` | Ключи |
+|------------|-----|-------------------|-------|
+| JOIN | 100 | *(пусто)* | — |
+| LEAVE | 101 | *(пусто)* | — |
+| ROLE_CHANGE | 102 | `{0: target_member_id, 1: new_role_id}` | 0=uint цель, 1=uint роль |
+| MUTE | 200 | `{0: target_member_id}` | 0=uint цель |
+| UNMUTE | 201 | `{0: target_member_id}` | 0=uint цель |
+| STREAM_START | 300 | `{0: stream_type}` | 0=uint тип потока |
+| STREAM_STOP | 301 | `{0: stream_type}` | 0=uint тип потока |
+| CODEC_UPDATE | 400 | `{0: codec_id}` | 0=uint идентификатор кодека |
+
+Все ключи карты — CBOR unsigned integer (major type 0). Значения — unsigned
+integer. Формат CBOR карты MUST быть definite-length.
+
+Пример — MUTE для участника 3 (CBOR hex: `A1 00 03`):
+```
+A1       -- map(1)
+   00    -- ключ: 0 (target_member_id)
+   03    -- значение: 3
+```
+
+Пример — ROLE_CHANGE для участника 5, новая роль 2 (CBOR hex: `A2 00 05 01 02`):
+```
+A2       -- map(2)
+   00    -- ключ: 0 (target_member_id)
+   05    -- значение: 5
+   01    -- ключ: 1 (new_role_id)
+   02    -- значение: 2
+```
+
 ## 10.  IANA Considerations
 Расширяемость определяется реестром GBP.
 

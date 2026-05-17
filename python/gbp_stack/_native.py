@@ -153,6 +153,11 @@ gsp_client_send = _bind(
     GbpBuffer,
     [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32],
 )
+gsp_client_send_with_args = _bind(
+    "gsp_client_send_with_args",
+    GbpBuffer,
+    [c_int32, c_int32, c_int32, c_uint32, c_uint32, c_uint32, c_uint32, c_void_p, c_size_t],
+)
 gsp_client_accept = _bind("gsp_client_accept", c_void_p, [c_int32, c_uint64, c_void_p, c_size_t])
 
 # ── SFrame ────────────────────────────────────────────────────────────────────

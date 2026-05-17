@@ -36,8 +36,8 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CString, c_char};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::{Arc, Mutex};
 
 // ============================================================================
 // Buffer / string types (FFI memory protocol)
@@ -57,7 +57,11 @@ pub struct GbpBuffer {
 
 impl GbpBuffer {
     fn empty() -> Self {
-        Self { ptr: std::ptr::null_mut(), len: 0, cap: 0 }
+        Self {
+            ptr: std::ptr::null_mut(),
+            len: 0,
+            cap: 0,
+        }
     }
     fn from_vec(mut v: Vec<u8>) -> Self {
         let ptr = v.as_mut_ptr();
@@ -167,7 +171,9 @@ struct MlsBundles {
 }
 impl MlsBundles {
     fn new() -> Self {
-        Self { map: Mutex::new(HashMap::new()) }
+        Self {
+            map: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -532,7 +538,9 @@ pub extern "C" fn gbp_node_destroy(h: i32) {
 /// Drives the node to `ACTIVE` as a creator.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_bootstrap_creator(h: i32, epoch: u64) -> bool {
-    let Some(n_arc) = nodes().get(h) else { return false };
+    let Some(n_arc) = nodes().get(h) else {
+        return false;
+    };
     n_arc.lock().unwrap().bootstrap_as_creator(epoch);
     true
 }
@@ -543,8 +551,13 @@ pub extern "C" fn gbp_node_bootstrap_creator(h: i32, epoch: u64) -> bool {
 /// recovered out-of-band and is already current.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_bootstrap_joiner(h: i32, epoch: u64, expected_first_tid: u32) -> bool {
-    let Some(n_arc) = nodes().get(h) else { return false };
-    n_arc.lock().unwrap().bootstrap_as_joiner(epoch, expected_first_tid);
+    let Some(n_arc) = nodes().get(h) else {
+        return false;
+    };
+    n_arc
+        .lock()
+        .unwrap()
+        .bootstrap_as_joiner(epoch, expected_first_tid);
     true
 }
 
@@ -560,7 +573,10 @@ pub extern "C" fn gbp_node_state(h: i32) -> u32 {
 /// Returns the node's current epoch.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_epoch(h: i32) -> u64 {
-    nodes().get(h).map(|n| n.lock().unwrap().current_epoch).unwrap_or(0)
+    nodes()
+        .get(h)
+        .map(|n| n.lock().unwrap().current_epoch)
+        .unwrap_or(0)
 }
 
 /// Returns the node's last applied `transition_id`.
@@ -576,7 +592,9 @@ pub extern "C" fn gbp_node_last_transition_id(h: i32) -> u32 {
 /// peers and `EPOCH_MISMATCH` recovery).
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_set_epoch(h: i32, epoch: u64) -> bool {
-    let Some(n_arc) = nodes().get(h) else { return false };
+    let Some(n_arc) = nodes().get(h) else {
+        return false;
+    };
     n_arc.lock().unwrap().current_epoch = epoch;
     true
 }
@@ -584,7 +602,9 @@ pub extern "C" fn gbp_node_set_epoch(h: i32, epoch: u64) -> bool {
 /// Applies an epoch transition locally.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_node_apply_transition(h: i32, tid: u32) -> bool {
-    let Some(n_arc) = nodes().get(h) else { return false };
+    let Some(n_arc) = nodes().get(h) else {
+        return false;
+    };
     n_arc.lock().unwrap().apply_transition(tid);
     true
 }
@@ -850,7 +870,14 @@ pub unsafe extern "C" fn gap_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut *n, &mut *m, target, media_source_id, rtp_timestamp, opus) {
+    match c.send(
+        &mut *n,
+        &mut *m,
+        target,
+        media_source_id,
+        rtp_timestamp,
+        opus,
+    ) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -970,6 +997,54 @@ pub extern "C" fn gsp_client_send(
     }
 }
 
+/// Sends a GSP signal with opcode-specific CBOR `args` bytes.
+/// Use this for signals that require structured arguments (MUTE, UNMUTE,
+/// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE).
+///
+/// # Safety
+/// `args_ptr` MUST be valid for `args_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gsp_client_send_with_args(
+    ch: i32,
+    nh: i32,
+    mh: i32,
+    target: u32,
+    signal_type: u32,
+    role_claim: u32,
+    request_id: u32,
+    args_ptr: *const u8,
+    args_len: usize,
+) -> GbpBuffer {
+    clear_last_error();
+    let args: &[u8] = if args_len == 0 || args_ptr.is_null() {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(args_ptr, args_len) }
+    };
+    let sig = match SignalType::try_from(signal_type) {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error(format!("bad signal {signal_type}"));
+            return GbpBuffer::empty();
+        }
+    };
+    let (c_arc, n_arc, m_arc) = (gsps().get(ch), nodes().get(nh), mls().get(mh));
+    let (Some(c_arc), Some(n_arc), Some(m_arc)) = (c_arc, n_arc, m_arc) else {
+        set_last_error("bad handle");
+        return GbpBuffer::empty();
+    };
+    let mut c = c_arc.lock().unwrap();
+    let mut n = n_arc.lock().unwrap();
+    let mut m = m_arc.lock().unwrap();
+    match c.send_with_args(&mut *n, &mut *m, target, sig, role_claim, request_id, args) {
+        Ok(of) => outbound_to_buffer(of),
+        Err(e) => {
+            set_last_error(e.to_string());
+            GbpBuffer::empty()
+        }
+    }
+}
+
 /// Accepts a GSP signal payload.
 ///
 /// `current_epoch` is the receiver node's current epoch — the client uses
@@ -1001,13 +1076,27 @@ pub unsafe extern "C" fn gsp_client_accept(
         reason: Option<String>,
     }
     let out = match c.accept(pt, current_epoch) {
-        Ok(GspAccept { signal, sender_id, role_claim, request_id }) => Out {
+        Ok(GspAccept {
+            signal,
+            sender_id,
+            role_claim,
+            request_id,
+        }) => Out {
             status: "new",
             signal: Some(signal.name()),
             signal_code: Some(signal as u32),
             sender: Some(sender_id),
             role_claim: Some(role_claim),
             request_id: Some(request_id),
+            reason: None,
+        },
+        Err(gbp_stack::GspError::DuplicateRequest(rid)) => Out {
+            status: "duplicate",
+            signal: None,
+            signal_code: None,
+            sender: None,
+            role_claim: None,
+            request_id: Some(rid),
             reason: None,
         },
         Err(e) => Out {
@@ -1047,8 +1136,14 @@ pub unsafe extern "C" fn gbp_frame_encode_v(
     clear_last_error();
     let mut gid = [0u8; 16];
     unsafe { std::ptr::copy_nonoverlapping(group_id_16, gid.as_mut_ptr(), 16) };
-    let st_u8 = StreamType::try_from(stream_type).map(|s| s as u8).unwrap_or(stream_type as u8);
-    let payload = unsafe { std::slice::from_raw_parts(payload_ptr, payload_len) }.to_vec();
+    let st_u8 = StreamType::try_from(stream_type)
+        .map(|s| s as u8)
+        .unwrap_or(stream_type as u8);
+    let payload: Vec<u8> = if payload_len == 0 || payload_ptr.is_null() {
+        Vec::new()
+    } else {
+        unsafe { std::slice::from_raw_parts(payload_ptr, payload_len) }.to_vec()
+    };
     let frame = gbp_stack::gbp::GbpFrame {
         version,
         group_id: serde_bytes::ByteBuf::from(gid.to_vec()),
@@ -1180,7 +1275,13 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             flags: *flags,
             plaintext_b64: b64(plaintext),
         },
-        Event::Control { from, opcode, transition_id, request_id, args } => EventDto::Control {
+        Event::Control {
+            from,
+            opcode,
+            transition_id,
+            request_id,
+            args,
+        } => EventDto::Control {
             from: *from,
             opcode: opcode.name(),
             opcode_code: *opcode as u16,
@@ -1188,7 +1289,13 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             request_id: *request_id,
             args_b64: b64(args),
         },
-        Event::Error { code, class, retryable, fatal, reason } => EventDto::Error {
+        Event::Error {
+            code,
+            class,
+            retryable,
+            fatal,
+            reason,
+        } => EventDto::Error {
             code: *code,
             code_hex: format!("0x{code:04X}"),
             class: *class as u8,
@@ -1196,13 +1303,18 @@ fn dto<'a>(e: &'a Event) -> EventDto<'a> {
             fatal: *fatal,
             reason: reason.clone(),
         },
-        Event::EpochAdvanced { epoch, transition_id } => EventDto::EpochAdvanced {
+        Event::EpochAdvanced {
+            epoch,
+            transition_id,
+        } => EventDto::EpochAdvanced {
             epoch: *epoch,
             transition_id: *transition_id,
         },
         Event::CoordinatorElectionNeeded => EventDto::CoordinatorElectionNeeded {},
         Event::BecameCoordinator => EventDto::BecameCoordinator {},
-        Event::CoordinatorClaim { claimant } => EventDto::CoordinatorClaim { claimant: *claimant },
+        Event::CoordinatorClaim { claimant } => EventDto::CoordinatorClaim {
+            claimant: *claimant,
+        },
     }
 }
 
@@ -1260,7 +1372,10 @@ pub unsafe extern "C" fn gbp_sframe_session_create(
     let label = unsafe {
         match std::str::from_utf8(std::slice::from_raw_parts(label_ptr, label_len)) {
             Ok(s) => s,
-            Err(e) => { set_last_error(e); return 0; }
+            Err(e) => {
+                set_last_error(e);
+                return 0;
+            }
         }
     };
     let Some(mls_arc) = mls().get(mls_handle) else {
@@ -1270,7 +1385,10 @@ pub unsafe extern "C" fn gbp_sframe_session_create(
     let mls = mls_arc.lock().unwrap();
     match SFrameSession::from_mls(&mls, label, suite) {
         Ok(session) => sframe_sessions().insert(session.decryptor()),
-        Err(e) => { set_last_error(e); 0 }
+        Err(e) => {
+            set_last_error(e);
+            0
+        }
     }
 }
 
@@ -1310,7 +1428,10 @@ pub unsafe extern "C" fn gbp_sframe_encryptor_create(
     let label = unsafe {
         match std::str::from_utf8(std::slice::from_raw_parts(label_ptr, label_len)) {
             Ok(s) => s,
-            Err(e) => { set_last_error(e); return 0; }
+            Err(e) => {
+                set_last_error(e);
+                return 0;
+            }
         }
     };
     // Verify the session handle exists (keeps the API consistent).
@@ -1325,7 +1446,10 @@ pub unsafe extern "C" fn gbp_sframe_encryptor_create(
     let mls = mls_arc.lock().unwrap();
     match SFrameSession::from_mls(&mls, label, suite) {
         Ok(session) => sframe_encryptors().insert(session.encryptor(leaf_index)),
-        Err(e) => { set_last_error(e); 0 }
+        Err(e) => {
+            set_last_error(e);
+            0
+        }
     }
 }
 
@@ -1369,7 +1493,10 @@ pub unsafe extern "C" fn gbp_sframe_encrypt(
     let mut enc = enc_arc.lock().unwrap();
     match enc.encrypt(plaintext, aad) {
         Ok(payload) => GbpBuffer::from_vec(payload),
-        Err(e) => { set_last_error(e); GbpBuffer::empty() }
+        Err(e) => {
+            set_last_error(e);
+            GbpBuffer::empty()
+        }
     }
 }
 
@@ -1408,11 +1535,16 @@ pub unsafe extern "C" fn gbp_sframe_decrypt(
     match dec.decrypt(payload, aad) {
         Ok((plaintext, leaf)) => {
             if !sender_leaf_out.is_null() {
-                unsafe { *sender_leaf_out = leaf; }
+                unsafe {
+                    *sender_leaf_out = leaf;
+                }
             }
             GbpBuffer::from_vec(plaintext)
         }
-        Err(e) => { set_last_error(e); GbpBuffer::empty() }
+        Err(e) => {
+            set_last_error(e);
+            GbpBuffer::empty()
+        }
     }
 }
 

@@ -171,7 +171,10 @@ pub struct AttachmentAssembler {
 impl AttachmentAssembler {
     /// Creates an assembler for the given manifest.
     pub fn new(manifest: AttachmentManifest) -> Self {
-        Self { manifest, received: HashMap::new() }
+        Self {
+            manifest,
+            received: HashMap::new(),
+        }
     }
 
     /// Returns the manifest.
@@ -197,7 +200,9 @@ impl AttachmentAssembler {
                 count: self.manifest.chunk_count,
             });
         }
-        self.received.entry(chunk.chunk_index).or_insert_with(|| chunk.data.into_vec());
+        self.received
+            .entry(chunk.chunk_index)
+            .or_insert_with(|| chunk.data.into_vec());
         Ok(())
     }
 
@@ -232,7 +237,13 @@ mod tests {
     #[test]
     fn round_trip_small_payload() {
         let data = sample_data(100);
-        let sender = AttachmentSender::new(1, "file.bin", "application/octet-stream", &data, DEFAULT_CHUNK_SIZE);
+        let sender = AttachmentSender::new(
+            1,
+            "file.bin",
+            "application/octet-stream",
+            &data,
+            DEFAULT_CHUNK_SIZE,
+        );
         assert_eq!(sender.manifest.chunk_count, 1);
         let mut asm = AttachmentAssembler::new(sender.manifest);
         for cbor in &sender.chunks {
@@ -275,7 +286,13 @@ mod tests {
     #[test]
     fn duplicate_chunk_ignored() {
         let data = sample_data(100);
-        let sender = AttachmentSender::new(4, "dup.bin", "application/octet-stream", &data, DEFAULT_CHUNK_SIZE);
+        let sender = AttachmentSender::new(
+            4,
+            "dup.bin",
+            "application/octet-stream",
+            &data,
+            DEFAULT_CHUNK_SIZE,
+        );
         let mut asm = AttachmentAssembler::new(sender.manifest);
         let chunk = AttachmentChunk::from_cbor(&sender.chunks[0]).unwrap();
         asm.push(chunk.clone()).unwrap();
@@ -287,7 +304,13 @@ mod tests {
     #[test]
     fn hash_mismatch_detected() {
         let data = sample_data(100);
-        let sender = AttachmentSender::new(5, "bad.bin", "application/octet-stream", &data, DEFAULT_CHUNK_SIZE);
+        let sender = AttachmentSender::new(
+            5,
+            "bad.bin",
+            "application/octet-stream",
+            &data,
+            DEFAULT_CHUNK_SIZE,
+        );
         let mut manifest = sender.manifest;
         // Corrupt the hash.
         manifest.sha256[0] ^= 0xFF;
@@ -305,13 +328,22 @@ mod tests {
         // Feed only the first chunk.
         let chunk = AttachmentChunk::from_cbor(&sender.chunks[0]).unwrap();
         asm.push(chunk).unwrap();
-        assert!(matches!(asm.assemble(), Err(AttachmentError::Incomplete { .. })));
+        assert!(matches!(
+            asm.assemble(),
+            Err(AttachmentError::Incomplete { .. })
+        ));
     }
 
     #[test]
     fn chunk_out_of_range_rejected() {
         let data = sample_data(100);
-        let sender = AttachmentSender::new(7, "oor.bin", "application/octet-stream", &data, DEFAULT_CHUNK_SIZE);
+        let sender = AttachmentSender::new(
+            7,
+            "oor.bin",
+            "application/octet-stream",
+            &data,
+            DEFAULT_CHUNK_SIZE,
+        );
         let mut asm = AttachmentAssembler::new(sender.manifest);
         let bad_chunk = AttachmentChunk {
             attachment_id: 7,
@@ -319,7 +351,10 @@ mod tests {
             chunk_count: 1,
             data: ByteBuf::new(),
         };
-        assert!(matches!(asm.push(bad_chunk), Err(AttachmentError::ChunkOutOfRange { .. })));
+        assert!(matches!(
+            asm.push(bad_chunk),
+            Err(AttachmentError::ChunkOutOfRange { .. })
+        ));
     }
 
     #[test]

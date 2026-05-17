@@ -149,9 +149,11 @@ impl GapClient {
         }
         // Slow path: frame from an older epoch — check the overlap buffer.
         let now = Instant::now();
-        if let Some(old) = self.old_windows.iter_mut().find(|w| {
-            w.epoch == p.key_phase as u64 && w.expires > now
-        }) {
+        if let Some(old) = self
+            .old_windows
+            .iter_mut()
+            .find(|w| w.epoch == p.key_phase as u64 && w.expires > now)
+        {
             let hw = old.in_hw.get(&p.media_source_id).copied().unwrap_or(0);
             if p.rtp_sequence <= hw && hw.wrapping_sub(p.rtp_sequence) <= 0x7FFF {
                 return Ok(GapAccept::Late(p));
@@ -159,7 +161,10 @@ impl GapClient {
             old.in_hw.insert(p.media_source_id, p.rtp_sequence);
             return Ok(GapAccept::New(p));
         }
-        Err(GapError::EpochStale { kp: p.key_phase, expected: current_epoch as u32 })
+        Err(GapError::EpochStale {
+            kp: p.key_phase,
+            expected: current_epoch as u32,
+        })
     }
 
     /// Synchronises the client's view of the group epoch.
@@ -224,7 +229,10 @@ mod tests {
         let _ = client.accept(&make_payload(0xFFFF, 1), 1).unwrap();
         // After wraparound, seq=0 should be accepted as New, not Late.
         let result = client.accept(&make_payload(0x0000, 1), 1).unwrap();
-        assert!(matches!(result, GapAccept::New(_)), "seq=0 after 0xFFFF must be New");
+        assert!(
+            matches!(result, GapAccept::New(_)),
+            "seq=0 after 0xFFFF must be New"
+        );
     }
 
     #[test]
@@ -232,7 +240,10 @@ mod tests {
         let mut client = GapClient::new();
         let _ = client.accept(&make_payload(100, 1), 1).unwrap();
         let result = client.accept(&make_payload(100, 1), 1).unwrap();
-        assert!(matches!(result, GapAccept::Late(_)), "exact dup must be Late");
+        assert!(
+            matches!(result, GapAccept::Late(_)),
+            "exact dup must be Late"
+        );
     }
 
     #[test]
@@ -241,7 +252,10 @@ mod tests {
         let _ = client.accept(&make_payload(1, 1), 1).unwrap();
         // Epoch change: seq 1 was seen in epoch 1, but in epoch 2 it's new again.
         let result = client.accept(&make_payload(1, 2), 2).unwrap();
-        assert!(matches!(result, GapAccept::New(_)), "new epoch resets window");
+        assert!(
+            matches!(result, GapAccept::New(_)),
+            "new epoch resets window"
+        );
     }
 
     // ---- T_overlap buffer (gap_rfc §4) --------------------------------------
@@ -255,7 +269,10 @@ mod tests {
         let _ = client.accept(&make_payload(1, 2), 2).unwrap();
         // A late frame from epoch 1 (seq 6, not seen yet) arrives before T_overlap expires.
         let result = client.accept(&make_payload(6, 1), 2).unwrap();
-        assert!(matches!(result, GapAccept::New(_)), "late epoch-1 frame accepted within T_overlap");
+        assert!(
+            matches!(result, GapAccept::New(_)),
+            "late epoch-1 frame accepted within T_overlap"
+        );
     }
 
     #[test]
@@ -266,7 +283,10 @@ mod tests {
         let _ = client.accept(&make_payload(1, 2), 2).unwrap();
         // Same seq from epoch 1 arrives again — replay → Late.
         let result = client.accept(&make_payload(5, 1), 2).unwrap();
-        assert!(matches!(result, GapAccept::Late(_)), "duplicate from old epoch is Late");
+        assert!(
+            matches!(result, GapAccept::Late(_)),
+            "duplicate from old epoch is Late"
+        );
     }
 
     #[test]
@@ -281,7 +301,10 @@ mod tests {
         }
         // Now a late epoch-1 frame should be rejected.
         let result = client.accept(&make_payload(6, 1), 2);
-        assert!(matches!(result, Err(GapError::EpochStale { .. })), "expired epoch is Stale");
+        assert!(
+            matches!(result, Err(GapError::EpochStale { .. })),
+            "expired epoch is Stale"
+        );
     }
 
     #[test]
@@ -291,6 +314,9 @@ mod tests {
         let _ = client.accept(&make_payload(1, 2), 2).unwrap();
         assert!(!client.old_windows.is_empty(), "overlap buffer populated");
         client.reset();
-        assert!(client.old_windows.is_empty(), "overlap buffer cleared after reset");
+        assert!(
+            client.old_windows.is_empty(),
+            "overlap buffer cleared after reset"
+        );
     }
 }

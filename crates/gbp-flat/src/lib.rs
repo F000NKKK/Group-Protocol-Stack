@@ -217,7 +217,10 @@ mod tests {
 
     #[test]
     fn encoded_bytes_are_nonempty() {
-        let frame = crate::gbp::GbpFrame { version: 1, ..Default::default() };
+        let frame = crate::gbp::GbpFrame {
+            version: 1,
+            ..Default::default()
+        };
         let mut builder = Builder::new();
         let bytes = builder.finish(frame, None).to_vec();
         assert!(!bytes.is_empty());

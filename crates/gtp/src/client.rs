@@ -55,7 +55,10 @@ pub struct GtpClient {
 impl GtpClient {
     /// Creates an empty client.
     pub fn new() -> Self {
-        Self { seen: BoundedSeen::new(GTP_SEEN_CAP), current_epoch: None }
+        Self {
+            seen: BoundedSeen::new(GTP_SEEN_CAP),
+            current_epoch: None,
+        }
     }
 
     /// Sends a text message via the given GBP node and AEAD sealer.
@@ -131,7 +134,10 @@ mod tests {
     fn accept_new_message_returns_new() {
         let mut client = GtpClient::new();
         let payload = encode_msg(1, 100);
-        assert!(matches!(client.accept(&payload, 0).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(
+            client.accept(&payload, 0).unwrap(),
+            GtpAccept::New(_)
+        ));
     }
 
     #[test]

@@ -26,7 +26,12 @@ pub struct GapPayload {
 
 impl GapPayload {
     /// Builds a 20 ms Opus frame at 48 kHz (960 samples).
-    pub fn opus_20ms(media_source_id: u32, rtp_sequence: u16, key_phase: u32, opus: Vec<u8>) -> Self {
+    pub fn opus_20ms(
+        media_source_id: u32,
+        rtp_sequence: u16,
+        key_phase: u32,
+        opus: Vec<u8>,
+    ) -> Self {
         Self {
             media_source_id,
             rtp_sequence: rtp_sequence as u32,

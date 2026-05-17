@@ -1,10 +1,17 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.5.2.0
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11811.120 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "csharp", "csharp", "{B41BF331-FCCB-2ADF-CDB6-767964B34647}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GBPStack", "csharp\GBPStack\GBPStack.csproj", "{27ACD71D-AA4D-801D-6F20-96BA8F56CC9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GBPStack.Tests", "csharp\GBPStack.Tests\GBPStack.Tests.csproj", "{43D273B5-6993-98C7-B02F-1F2BF2065365}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shared", "shared", "{7EBAED50-CC93-4FB4-A149-CB01FF8DE5FF}"
+	ProjectSection(SolutionItems) = preProject
+		csharp\Directory.Build.props = csharp\Directory.Build.props
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,12 +23,17 @@ Global
 		{27ACD71D-AA4D-801D-6F20-96BA8F56CC9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{27ACD71D-AA4D-801D-6F20-96BA8F56CC9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{27ACD71D-AA4D-801D-6F20-96BA8F56CC9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{43D273B5-6993-98C7-B02F-1F2BF2065365}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43D273B5-6993-98C7-B02F-1F2BF2065365}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43D273B5-6993-98C7-B02F-1F2BF2065365}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43D273B5-6993-98C7-B02F-1F2BF2065365}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{27ACD71D-AA4D-801D-6F20-96BA8F56CC9E} = {B41BF331-FCCB-2ADF-CDB6-767964B34647}
+		{43D273B5-6993-98C7-B02F-1F2BF2065365} = {B41BF331-FCCB-2ADF-CDB6-767964B34647}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {86F4AA30-613D-42EB-99A2-65DCEB7B18D0}

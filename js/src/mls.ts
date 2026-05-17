@@ -33,7 +33,7 @@ export class MlsContext {
 
     /** Current group epoch. */
     get epoch(): bigint {
-        return N.gbp_mls_epoch(this.handle) as bigint;
+        return BigInt(N.gbp_mls_epoch(this.handle) as number | bigint);
     }
 
     /** 16-byte group identifier. */

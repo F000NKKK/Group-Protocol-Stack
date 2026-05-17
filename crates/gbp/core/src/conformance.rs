@@ -81,15 +81,30 @@ mod tests {
     #[test]
     fn tokens_are_cumulative() {
         assert_eq!(ConformanceClass::A.tokens(), &["gbp/class-a"]);
-        assert_eq!(ConformanceClass::B.tokens(), &["gbp/class-a", "gbp/class-b"]);
-        assert_eq!(ConformanceClass::C.tokens(), &["gbp/class-a", "gbp/class-b", "gbp/class-c"]);
+        assert_eq!(
+            ConformanceClass::B.tokens(),
+            &["gbp/class-a", "gbp/class-b"]
+        );
+        assert_eq!(
+            ConformanceClass::C.tokens(),
+            &["gbp/class-a", "gbp/class-b", "gbp/class-c"]
+        );
     }
 
     #[test]
     fn from_tokens_detects_class() {
-        assert_eq!(ConformanceClass::from_tokens(["gbp/class-a"]), Some(ConformanceClass::A));
-        assert_eq!(ConformanceClass::from_tokens(["gbp/class-a", "gbp/class-b"]), Some(ConformanceClass::B));
-        assert_eq!(ConformanceClass::from_tokens(["gbp/class-a", "gbp/class-b", "gbp/class-c"]), Some(ConformanceClass::C));
+        assert_eq!(
+            ConformanceClass::from_tokens(["gbp/class-a"]),
+            Some(ConformanceClass::A)
+        );
+        assert_eq!(
+            ConformanceClass::from_tokens(["gbp/class-a", "gbp/class-b"]),
+            Some(ConformanceClass::B)
+        );
+        assert_eq!(
+            ConformanceClass::from_tokens(["gbp/class-a", "gbp/class-b", "gbp/class-c"]),
+            Some(ConformanceClass::C)
+        );
         assert_eq!(ConformanceClass::from_tokens(["something-else"]), None);
     }
 

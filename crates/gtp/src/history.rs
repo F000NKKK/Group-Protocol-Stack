@@ -67,7 +67,10 @@ impl MessageHistory {
 
     /// Returns every message produced **after** the given watermark, in
     /// insertion order. Use this to satisfy a peer's resync request.
-    pub fn since<'a>(&'a self, watermark: &'a Watermark) -> impl Iterator<Item = &'a GtpMessage> + 'a {
+    pub fn since<'a>(
+        &'a self,
+        watermark: &'a Watermark,
+    ) -> impl Iterator<Item = &'a GtpMessage> + 'a {
         self.buffer.iter().filter(move |m| {
             watermark
                 .last_seen

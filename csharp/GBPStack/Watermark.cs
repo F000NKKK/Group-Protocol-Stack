@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace GBPStack;
 
 /// <summary>Per-sender high-water mark of accepted GTP <c>message_id</c>s.</summary>

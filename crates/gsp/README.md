@@ -22,6 +22,25 @@ Per GSP §7:
 * `GspClient` — stateful client that maintains `request_id` deduplication,
   the mute-list, the current membership set and `signal_type` decoding.
 
+## Per-signal `args` schemas
+
+Signals without required args (JOIN, LEAVE) MAY be sent with empty `args`.
+All other signals MUST include a CBOR map in `args`; missing or invalid `args`
+causes the receiver to return `status = "error"`.
+
+| Signal | `args` CBOR | Description |
+|--------|------------|-------------|
+| JOIN (100) | *(empty)* | Member announces join |
+| LEAVE (101) | *(empty)* | Member announces leave |
+| ROLE_CHANGE (102) | `{0: target_id, 1: new_role}` | Assign role to member |
+| MUTE (200) | `{0: target_id}` | Mute a member |
+| UNMUTE (201) | `{0: target_id}` | Unmute a member |
+| STREAM_START (300) | `{0: stream_type}` | Start a media stream |
+| STREAM_STOP (301) | `{0: stream_type}` | Stop a media stream |
+| CODEC_UPDATE (400) | `{0: codec_id}` | Switch codec |
+
+All map keys and values are CBOR unsigned integers (major type 0).
+
 ## License
 
 Licensed under [Apache License, Version 2.0](../../LICENSE).

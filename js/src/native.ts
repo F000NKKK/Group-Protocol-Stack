@@ -129,6 +129,9 @@ export const gsp_client_reset = lib.func("void gsp_client_reset(int32_t)");
 export const gsp_client_send = lib.func(
     "GbpBuffer gsp_client_send(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t)"
 );
+export const gsp_client_send_with_args = lib.func(
+    "GbpBuffer gsp_client_send_with_args(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t, uint32_t, void *, size_t)"
+);
 export const gsp_client_accept = lib.func("void *gsp_client_accept(int32_t, uint64_t, void *, size_t)");
 
 // Frame / error helpers
@@ -165,10 +168,14 @@ export function takeBuffer(buf: GbpBuffer): Buffer {
 }
 
 /** Copy a returned C-string into a ``string`` and free it. */
-export function takeCString(ptr: number | null): string {
+export function takeCString(ptr: unknown): string {
     if (!ptr) return "";
     try {
-        return koffi.decode(ptr, "string");
+        // koffi.decode(ptr, "string") crashes in koffi 2.16+ on Node 24;
+        // read raw bytes and trim at null terminator instead.
+        const bytes = koffi.decode(ptr as object, "uint8_t", 4096) as number[];
+        const end = bytes.indexOf(0);
+        return Buffer.from(end >= 0 ? bytes.slice(0, end) : bytes).toString("utf8");
     } finally {
         gbp_string_free(ptr);
     }

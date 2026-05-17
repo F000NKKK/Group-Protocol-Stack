@@ -66,7 +66,7 @@ using var aliceMls = MlsContext.Create("alice");
 using var bobMls   = MlsContext.Create("bob");
 
 var bobKp   = bobMls.ExportKeyPackage();
-var welcome = aliceMls.Invite(bobKp);
+var welcome = aliceMls.Invite(bobKp);   // alice auto-finalizes; epoch advances to 1
 bobMls.AcceptWelcome(welcome);
 
 var groupId = aliceMls.GroupId;
@@ -81,7 +81,62 @@ using var bobGtp   = GtpClient.Create();
 var frame = aliceGtp.Send(alice, aliceMls, target: 2, messageId: 0xCAFE_F00D, "hello");
 foreach (var ev in bob.OnWire(bobMls, frame.Wire))
     if (ev.Kind == "payload_received" && ev.StreamType == StreamType.Text)
-        Console.WriteLine(bobGtp.Accept(ev.Plaintext!).Text);
+    {
+        var r = bobGtp.Accept(ev.Plaintext!, bobMls.Epoch);
+        Console.WriteLine(r.Text);   // → "hello"
+        // r.Status is "new" (first message from this sender)
+        // subsequent messages → "new"; duplicates → "duplicate"
+    }
+```
+
+## GSP signals with per-signal arguments
+
+Signals that target a specific member or resource require CBOR-encoded arguments.
+Use `GspClient.SendWithArgs` for these signals:
+
+```csharp
+// Minimal CBOR helpers
+static byte[] CborUint(uint n) => n <= 23 ? new[] { (byte)n }
+    : n <= 0xFF   ? new byte[] { 0x18, (byte)n }
+    : n <= 0xFFFF ? new byte[] { 0x19, (byte)(n >> 8), (byte)n }
+    : new byte[] { 0x1A, (byte)(n>>24), (byte)(n>>16), (byte)(n>>8), (byte)n };
+
+static byte[] CborMap1(uint k, uint v) =>
+    new byte[] { 0xA1 }.Concat(CborUint(k)).Concat(CborUint(v)).ToArray();
+
+// Signal-specific args schemas:
+//   MUTE / UNMUTE  → {0: target_member_id}
+//   ROLE_CHANGE    → {0: target_member_id, 1: new_role_id}
+//   STREAM_START / STREAM_STOP → {0: stream_type}
+//   CODEC_UPDATE   → {0: codec_id}
+//   JOIN / LEAVE   → no args; use GspClient.Send
+
+using var gsp = GspClient.Create();
+
+// Mute member 3
+var frame = gsp.SendWithArgs(
+    aliceNode, aliceMls,
+    target: 0,             // 0 = broadcast
+    signal: SignalType.Mute,
+    roleClaim: 0,
+    requestId: 1,
+    args: CborMap1(0, 3)   // {0: target_member_id=3}
+);
+```
+
+## MLS multi-member group pattern
+
+When inviting a member to an **existing** group (not the first invite), use
+`InviteFull` so that existing members can process the commit:
+
+```csharp
+// Alice adds Carol to an alice+bob group
+var (commit, welcome) = aliceMls.InviteFull(carolMls.ExportKeyPackage());
+aliceMls.FinalizeCommit();         // alice's epoch advances
+bobMls.ProcessMessage(commit);     // bob stages the commit
+bobMls.FinalizeCommit();           // bob's epoch advances to match alice
+carolMls.AcceptWelcome(welcome);   // carol joins
+Debug.Assert(aliceMls.Epoch == bobMls.Epoch && bobMls.Epoch == carolMls.Epoch);
 ```
 
 ## License

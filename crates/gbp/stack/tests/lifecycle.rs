@@ -47,7 +47,12 @@ impl Member {
         let (mls, _) = MlsContext::new_member(name.as_bytes()).unwrap();
         let mut node = GroupNode::new(member_id, mls.group_id_16());
         node.bootstrap_as_creator(0);
-        Self { _name: name, mls, node, gtp: GtpClient::new() }
+        Self {
+            _name: name,
+            mls,
+            node,
+            gtp: GtpClient::new(),
+        }
     }
     fn new_pending(name: &'static str) -> (Self, openmls::prelude::KeyPackageBundle) {
         let (mls, bundle) = MlsContext::new_member(name.as_bytes()).unwrap();
@@ -55,7 +60,12 @@ impl Member {
         // accepting Welcome. We park a placeholder so the type stays simple.
         let placeholder = GroupNode::new(0, [0u8; 16]);
         (
-            Self { _name: name, mls, node: placeholder, gtp: GtpClient::new() },
+            Self {
+                _name: name,
+                mls,
+                node: placeholder,
+                gtp: GtpClient::new(),
+            },
             bundle,
         )
     }
@@ -102,7 +112,14 @@ fn full_lifecycle_two_joins_one_leave() {
     // peer except Bob in this scenario).
     let exec1 = alice
         .node
-        .send_control(&mut alice.mls, 0, ControlOpcode::ExecuteTransition, 1, 1, vec![])
+        .send_control(
+            &mut alice.mls,
+            0,
+            ControlOpcode::ExecuteTransition,
+            1,
+            1,
+            vec![],
+        )
         .unwrap();
     alice.node.apply_transition(1);
     let _ = bob.node.on_wire(&mut bob.mls, &exec1.wire).unwrap();
@@ -112,7 +129,13 @@ fn full_lifecycle_two_joins_one_leave() {
     // ─── 3. Alice → Bob chat round-trip ──────────────────────────────────
     let m = alice
         .gtp
-        .send(&mut alice.node, &mut alice.mls, /*broadcast*/ 0, 100, "hello bob")
+        .send(
+            &mut alice.node,
+            &mut alice.mls,
+            /*broadcast*/ 0,
+            100,
+            "hello bob",
+        )
         .unwrap();
     let evs = bob.node.on_wire(&mut bob.mls, &m.wire).unwrap();
     let pr = first_payload(&evs).expect("bob got alice's text");
@@ -135,23 +158,48 @@ fn full_lifecycle_two_joins_one_leave() {
     // by Alice (also on 1).
     let prepare2 = alice
         .node
-        .send_control(&mut alice.mls, 0, ControlOpcode::PrepareTransition, 2, 10, commit2.clone())
+        .send_control(
+            &mut alice.mls,
+            0,
+            ControlOpcode::PrepareTransition,
+            2,
+            10,
+            commit2.clone(),
+        )
         .unwrap();
     let bob_evs = bob.node.on_wire(&mut bob.mls, &prepare2.wire).unwrap();
-    let prepare_args = bob_evs.iter().find_map(|e| match e {
-        gbp_stack::Event::Control { opcode: ControlOpcode::PrepareTransition, args, .. } => Some(args.clone()),
-        _ => None,
-    }).expect("bob saw PREPARE");
+    let prepare_args = bob_evs
+        .iter()
+        .find_map(|e| match e {
+            gbp_stack::Event::Control {
+                opcode: ControlOpcode::PrepareTransition,
+                args,
+                ..
+            } => Some(args.clone()),
+            _ => None,
+        })
+        .expect("bob saw PREPARE");
     assert_eq!(prepare_args, commit2);
     let kind = bob.mls.process_message(&prepare_args).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(bob.mls.epoch(), 1, "deferred merge — staged but not advanced");
+    assert_eq!(
+        bob.mls.epoch(),
+        1,
+        "deferred merge — staged but not advanced"
+    );
 
     // EXECUTE while Alice's MLS is still on epoch 1 — encryption is under
     // the old epoch so Bob can decrypt and apply.
     let exec2 = alice
         .node
-        .send_control(&mut alice.mls, 0, ControlOpcode::ExecuteTransition, 2, 11, vec![])
+        .send_control(
+            &mut alice.mls,
+            0,
+            ControlOpcode::ExecuteTransition,
+            2,
+            11,
+            vec![],
+        )
         .unwrap();
     alice.node.apply_transition(2);
     alice.mls.finalize_pending_commit().unwrap();
@@ -170,11 +218,17 @@ fn full_lifecycle_two_joins_one_leave() {
     assert_eq!(carol.node.current_epoch, 2);
 
     // ─── 5. 3-way chat ──────────────────────────────────────────────────
-    let m2 = bob.gtp.send(&mut bob.node, &mut bob.mls, 0, 200, "everyone hi").unwrap();
+    let m2 = bob
+        .gtp
+        .send(&mut bob.node, &mut bob.mls, 0, 200, "everyone hi")
+        .unwrap();
 
     {
         let evs = alice.node.on_wire(&mut alice.mls, &m2.wire).unwrap();
-        let plain = first_payload(&evs).expect("alice missed bob").plaintext.clone();
+        let plain = first_payload(&evs)
+            .expect("alice missed bob")
+            .plaintext
+            .clone();
         let acc = alice.gtp.accept(&plain, alice.node.current_epoch).unwrap();
         if let GtpAccept::New(m) = acc {
             assert_eq!(m.text().unwrap(), "everyone hi");
@@ -184,7 +238,10 @@ fn full_lifecycle_two_joins_one_leave() {
     }
     {
         let evs = carol.node.on_wire(&mut carol.mls, &m2.wire).unwrap();
-        let plain = first_payload(&evs).expect("carol missed bob").plaintext.clone();
+        let plain = first_payload(&evs)
+            .expect("carol missed bob")
+            .plaintext
+            .clone();
         let acc = carol.gtp.accept(&plain, carol.node.current_epoch).unwrap();
         if let GtpAccept::New(m) = acc {
             assert_eq!(m.text().unwrap(), "everyone hi");
@@ -199,17 +256,35 @@ fn full_lifecycle_two_joins_one_leave() {
     assert_eq!(alice.mls.epoch(), 2, "still pre-merge for tid=3");
     let prepare3 = alice
         .node
-        .send_control(&mut alice.mls, 0, ControlOpcode::PrepareTransition, 3, 20, commit3.clone())
+        .send_control(
+            &mut alice.mls,
+            0,
+            ControlOpcode::PrepareTransition,
+            3,
+            20,
+            commit3.clone(),
+        )
         .unwrap();
     // Carol receives PREPARE and applies the commit.
     let carol_evs = carol.node.on_wire(&mut carol.mls, &prepare3.wire).unwrap();
-    let p3args = carol_evs.iter().find_map(|e| match e {
-        gbp_stack::Event::Control { opcode: ControlOpcode::PrepareTransition, args, .. } => Some(args.clone()),
-        _ => None,
-    }).expect("carol saw PREPARE");
+    let p3args = carol_evs
+        .iter()
+        .find_map(|e| match e {
+            gbp_stack::Event::Control {
+                opcode: ControlOpcode::PrepareTransition,
+                args,
+                ..
+            } => Some(args.clone()),
+            _ => None,
+        })
+        .expect("carol saw PREPARE");
     let kind = carol.mls.process_message(&p3args).unwrap();
     assert_eq!(kind, ProcessedKind::Commit);
-    assert_eq!(carol.mls.epoch(), 2, "deferred merge — still on 2 until finalize");
+    assert_eq!(
+        carol.mls.epoch(),
+        2,
+        "deferred merge — still on 2 until finalize"
+    );
 
     // Bob also forwards through DS. RFC 9420 §12.3: a removee processing
     // the commit MAY succeed locally — openmls signals he was removed and
@@ -221,7 +296,14 @@ fn full_lifecycle_two_joins_one_leave() {
 
     let exec3 = alice
         .node
-        .send_control(&mut alice.mls, 0, ControlOpcode::ExecuteTransition, 3, 21, vec![])
+        .send_control(
+            &mut alice.mls,
+            0,
+            ControlOpcode::ExecuteTransition,
+            3,
+            21,
+            vec![],
+        )
         .unwrap();
     alice.node.apply_transition(3);
     alice.mls.finalize_pending_commit().unwrap();
@@ -233,9 +315,15 @@ fn full_lifecycle_two_joins_one_leave() {
     assert_eq!(carol.node.current_epoch, 3);
 
     // ─── 7. Post-leave chat ─────────────────────────────────────────────
-    let m3 = carol.gtp.send(&mut carol.node, &mut carol.mls, 0, 300, "after-leave").unwrap();
+    let m3 = carol
+        .gtp
+        .send(&mut carol.node, &mut carol.mls, 0, 300, "after-leave")
+        .unwrap();
     let evs = alice.node.on_wire(&mut alice.mls, &m3.wire).unwrap();
-    let plain = first_payload(&evs).expect("alice missed carol post-leave").plaintext.clone();
+    let plain = first_payload(&evs)
+        .expect("alice missed carol post-leave")
+        .plaintext
+        .clone();
     let acc = alice.gtp.accept(&plain, alice.node.current_epoch).unwrap();
     if let GtpAccept::New(m) = acc {
         assert_eq!(m.text().unwrap(), "after-leave");
@@ -251,7 +339,10 @@ fn full_lifecycle_two_joins_one_leave() {
         gbp_stack::Event::Error { code, .. } => Some(*code),
         _ => None,
     });
-    assert!(bob_err.is_some(), "bob must observe a decryption / state error");
+    assert!(
+        bob_err.is_some(),
+        "bob must observe a decryption / state error"
+    );
 
     // Sanity: nodes still ACTIVE except bob (decrypt errors are non-fatal,
     // so bob is also Active — he simply can't read).

@@ -18,27 +18,43 @@ enum AeadCipher {
 impl AeadCipher {
     fn new(key: &[u8], suite: CipherSuite) -> Self {
         match suite {
-            CipherSuite::Aes128Gcm => Self::Aes128(
-                Aes128Gcm::new_from_slice(key).expect("key length matches suite"),
-            ),
-            CipherSuite::Aes256Gcm => Self::Aes256(
-                Aes256Gcm::new_from_slice(key).expect("key length matches suite"),
-            ),
+            CipherSuite::Aes128Gcm => {
+                Self::Aes128(Aes128Gcm::new_from_slice(key).expect("key length matches suite"))
+            }
+            CipherSuite::Aes256Gcm => {
+                Self::Aes256(Aes256Gcm::new_from_slice(key).expect("key length matches suite"))
+            }
         }
     }
 
-    fn encrypt(&self, nonce: &[u8; 12], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, SFrameError> {
+    fn encrypt(
+        &self,
+        nonce: &[u8; 12],
+        plaintext: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>, SFrameError> {
         let n = aes_gcm::Nonce::from_slice(nonce);
-        let payload = Payload { msg: plaintext, aad };
+        let payload = Payload {
+            msg: plaintext,
+            aad,
+        };
         match self {
             Self::Aes128(c) => c.encrypt(n, payload).map_err(|_| SFrameError::Encrypt),
             Self::Aes256(c) => c.encrypt(n, payload).map_err(|_| SFrameError::Encrypt),
         }
     }
 
-    fn decrypt(&self, nonce: &[u8; 12], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, SFrameError> {
+    fn decrypt(
+        &self,
+        nonce: &[u8; 12],
+        ciphertext: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>, SFrameError> {
         let n = aes_gcm::Nonce::from_slice(nonce);
-        let payload = Payload { msg: ciphertext, aad };
+        let payload = Payload {
+            msg: ciphertext,
+            aad,
+        };
         match self {
             Self::Aes128(c) => c.decrypt(n, payload).map_err(|_| SFrameError::Decrypt),
             Self::Aes256(c) => c.decrypt(n, payload).map_err(|_| SFrameError::Decrypt),
@@ -77,7 +93,10 @@ impl SFrameEncryptor {
     /// `extra_aad` is appended to the SFrame header to form the full AAD
     /// (e.g. pass an RTP header or an empty slice).
     pub fn encrypt(&mut self, plaintext: &[u8], extra_aad: &[u8]) -> Result<Vec<u8>, SFrameError> {
-        let header = SFrameHeader { kid: self.kid, ctr: self.ctr };
+        let header = SFrameHeader {
+            kid: self.kid,
+            ctr: self.ctr,
+        };
         let header_bytes = header.encode();
 
         let mut aad = Vec::with_capacity(header_bytes.len() + extra_aad.len());
@@ -169,7 +188,10 @@ impl SFrameDecryptor {
         state
             .window
             .check_and_mark(header.ctr)
-            .map_err(|_| SFrameError::Replay { kid: header.kid, ctr: header.ctr })?;
+            .map_err(|_| SFrameError::Replay {
+                kid: header.kid,
+                ctr: header.ctr,
+            })?;
 
         let header_bytes = &payload[..header_len];
         let ciphertext = &payload[header_len..];

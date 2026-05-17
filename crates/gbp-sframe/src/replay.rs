@@ -143,7 +143,10 @@ mod tests {
         // Accept 0, then 1023 (advance window), then try 0 again (replay).
         w.check_and_mark(0).unwrap();
         w.check_and_mark(1023).unwrap();
-        assert!(w.check_and_mark(0).is_err(), "0 should be detected as replay");
+        assert!(
+            w.check_and_mark(0).is_err(),
+            "0 should be detected as replay"
+        );
         // 500 is inside the window and not yet seen.
         assert!(w.check_and_mark(500).is_ok());
     }

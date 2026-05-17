@@ -38,12 +38,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use quinn::{ClientConfig, Connection, Endpoint, RecvStream, SendStream, ServerConfig};
-use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use rustls::RootCertStore;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 
 use gbp::GbpFrame;
 
-use crate::{WireError, MAX_FRAME};
+use crate::{MAX_FRAME, WireError};
 
 // ── TLS helpers ──────────────────────────────────────────────────────────────
 
@@ -97,8 +97,7 @@ pub fn make_client_endpoint(
         }
     };
 
-    let mut endpoint =
-        Endpoint::client(local_addr).map_err(|e| WireError::Quic(e.to_string()))?;
+    let mut endpoint = Endpoint::client(local_addr).map_err(|e| WireError::Quic(e.to_string()))?;
     endpoint.set_default_client_config(client_cfg);
     Ok(endpoint)
 }
@@ -148,11 +147,20 @@ impl QuicStream {
     /// Writes an opaque length-prefixed blob.
     pub async fn write_blob(&mut self, data: &[u8]) -> Result<(), WireError> {
         if data.len() > MAX_FRAME {
-            return Err(WireError::TooLarge { size: data.len(), max: MAX_FRAME });
+            return Err(WireError::TooLarge {
+                size: data.len(),
+                max: MAX_FRAME,
+            });
         }
         let len = (data.len() as u32).to_le_bytes();
-        self.send.write_all(&len).await.map_err(|e| WireError::Quic(e.to_string()))?;
-        self.send.write_all(data).await.map_err(|e| WireError::Quic(e.to_string()))?;
+        self.send
+            .write_all(&len)
+            .await
+            .map_err(|e| WireError::Quic(e.to_string()))?;
+        self.send
+            .write_all(data)
+            .await
+            .map_err(|e| WireError::Quic(e.to_string()))?;
         Ok(())
     }
 
@@ -165,7 +173,10 @@ impl QuicStream {
             .map_err(|e| WireError::Quic(e.to_string()))?;
         let len = u32::from_le_bytes(len_buf) as usize;
         if len > MAX_FRAME {
-            return Err(WireError::TooLarge { size: len, max: MAX_FRAME });
+            return Err(WireError::TooLarge {
+                size: len,
+                max: MAX_FRAME,
+            });
         }
         let mut buf = vec![0u8; len];
         self.recv
@@ -177,7 +188,9 @@ impl QuicStream {
 
     /// Gracefully closes the send side of this stream.
     pub async fn finish(&mut self) -> Result<(), WireError> {
-        self.send.finish().map_err(|e| WireError::Quic(e.to_string()))
+        self.send
+            .finish()
+            .map_err(|e| WireError::Quic(e.to_string()))
     }
 }
 
@@ -261,7 +274,16 @@ mod tests {
     }
 
     fn test_frame() -> GbpFrame {
-        GbpFrame::new([0u8; 16], 1, 0, StreamType::Control, 0, 0, 42, b"payload".to_vec())
+        GbpFrame::new(
+            [0u8; 16],
+            1,
+            0,
+            StreamType::Control,
+            0,
+            0,
+            42,
+            b"payload".to_vec(),
+        )
     }
 
     #[tokio::test]
@@ -273,8 +295,7 @@ mod tests {
             make_server_endpoint("127.0.0.1:0".parse().unwrap(), &cert_der, &key_der).unwrap();
         let server_addr = server_ep.local_addr().unwrap();
 
-        let client_ep =
-            make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
+        let client_ep = make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
 
         let server_task = tokio::spawn(async move {
             let incoming = server_ep.accept().await.unwrap();
@@ -306,8 +327,7 @@ mod tests {
             make_server_endpoint("127.0.0.1:0".parse().unwrap(), &cert_der, &key_der).unwrap();
         let server_addr = server_ep.local_addr().unwrap();
 
-        let client_ep =
-            make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
+        let client_ep = make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
 
         let server_task = tokio::spawn(async move {
             let incoming = server_ep.accept().await.unwrap();
@@ -340,8 +360,7 @@ mod tests {
             make_server_endpoint("127.0.0.1:0".parse().unwrap(), &cert_der, &key_der).unwrap();
         let server_addr = server_ep.local_addr().unwrap();
 
-        let client_ep =
-            make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
+        let client_ep = make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
 
         let server_task = tokio::spawn(async move {
             let incoming = server_ep.accept().await.unwrap();
@@ -374,8 +393,7 @@ mod tests {
         let server_ep =
             make_server_endpoint("127.0.0.1:0".parse().unwrap(), &cert_der, &key_der).unwrap();
         let server_addr = server_ep.local_addr().unwrap();
-        let client_ep =
-            make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
+        let client_ep = make_client_endpoint("127.0.0.1:0".parse().unwrap(), None).unwrap();
 
         // server just needs to exist so client can connect
         tokio::spawn(async move {

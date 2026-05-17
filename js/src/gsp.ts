@@ -61,7 +61,7 @@ export class GspClient {
         return new GspClient(h);
     }
 
-    /** Send a signal. */
+    /** Send a signal without signal-specific args. */
     send(
         node: GroupNode,
         mls: MlsContext,
@@ -75,6 +75,24 @@ export class GspClient {
             signal, roleClaim, requestId,
         ) as N.GbpBuffer;
         return unpackOutbound(buf, "gsp_client_send");
+    }
+
+    /** Send a signal with CBOR-encoded signal-specific args. */
+    sendWithArgs(
+        node: GroupNode,
+        mls: MlsContext,
+        target: number,
+        signal: SignalType,
+        roleClaim: number,
+        requestId: number,
+        args: Buffer,
+    ): OutboundFrame {
+        const buf = N.gsp_client_send_with_args(
+            this.handle, node.handle, mls.handle, target,
+            signal, roleClaim, requestId,
+            args, args.length,
+        ) as N.GbpBuffer;
+        return unpackOutbound(buf, "gsp_client_send_with_args");
     }
 
     /**

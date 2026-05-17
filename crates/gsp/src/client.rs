@@ -84,9 +84,27 @@ impl GspClient {
         role_claim: u32,
         request_id: u32,
     ) -> Result<OutboundFrame, GspError> {
+        self.send_with_args(node, seal, target, signal, role_claim, request_id, &[])
+    }
+
+    /// Sends a signal with opcode-specific `args` bytes (CBOR-encoded).
+    /// Use this for signals that require structured arguments (MUTE, UNMUTE,
+    /// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE).
+    pub fn send_with_args<S: Sealer>(
+        &mut self,
+        node: &mut GroupNode,
+        seal: &mut S,
+        target: MemberId,
+        signal: SignalType,
+        role_claim: u32,
+        request_id: u32,
+        args: &[u8],
+    ) -> Result<OutboundFrame, GspError> {
         self.sync_epoch(node.current_epoch);
         let mut sig = GspSignal::bare(signal as u32, request_id, node.member_id);
         sig.role_claim = role_claim;
+        sig.args = serde_bytes::ByteBuf::from(args.to_vec());
+        sig.args_length = args.len() as u32;
         let stream_id = node.member_stream_id(3);
         Ok(node.send_payload(
             seal,
@@ -222,7 +240,10 @@ mod tests {
     fn unknown_signal_type_rejected() {
         let mut c = GspClient::new();
         let bad = GspSignal::bare(999, 1, 1).to_cbor();
-        assert!(matches!(c.accept(&bad, 0), Err(GspError::UnknownSignal(999))));
+        assert!(matches!(
+            c.accept(&bad, 0),
+            Err(GspError::UnknownSignal(999))
+        ));
     }
 
     #[test]

@@ -57,11 +57,7 @@ pub(crate) struct ParticipantKeys {
 /// (e.g. `"gbp/sframe v1"`).
 /// `epoch` is passed as an 8-byte big-endian context to bind the key to the
 /// current MLS epoch.
-pub fn derive_base_key(
-    mls: &MlsContext,
-    label: &str,
-    epoch: u64,
-) -> Result<[u8; 32], SFrameError> {
+pub fn derive_base_key(mls: &MlsContext, label: &str, epoch: u64) -> Result<[u8; 32], SFrameError> {
     let context = epoch.to_be_bytes();
     let raw = mls
         .export_raw(label, &context, 32)
@@ -82,8 +78,8 @@ pub(crate) fn derive_participant(
     suite: CipherSuite,
 ) -> ParticipantKeys {
     // SAFETY: base_key is 32 bytes = SHA-256 HashLen, so from_prk never panics.
-    let hk = Hkdf::<Sha256>::from_prk(base_key)
-        .expect("base_key is exactly SHA-256 HashLen (32 bytes)");
+    let hk =
+        Hkdf::<Sha256>::from_prk(base_key).expect("base_key is exactly SHA-256 HashLen (32 bytes)");
 
     let leaf_be = leaf_index.to_be_bytes();
 

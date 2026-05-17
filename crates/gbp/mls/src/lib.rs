@@ -219,8 +219,11 @@ impl MlsContext {
                 )));
             }
         }
-        let leaves: Vec<LeafNodeIndex> =
-            leaf_indices.iter().copied().map(LeafNodeIndex::new).collect();
+        let leaves: Vec<LeafNodeIndex> = leaf_indices
+            .iter()
+            .copied()
+            .map(LeafNodeIndex::new)
+            .collect();
         let (commit, _welcome_opt, _gi) = self
             .group
             .remove_members(&self.provider, &self.signer, &leaves)
@@ -545,8 +548,9 @@ mod tests {
         // New members join via welcome, not via commit.
         let (mut alice2, _akp2) = MlsContext::new_member(b"alice2").unwrap();
         let (mut bob2, bob2_kp) = MlsContext::new_member(b"bob2").unwrap();
-        let (_commit_bytes, welcome_bytes) =
-            alice2.invite_full(&[bob2_kp.key_package().clone()]).unwrap();
+        let (_commit_bytes, welcome_bytes) = alice2
+            .invite_full(&[bob2_kp.key_package().clone()])
+            .unwrap();
         alice2.finalize_pending_commit().unwrap();
         bob2.accept_welcome(&welcome_bytes).unwrap();
         assert_eq!(alice2.epoch(), 1);

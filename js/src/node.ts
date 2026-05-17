@@ -194,7 +194,7 @@ export class GroupNode {
     get state(): NodeState { return N.gbp_node_state(this.handle) as NodeState; }
 
     /** Current node epoch. */
-    get epoch(): bigint { return N.gbp_node_epoch(this.handle) as bigint; }
+    get epoch(): bigint { return BigInt(N.gbp_node_epoch(this.handle) as number | bigint); }
 
     /** Last applied ``transition_id``. */
     get lastTransitionId(): number { return N.gbp_node_last_transition_id(this.handle) as number; }
