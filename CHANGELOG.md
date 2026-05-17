@@ -1,31 +1,4 @@
-﻿## [Unreleased] — 1.4.0
-
-### Features
-
-- feat(gbp-proto): Protobuf schemas for GBP/GTP/GAP/GSP via prost (no protoc required)
-- feat(gbp-flat): FlatBuffers schemas for GBP/GTP/GAP/GSP via planus (no flatc required)
-- feat(gbp-transport): async QUIC transport via quinn + rustls (`quic` module); same `u32-LE length || bytes` framing as TCP
-- feat(gbp-node): automatic coordinator handover — FSM emits `CoordinatorElectionNeeded`, `BecameCoordinator`, `CoordinatorClaim` events
-- feat(gbp-node): timer engine for FSM transition timeouts
-- feat(gbp-node): tie-break logic for competing commits (deterministic coordinator selection)
-- feat(gtp): chunked attachment transfers with SHA-256 integrity (`AttachmentManifest` + `AttachmentChunk`)
-- feat(gbp-core): conformance class declarations A / B / C
-- feat(gap): per-epoch key-overlap buffer (`T_overlap`) for seamless epoch transitions
-- feat(gsp): per-signal args schema validation (gsp_rfc §6)
-- feat(bindings): coordinator event kinds in `NodeEvent` for C#, Python, JS
-- feat(bindings): `encodeGbpFrame` / `lookupError` utilities in Python and JS; `GbpHelpers` static class in C#
-- refactor(csharp): one type per file — split all multi-type `.cs` files into individual files
-
-### Tests
-
-- test(gbp-mls): 15 unit tests covering stream labels, seal/open, two-member invite, epoch staging, key export
-- test(gtp): 8 unit tests covering dedup, epoch advance, reset, invalid CBOR
-- test(gsp): 9 unit tests covering JOIN/LEAVE membership, mute cleanup, duplicate reject, epoch advance, unknown signal
-- test(gbp-base): 7 unit tests for ControlMessage and ErrorObject round-trips and validation
-
----
-
-## 1.3.0 (2026-05-16)
+﻿## 1.3.0 (2026-05-16)
 
 ### Bug Fixes
 
