@@ -4,9 +4,6 @@ using System.Linq;
 
 namespace GBPStack;
 
-/// <summary>One entry in <see cref="MessageHistory"/>.</summary>
-public sealed record MessageEntry(uint SenderId, ulong MessageId, string Text);
-
 /// <summary>
 /// Bounded ring-buffer of recent GTP messages. Used for serving resync
 /// requests from re-joining peers.
@@ -54,27 +51,4 @@ public sealed class MessageHistory
 
     /// <summary>Drops every message in the buffer.</summary>
     public void Clear() => _buffer.Clear();
-}
-
-/// <summary>Per-sender high-water mark of accepted GTP <c>message_id</c>s.</summary>
-public sealed class Watermark
-{
-    private readonly Dictionary<uint, ulong> _lastSeen = new();
-
-    /// <summary>Records that <paramref name="messageId"/> from <paramref name="senderId"/> has been observed.</summary>
-    public void Observe(uint senderId, ulong messageId)
-    {
-        _lastSeen.TryGetValue(senderId, out var prev);
-        if (messageId > prev) _lastSeen[senderId] = messageId;
-    }
-
-    /// <summary>Last seen <c>message_id</c> from <paramref name="senderId"/>, or <c>null</c>.</summary>
-    public ulong? LastSeen(uint senderId) =>
-        _lastSeen.TryGetValue(senderId, out var v) ? v : null;
-
-    /// <summary>Iterates every known sender with its last <c>message_id</c>.</summary>
-    public IReadOnlyDictionary<uint, ulong> Snapshot() => _lastSeen;
-
-    /// <summary>Drops every entry.</summary>
-    public void Clear() => _lastSeen.Clear();
 }

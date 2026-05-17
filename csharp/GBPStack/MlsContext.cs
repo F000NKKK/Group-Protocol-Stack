@@ -88,9 +88,6 @@ public sealed class MlsContext : IDisposable
         if (buf.IsEmpty) throw new InvalidOperationException($"invite_full: {Native.LastError()}");
         var bytes = Native.CopyAndFree(buf);
         if (bytes.Length < 4) throw new InvalidOperationException("invite_full: truncated buffer");
-        // Read as uint32 first; reject anything that would overflow Int32 OR run
-        // past the end of the returned buffer. The order matters: validate the
-        // signed cast BEFORE arithmetic with bytes.Length.
         uint commitLenU = BitConverter.ToUInt32(bytes, 0);
         if (commitLenU > int.MaxValue || commitLenU > (uint)(bytes.Length - 4))
             throw new InvalidOperationException(
@@ -176,22 +173,4 @@ public sealed class MlsContext : IDisposable
     }
 
     ~MlsContext() { Dispose(); }
-}
-
-/// <summary>Outcome of <see cref="MlsContext.InviteFull"/>.</summary>
-/// <param name="Commit">The MLS Commit message to broadcast to existing members.</param>
-/// <param name="Welcome">The MLS Welcome message to unicast to the new joiner.</param>
-public sealed record InviteResult(byte[] Commit, byte[] Welcome);
-
-/// <summary>Outcome categories for <see cref="MlsContext.ProcessMessage"/>.</summary>
-public enum ProcessedKind
-{
-    /// <summary>Commit applied; epoch advanced.</summary>
-    Commit = 1,
-    /// <summary>Application message decrypted (not used by GBP).</summary>
-    Application = 2,
-    /// <summary>Proposal staged (no immediate epoch change).</summary>
-    Proposal = 3,
-    /// <summary>External message that did not advance the group.</summary>
-    External = 4,
 }

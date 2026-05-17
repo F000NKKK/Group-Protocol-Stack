@@ -3,23 +3,6 @@ using System.Collections.Generic;
 
 namespace GBPStack;
 
-/// <summary>One frame held by <see cref="JitterBuffer"/>.</summary>
-public sealed record AudioFrame(uint MediaSourceId, uint RtpSequence, byte[] Plaintext);
-
-/// <summary>Outcome of <see cref="JitterBuffer.Push"/>.</summary>
-public enum JitterPushOutcome
-{
-    /// <summary>Buffered successfully.</summary>
-    Accepted,
-    /// <summary>Dropped — older than the next-expected sequence.</summary>
-    Late,
-    /// <summary>Buffered, evicting the oldest queued frame to make room.</summary>
-    Evicted
-}
-
-/// <summary>Result returned by <see cref="JitterBuffer.Push"/>.</summary>
-public sealed record JitterPushResult(JitterPushOutcome Outcome, AudioFrame? Evicted = null);
-
 /// <summary>
 /// Bounded reorder window for GAP audio frames. Hold them briefly so the
 /// decoder consumes them in <c>rtp_sequence</c> order, drop late arrivals.
