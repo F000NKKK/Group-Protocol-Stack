@@ -1,4 +1,20 @@
-﻿## 1.4.0 (2026-05-17)
+﻿## 1.4.1 (2026-05-17)
+
+### Bug Fixes
+
+- fix(release): replace em-dash with ASCII dash to fix PowerShell 5.1 parser (2c37498)
+- fix: koffi 3.x type rename, csharp README path, release script lock-file regen; drop tracked .vs/ files (24c0ecc)
+- fix(release): correct SECURITY.md supported versions table and fix regex to match padded header (32f750e)
+
+### Chores
+
+- chore(deps-dev): bump jest and @types/jest in /js (#15) (3933b98)
+- chore(csharp): move README.md to csharp/ root (a07845d)
+- chore(deps): bump koffi from 2.16.2 to 3.0.0 in /js (#16) (be53c2e)
+
+---
+
+## 1.4.0 (2026-05-17)
 
 ### Features
 
@@ -172,6 +188,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
