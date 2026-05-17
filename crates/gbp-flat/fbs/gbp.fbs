@@ -1,0 +1,32 @@
+// Group Base Protocol (GBP) — FlatBuffers schema (gbp_rfc §12.2)
+namespace gbp;
+
+table GbpFrame {
+  version:           uint32;
+  group_id:          [uint8];
+  epoch:             uint64;
+  transition_id:     uint32;
+  stream_type:       uint32;
+  stream_id:         uint32;
+  flags:             uint32;
+  sequence_no:       uint64;
+  encrypted_payload: [uint8];
+}
+
+table ControlMessage {
+  opcode:        uint32;
+  request_id:    uint32;
+  sender_id:     uint32;
+  transition_id: uint32;
+  args:          [uint8];
+}
+
+table ErrorObject {
+  code:      uint32;
+  class:     uint32;
+  retryable: bool;
+  fatal:     bool;
+  reason:    string;
+}
+
+root_type GbpFrame;

@@ -1,0 +1,31 @@
+// Group Text Protocol (GTP) — FlatBuffers schema (gbp_rfc §12.2)
+namespace gtp;
+
+table GtpMessage {
+  message_id:     uint64;
+  sender_id:      uint32;
+  timestamp_ms:   uint64;
+  request_id:     uint32;
+  flags:          uint32;
+  content_type:   uint32;
+  content_length: uint32;
+  content:        [uint8];
+}
+
+table AttachmentManifest {
+  attachment_id: uint64;
+  filename:      string;
+  mime_type:     string;
+  total_size:    uint64;
+  chunk_count:   uint32;
+  sha256:        [uint8];
+}
+
+table AttachmentChunk {
+  attachment_id: uint64;
+  chunk_index:   uint32;
+  chunk_count:   uint32;
+  data:          [uint8];
+}
+
+root_type GtpMessage;

@@ -1,0 +1,13 @@
+// Group Signaling Protocol (GSP) — FlatBuffers schema (gbp_rfc §12.2)
+namespace gsp;
+
+table GspSignal {
+  signal_type: uint32;
+  request_id:  uint32;
+  sender_id:   uint32;
+  role_claim:  uint32;
+  args_length: uint32;
+  args:        [uint8];
+}
+
+root_type GspSignal;

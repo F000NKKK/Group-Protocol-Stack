@@ -1,0 +1,12 @@
+// Group Audio Protocol (GAP) — FlatBuffers schema (gbp_rfc §12.2)
+namespace gap;
+
+table GapPayload {
+  media_source_id: uint32;
+  rtp_sequence:    uint32;
+  rtp_timestamp:   uint64;
+  key_phase:       uint32;
+  opus_frame:      [uint8];
+}
+
+root_type GapPayload;
