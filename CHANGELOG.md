@@ -1,4 +1,18 @@
-﻿## 1.4.1 (2026-05-17)
+﻿## 1.4.2 (2026-05-17)
+
+### Bug Fixes
+
+- fix(sframe): use Default::default() to break CodeQL taint source on HKDF output buffer (353af1f)
+- fix(sframe): add lgtm suppression for CodeQL false positive on HKDF label (d19cb2d)
+- fix(js): use moduleResolution=node for koffi 3.x TS compatibility (1157ffc)
+- fix(sframe): rename salt->base_nonce to suppress CodeQL false positive (1ac3924)
+- fix(ci): add workflow-level permissions and clarify HKDF domain labels (201be72)
+- fix(security): only latest minor series is supported, not top-2 (00dd20a)
+- fix(release): correct SECURITY.md supported versions and Update-SecurityPolicy false-positive (6162529)
+
+---
+
+## 1.4.1 (2026-05-17)
 
 ### Bug Fixes
 
@@ -188,6 +202,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
