@@ -63,7 +63,7 @@ gbp-sframe = { path = "crates/gbp-sframe", version = "1.3.0" }
 gbp-proto  = { path = "crates/gbp-proto",  version = "1.3.0" }
 gbp-flat   = { path = "crates/gbp-flat",   version = "1.3.0" }
 
-prost = "0.13"
+prost = "0.14"
 
 quinn  = "0.11"
 rustls = { version = "0.23", features = ["ring"] }
