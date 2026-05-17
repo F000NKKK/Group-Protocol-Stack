@@ -13,7 +13,7 @@
   every other manifest is updated to match via scripts/bump-version.ps1.
 
   SECURITY.md is regenerated automatically:
-    * The two most recent minor series (latest patch only) are marked supported.
+    * Only the latest minor series (latest patch only) is marked supported.
     * Any annotated tag whose message contains "deprecated" or "eol" is
       explicitly forced to unsupported, even if policy would support it.
     * All other stable tags are marked unsupported.
@@ -196,8 +196,8 @@ function Update-SecurityPolicy([string]$newVersion) {
         }
     }
 
-    # Top 2 minors (latest non-deprecated patch each) = supported.
-    $supportedMinors = @($latestByMinor.Keys | Select-Object -First 2)
+    # Only the latest minor series is supported.
+    $supportedMinors = @($latestByMinor.Keys | Select-Object -First 1)
 
     # Build compact semver-range table.
     # For each supported minor:
