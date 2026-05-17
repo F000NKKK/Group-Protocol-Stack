@@ -325,7 +325,8 @@ jobs:
             return 1
           }
           for p in gbp-core gbp-protocol gbp-mls gbp-transport gbp-node \
-                   gtp-protocol gap-protocol gsp-protocol gbp-sframe gbp-proto gbp-flat \
+                   gbp-proto gbp-flat \
+                   gtp-protocol gap-protocol gsp-protocol gbp-sframe \
                    gbp-stack gbp-stack-ffi gbp-cli; do
             publish "$p"
           done
