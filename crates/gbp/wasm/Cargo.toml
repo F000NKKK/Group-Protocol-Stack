@@ -26,4 +26,4 @@ fluvio-wasm-timer = "0.2"
 openmls           = { version = "0.8", features = ["js"] }
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-Os", "--enable-mutable-globals"]
+wasm-opt = ["-Os", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-mutable-globals"]
