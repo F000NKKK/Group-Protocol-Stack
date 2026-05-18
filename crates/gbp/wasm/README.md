@@ -38,7 +38,7 @@ The package is built with `wasm-pack --target bundler`. It works out of the box 
 ## Install
 
 ```sh
-npm install @voluntas-progressus/gbp-stack-wasm@1.5.2
+npm install @voluntas-progressus/gbp-stack-wasm@1.5.3
 ```
 
 ## Quick start

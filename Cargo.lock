@@ -127,9 +127,9 @@ dependencies = [
 
 [[package]]
 name = "asn1-rs"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56624a96882bb8c26d61312ae18cb45868e5a9992ea73c58e45c3101e56a1e60"
+checksum = "b7f43a50ac4fdca5df8e885c21b835997f0a1cdee65494a6847694a98652d9d8"
 dependencies = [
  "asn1-rs-derive",
  "asn1-rs-impl",
@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "gap-protocol"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -978,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-cli"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "gbp-stack",
@@ -991,11 +991,11 @@ dependencies = [
 
 [[package]]
 name = "gbp-core"
-version = "1.5.2"
+version = "1.5.3"
 
 [[package]]
 name = "gbp-flat"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "planus",
  "planus-codegen",
@@ -1005,7 +1005,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-mls"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "chacha20poly1305",
  "gbp-core",
@@ -1017,7 +1017,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-node"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "gbp-core",
  "gbp-mls",
@@ -1029,14 +1029,14 @@ dependencies = [
 
 [[package]]
 name = "gbp-proto"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "gbp-protocol"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -1047,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-sframe"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "aes-gcm",
  "gbp-mls",
@@ -1058,7 +1058,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-stack"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "anyhow",
  "gap-protocol",
@@ -1077,7 +1077,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-stack-ffi"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "gbp-sframe",
  "gbp-stack",
@@ -1090,7 +1090,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-stack-wasm"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "fluvio-wasm-timer",
  "gbp-core",
@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "gbp-transport"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "gbp-core",
  "gbp-protocol",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "gsp-protocol"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "ciborium",
  "gbp-core",
@@ -1208,7 +1208,7 @@ dependencies = [
 
 [[package]]
 name = "gtp-protocol"
-version = "1.5.2"
+version = "1.5.3"
 dependencies = [
  "ciborium",
  "gbp-core",
