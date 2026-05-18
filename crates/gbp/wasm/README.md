@@ -38,7 +38,7 @@ The package is built with `wasm-pack --target bundler`. It works out of the box 
 ## Install
 
 ```sh
-npm install @voluntas-progressus/gbp-stack-wasm@1.5.3
+npm install @voluntas-progressus/gbp-stack-wasm
 ```
 
 ## Quick start
@@ -49,32 +49,37 @@ import init, { MlsContext, GroupNode, GtpClient } from "@voluntas-progressus/gbp
 // Load and compile the WASM module once at startup.
 await init();
 
-// ── MLS identities ─────────────────────────────────────────────────
+// ── MLS key exchange ────────────────────────────────────────────────
 const aliceMls = MlsContext.create("alice");
 const bobMls   = MlsContext.create("bob");
 
-// ── GBP nodes ──────────────────────────────────────────────────────
-const groupId = crypto.getRandomValues(new Uint8Array(16));
+// Bob exports a key package so Alice can invite him.
+// (In a real app Bob sends this over the signaling channel.)
+const welcome = aliceMls.invite(bobMls.keyPackage);
+bobMls.acceptWelcome(welcome);
+// aliceMls.epoch === bobMls.epoch === 1n
 
-const alice = GroupNode.create(1, groupId);
-const bob   = GroupNode.create(2, groupId);
+// ── GBP group nodes ─────────────────────────────────────────────────
+const groupId   = aliceMls.groupId;            // shared 16-byte id
+const aliceNode = GroupNode.create(1, groupId);
+const bobNode   = GroupNode.create(2, groupId);
 
-alice.bootstrapAsCreator(aliceMls.epoch);
-bob.bootstrapAsJoiner(bobMls.epoch, 0);
+aliceNode.bootstrapAsCreator(aliceMls.epoch);
+bobNode.bootstrapAsJoiner(bobMls.epoch, 0);
 
-// ── GTP clients ────────────────────────────────────────────────────
+// ── GTP clients ─────────────────────────────────────────────────────
 const gtpAlice = GtpClient.create();
 const gtpBob   = GtpClient.create();
 
-// Send a text message (broadcast: target = 0)
-const frame = gtpAlice.send(alice, aliceMls, 0, 1n, "hello from browser!");
+// Alice sends a message to Bob (target = 2, messageId = 1n)
+const frame = gtpAlice.send(aliceNode, aliceMls, 2, 1n, "hello bob!");
 // frame.wire: Uint8Array — hand to your WebSocket / WebRTC transport
 
-// On the receiver side
-for (const ev of bob.onWire(bobMls, frame.wire)) {
+// Bob receives it
+for (const ev of bobNode.onWire(bobMls, frame.wire)) {
   if (ev.kind === "payload_received" && ev.streamType === 2 /* Text */) {
     const r = gtpBob.accept(ev.plaintext, bobMls.epoch);
-    if (r) console.log(r.text);   // → "hello from browser!"
+    if (r) console.log(r.text);   // → "hello bob!"
   }
 }
 ```
@@ -86,7 +91,11 @@ for (const ev of bob.onWire(bobMls, frame.wire)) {
 | Member | Description |
 |--------|-------------|
 | `MlsContext.create(userId: string)` | Creates a new member identity and an empty MLS group |
+| `.keyPackage: Uint8Array` | TLS-serialised key package (pass to the inviter's `invite`) |
 | `.epoch: bigint` | Current MLS group epoch |
+| `.groupId: Uint8Array` | 16-byte group identifier |
+| `.invite(keyPackageBytes: Uint8Array): Uint8Array` | Invites another member; returns Welcome bytes |
+| `.acceptWelcome(welcomeBytes: Uint8Array): void` | Joins a group from a Welcome produced by `invite` |
 
 ### `GroupNode`
 
@@ -107,8 +116,17 @@ for (const ev of bob.onWire(bobMls, frame.wire)) {
 |--------|-------------|
 | `GtpClient.create()` | Creates an empty GTP client |
 | `.send(node, mls, target, messageId, text)` | Encrypts and frames a text message; returns `{ wire: Uint8Array, to: number }` |
-| `.accept(plaintext, epoch)` | Decodes a GTP payload; returns `{ text: string, messageId: bigint, senderId: number }` or `null` |
+| `.accept(plaintext, epoch)` | Decodes a GTP payload; returns `{ text, messageId, senderId, status }` or `null` |
 | `.reset()` | Clears the idempotency set |
+
+`accept` return value:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | `string` | Decoded message text |
+| `messageId` | `bigint` | Sender-assigned message identifier |
+| `senderId` | `number` | Leaf index of the sender |
+| `status` | `"new" \| "duplicate"` | Whether this message id was seen before |
 
 ### `NodeEvent` shape
 
@@ -116,7 +134,7 @@ Every event object from `onWire` / `checkTimeouts` carries `kind: string`.
 
 | `kind` | Extra fields |
 |--------|-------------|
-| `"payload_received"` | `streamType: number`, `plaintext: Uint8Array`, `sequenceNo: number` |
+| `"payload_received"` | `streamType: number`, `plaintext: Uint8Array`, `sequenceNo: number`, `codec: number` |
 | `"state_changed"` | `from: string`, `to: string` |
 | `"epoch_advanced"` | `epoch: bigint`, `transitionId: number` |
 | `"error"` | `code: number`, `reason: string`, `fatal: boolean`, `retryable: boolean` |
@@ -131,25 +149,31 @@ Every event object from `onWire` / `checkTimeouts` carries `kind: string`.
 | `2` | Text | GTP (Group Text Protocol) |
 | `3` | Signal | GSP (Group Signaling Protocol) |
 
-## Multi-member group pattern
+## Examples
 
-```ts
-await init();
+| File | Description |
+|------|-------------|
+| [`examples/gtpChat.ts`](examples/gtpChat.ts) | Two-member encrypted text chat (TypeScript, Node.js ≥ 18) |
+| [`examples/gtpChat.html`](examples/gtpChat.html) | Standalone browser demo (no bundler needed) |
 
-const aliceMls = MlsContext.create("alice");
-const bobMls   = MlsContext.create("bob");
+## Testing
 
-// Bob exports a key package so Alice can invite him.
-// (In a real app Bob would send this over the signaling channel.)
-// Currently MlsContext exposes group operations at the Rust level.
-// Use the Node.js package for full multi-member key exchange in tests.
+Tests are written with [`wasm-bindgen-test`](https://rustwasm.github.io/wasm-bindgen/wasm-bindgen-test/index.html) and run inside Node.js:
+
+```sh
+# Install wasm-pack if needed
+cargo install wasm-pack
+
+# Run all WASM tests
+wasm-pack test --node crates/gbp/wasm
 ```
 
-> **Note:** Full multi-member MLS key exchange (invite, commit, Welcome)
-> is available in the WASM API as low-level calls.
-> The high-level `invite` / `acceptWelcome` wrappers will be added in a
-> future release. Single-member groups (creator only) and pre-established
-> epoch groups are fully supported today.
+The test suite covers:
+
+- `MlsContext`: create, epoch, keyPackage, groupId, invite / acceptWelcome
+- `GroupNode`: bootstrap (creator + joiner), onWire, checkTimeouts, getters
+- `GtpClient`: send, accept (roundtrip, unicode, duplicate, sequential, reset)
+- Two-member group: Alice→Bob, Bob→Alice, bidirectional, epoch sync
 
 ## Vite configuration example
 

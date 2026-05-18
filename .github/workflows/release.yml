@@ -37,6 +37,10 @@ jobs:
         run: cargo build --workspace --exclude gbp-stack-wasm
       - name: check wasm target
         run: cargo check -p gbp-stack-wasm --target wasm32-unknown-unknown
+      - name: install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: test wasm
+        run: wasm-pack test --node crates/gbp/wasm
   # 1. Build the native cdylib for every supported runtime identifier.
   build-native:
     name: native ${{ matrix.rid }}
@@ -436,6 +440,9 @@ jobs:
         run: |
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
           wasm-pack --version
+
+      - name: test wasm package
+        run: wasm-pack test --node crates/gbp/wasm
 
       - name: build wasm package
         run: |

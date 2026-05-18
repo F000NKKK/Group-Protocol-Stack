@@ -24,6 +24,10 @@ getrandom         = { version = "0.2", features = ["js"] }
 fluvio-wasm-timer = "0.2"
 # Enable openmls WASM/JS backend (secure randomness + time via Web APIs)
 openmls           = { version = "0.8", features = ["js"] }
+tls_codec         = { version = "0.4", features = ["derive"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-Os", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-mutable-globals"]

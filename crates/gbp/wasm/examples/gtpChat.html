@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GBP Stack — GTP Chat Demo</title>
+    <style>
+      body { font-family: monospace; max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+      h1   { font-size: 1.1rem; }
+      #log { background: #f4f4f4; padding: 1rem; border-radius: 4px; white-space: pre-wrap; min-height: 200px; }
+      button { margin-top: .5rem; padding: .4rem 1rem; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <h1>GBP Stack · GTP Chat (browser demo)</h1>
+    <p>
+      This page runs a two-member MLS+GBP+GTP session entirely in the browser.
+      Open the console for more detail.
+    </p>
+    <div id="log">Loading WASM module…</div>
+    <button id="btn" disabled>Run demo</button>
+
+    <script type="module">
+      // ── Load the WASM package ────────────────────────────────────────────
+      // When served via Vite or another bundler the import resolves from
+      // node_modules. For a standalone HTML file, replace the specifier with
+      // the path to the built pkg directory:
+      //   import init, { … } from "./pkg/gbp_stack_wasm.js";
+      import init, { MlsContext, GroupNode, GtpClient }
+        from "@voluntas-progressus/gbp-stack-wasm";
+
+      const StreamType = { Control: 0, Audio: 1, Text: 2, Signal: 3 };
+
+      const logEl = document.getElementById("log");
+      const btn   = document.getElementById("btn");
+
+      function log(msg) {
+        logEl.textContent += msg + "\n";
+        console.log(msg);
+      }
+
+      async function runDemo() {
+        logEl.textContent = "";
+        btn.disabled = true;
+
+        // ── MLS key exchange ───────────────────────────────────────────────
+        const aliceMls = MlsContext.create("alice");
+        const bobMls   = MlsContext.create("bob");
+
+        log(`Alice epoch before invite: ${aliceMls.epoch}`);
+        log(`Bob   epoch before invite: ${bobMls.epoch}`);
+
+        const welcome = aliceMls.invite(bobMls.keyPackage);
+        bobMls.acceptWelcome(welcome);
+
+        log(`Alice epoch after invite:  ${aliceMls.epoch}`);
+        log(`Bob   epoch after invite:  ${bobMls.epoch}`);
+
+        const gidA = Array.from(aliceMls.groupId).map(b => b.toString(16).padStart(2,"0")).join("");
+        const gidB = Array.from(bobMls.groupId).map(b => b.toString(16).padStart(2,"0")).join("");
+        log(`Group ID (alice): ${gidA}`);
+        log(`Group ID (bob):   ${gidB}`);
+        log(`Match: ${gidA === gidB}`);
+
+        // ── GBP nodes ──────────────────────────────────────────────────────
+        const groupId  = aliceMls.groupId;
+        const aliceNode = GroupNode.create(1, groupId);
+        const bobNode   = GroupNode.create(2, groupId);
+
+        aliceNode.bootstrapAsCreator(aliceMls.epoch);
+        bobNode.bootstrapAsJoiner(bobMls.epoch, 0);
+
+        log(`\naliceNode epoch: ${aliceNode.currentEpoch}`);
+        log(`bobNode   epoch: ${bobNode.currentEpoch}`);
+
+        // ── GTP exchange ───────────────────────────────────────────────────
+        const gtpAlice = GtpClient.create();
+        const gtpBob   = GtpClient.create();
+
+        function textEventsOf(evArr) {
+          return evArr.filter(ev =>
+            ev.kind === "payload_received" && ev.streamType === StreamType.Text
+          );
+        }
+
+        // Alice → Bob
+        log("\n── Alice → Bob ──");
+        const f1 = gtpAlice.send(aliceNode, aliceMls, 2, 1n, "hello bob!");
+        log(`Wire: ${f1.wire.length} bytes`);
+        for (const ev of textEventsOf(bobNode.onWire(bobMls, f1.wire))) {
+          const r = gtpBob.accept(ev.plaintext, bobMls.epoch);
+          if (r) log(`Bob received [${r.status}]: "${r.text}" msgId=${r.messageId}`);
+        }
+
+        // Bob → Alice
+        log("\n── Bob → Alice ──");
+        const f2 = gtpBob.send(bobNode, bobMls, 1, 1n, "hi alice!");
+        for (const ev of textEventsOf(aliceNode.onWire(aliceMls, f2.wire))) {
+          const r = gtpAlice.accept(ev.plaintext, aliceMls.epoch);
+          if (r) log(`Alice received [${r.status}]: "${r.text}" msgId=${r.messageId}`);
+        }
+
+        // Duplicate
+        log("\n── Replay (duplicate detection) ──");
+        for (const ev of textEventsOf(aliceNode.onWire(aliceMls, f2.wire))) {
+          const r = gtpAlice.accept(ev.plaintext, aliceMls.epoch);
+          if (r) log(`Alice received [${r.status}]: "${r.text}"`);
+        }
+
+        log("\nDone ✓");
+        btn.disabled = false;
+      }
+
+      // ── Init ──────────────────────────────────────────────────────────────
+      init()
+        .then(() => {
+          log("WASM ready.\n");
+          btn.disabled = false;
+          btn.addEventListener("click", runDemo);
+        })
+        .catch(err => {
+          log("Failed to load WASM: " + err);
+        });
+    </script>
+  </body>
+</html>
