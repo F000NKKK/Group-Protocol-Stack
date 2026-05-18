@@ -22,3 +22,6 @@ gbp-protocol = { workspace = true }
 gbp-mls      = { workspace = true }
 tracing      = { workspace = true }
 thiserror    = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1"

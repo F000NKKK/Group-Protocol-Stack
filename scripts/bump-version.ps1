@@ -10,7 +10,8 @@
     * python/gbp_stack/__init__.py (__version__)
     * js/package.json             ("version")
     * every README.md install snippet (gbp-stack = "..", `--version ..`,
-      `pip install gbp-stack==..`, `npm install @voluntas-progressus/gbp-stack@..`)
+      `pip install gbp-stack==..`, `npm install @voluntas-progressus/gbp-stack@..`,
+      `npm install @voluntas-progressus/gbp-stack-wasm@..`)
 
   After running, review the diff, commit, tag (e.g. `git tag v1.0.0`) and
   push the tag — the release workflow handles the rest.
@@ -115,6 +116,7 @@ Update-File 'js/package.json' {
 #   * NuGet:  --version X.Y.Z              (after `dotnet add package GBPStack`)
 #   * PyPI:   pip install gbp-stack==X.Y.Z
 #   * npm:    @voluntas-progressus/gbp-stack@X.Y.Z
+#   * npm:    @voluntas-progressus/gbp-stack-wasm@X.Y.Z
 $readmes = Get-ChildItem -Path $root -Recurse -Filter 'README.md' `
     -Exclude 'node_modules', 'target' |
     Where-Object {
@@ -151,9 +153,14 @@ foreach ($r in $readmes) {
             '(pip\s+install\s+gbp-stack==)[0-9A-Za-z.+-]+',
             "`${1}$PythonVersion")
 
-        # npm: `@voluntas-progressus/gbp-stack@X.Y.Z`
+        # npm (Node.js FFI): `@voluntas-progressus/gbp-stack@X.Y.Z`
         $s = [regex]::Replace($s,
             '(@voluntas-progressus/gbp-stack@)[0-9A-Za-z.+-]+',
+            "`${1}$Version")
+
+        # npm (WASM): `@voluntas-progressus/gbp-stack-wasm@X.Y.Z`
+        $s = [regex]::Replace($s,
+            '(@voluntas-progressus/gbp-stack-wasm@)[0-9A-Za-z.+-]+',
             "`${1}$Version")
 
         return $s

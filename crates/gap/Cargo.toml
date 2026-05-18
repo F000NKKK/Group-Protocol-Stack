@@ -28,3 +28,6 @@ prost        = { workspace = true }
 serde        = { workspace = true }
 serde_bytes  = { workspace = true }
 thiserror    = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1"

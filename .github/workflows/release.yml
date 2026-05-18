@@ -29,10 +29,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
       - name: cargo test
-        run: cargo test --workspace --lib --tests
+        run: cargo test --workspace --lib --tests --exclude gbp-stack-wasm
       - name: cargo build
-        run: cargo build --workspace
+        run: cargo build --workspace --exclude gbp-stack-wasm
+      - name: check wasm target
+        run: cargo check -p gbp-stack-wasm --target wasm32-unknown-unknown
   # 1. Build the native cdylib for every supported runtime identifier.
   build-native:
     name: native ${{ matrix.rid }}
@@ -327,7 +331,7 @@ jobs:
           for p in gbp-core gbp-protocol gbp-mls gbp-transport gbp-node \
                    gbp-proto gbp-flat \
                    gtp-protocol gap-protocol gsp-protocol gbp-sframe \
-                   gbp-stack gbp-stack-ffi gbp-cli; do
+                   gbp-stack gbp-stack-ffi gbp-stack-wasm gbp-cli; do
             publish "$p"
           done
 
@@ -397,11 +401,77 @@ jobs:
           if [ -z "$NODE_AUTH_TOKEN" ]; then echo "NODE_AUTH_TOKEN not set; skipping"; exit 0; fi
           npm publish --access public
 
+  # Build and publish the WASM npm package @voluntas-progressus/gbp-stack-wasm.
+  # Full wasm-pack compilation only runs on tag push and workflow_dispatch;
+  # PRs use the lightweight `cargo check --target wasm32-unknown-unknown` in pr-check.
+  pack-wasm:
+    name: wasm npm
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@voluntas-progressus/gbp-stack-wasm
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-wasm-
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          wasm-pack --version
+
+      - name: build wasm package
+        run: |
+          wasm-pack build crates/gbp/wasm \
+            --scope voluntas-progressus \
+            --release \
+            --target bundler \
+            --out-dir pkg \
+            --out-name gbp_stack_wasm
+
+      - name: copy readme into pkg
+        run: cp crates/gbp/wasm/README.md crates/gbp/wasm/pkg/README.md
+
+      - name: show package contents
+        run: ls -la crates/gbp/wasm/pkg/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wasm-pkg
+          path: crates/gbp/wasm/pkg/
+
+      - name: publish to npm
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: crates/gbp/wasm/pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_KEY }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "NPM_API_KEY not set; skipping"; exit 0; fi
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm publish --access public
+
   # Aggregate every artefact and create a GitHub Release.
   github-release:
     name: github release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [publish-nuget, build-wheels, build-sdist, publish-pypi, publish-crates, pack-npm]
+    needs: [publish-nuget, build-wheels, build-sdist, publish-pypi, publish-crates, pack-npm, pack-wasm]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -418,8 +488,11 @@ jobs:
           # Python wheels + sdist
           find artifacts -maxdepth 2 -type d -name 'wheel-*' -exec sh -c 'cp -r "$1"/*.whl release/' _ {} \;
           if [ -d artifacts/sdist ]; then cp artifacts/sdist/*.tar.gz release/ || true; fi
-          # npm tarball
+          # npm tarballs (Node.js FFI + WASM)
           if [ -d artifacts/npm-tarball ]; then cp artifacts/npm-tarball/*.tgz release/ || true; fi
+          if [ -d artifacts/wasm-pkg ]; then
+            (cd artifacts/wasm-pkg && zip -r "../../release/gbp-stack-wasm.zip" .) || true
+          fi
           # Native binaries (zipped per RID for convenience)
           for d in artifacts/native-*; do
             rid=$(basename "$d" | sed 's/^native-//')

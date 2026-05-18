@@ -1,0 +1,29 @@
+[package]
+name = "gbp-stack-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Browser/WASM bindings for the Group Protocol Stack."
+keywords = ["mls", "e2ee", "wasm", "group-messaging", "webassembly"]
+categories = ["cryptography", "wasm", "network-programming"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gbp-core      = { workspace = true }
+gbp-mls       = { workspace = true }
+gbp-node      = { workspace = true }
+gtp-protocol  = { workspace = true }
+wasm-bindgen  = "0.2"
+js-sys        = "0.3"
+getrandom         = { version = "0.2", features = ["js"] }
+fluvio-wasm-timer = "0.2"
+# Enable openmls WASM/JS backend (secure randomness + time via Web APIs)
+openmls           = { version = "0.8", features = ["js"] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os", "--enable-mutable-globals"]

@@ -5,7 +5,11 @@ use gbp::CodecError;
 use gbp_core::{GbpFlags, MemberId, PayloadCodec, StreamType, timeouts};
 use gbp_node::{GroupNode, NodeError, OutboundFrame, Sealer};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 /// Errors returned by [`GapClient`].
 #[derive(Debug, thiserror::Error)]

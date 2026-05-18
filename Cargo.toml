@@ -8,6 +8,7 @@ members = [
     "crates/gbp/node",
     "crates/gbp/stack",
     "crates/gbp/stack-ffi",
+    "crates/gbp/wasm",
     "crates/gbp/cli",
     "crates/gtp",
     "crates/gap",
