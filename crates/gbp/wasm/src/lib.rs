@@ -5,8 +5,8 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use gbp_core::{MemberId, PayloadCodec, StreamType};
-use gbp_node::{Event, GroupNode as RustGroupNode, Sealer};
+use gbp_core::{MemberId, PayloadCodec};
+use gbp_node::{Event, GroupNode as RustGroupNode};
 use gtp::{GtpAccept, GtpClient as RustGtpClient};
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use openmls::prelude::tls_codec::Serialize as TlsSerialize;
@@ -93,7 +93,7 @@ impl MlsContext {
     ///
     /// The returned object holds a pre-generated key package that another
     /// member can pass to [`invite`] to add this member to a group.
-    #[wasm_bindgen(js_name = "create", static_method_of = MlsContext)]
+    #[wasm_bindgen(js_name = "create")]
     pub fn create(user_id: &str) -> Result<MlsContext, JsValue> {
         let (ctx, kpb) = gbp_mls::MlsContext::new_member(user_id.as_bytes())
             .map_err(|e| js_err(e))?;
@@ -170,7 +170,7 @@ pub struct GroupNode {
 #[wasm_bindgen]
 impl GroupNode {
     /// Creates a node for `leafIndex` (member id) and the given 16-byte group id.
-    #[wasm_bindgen(js_name = "create", static_method_of = GroupNode)]
+    #[wasm_bindgen(js_name = "create")]
     pub fn create(leaf_index: u32, group_id_bytes: &[u8]) -> GroupNode {
         let gid: [u8; 16] = group_id_bytes.try_into().unwrap_or([0u8; 16]);
         GroupNode { inner: RefCell::new(RustGroupNode::new(leaf_index as MemberId, gid)) }
@@ -265,7 +265,7 @@ pub struct GtpClient {
 #[wasm_bindgen]
 impl GtpClient {
     /// Creates an empty GTP client.
-    #[wasm_bindgen(js_name = "create", static_method_of = GtpClient)]
+    #[wasm_bindgen(js_name = "create")]
     pub fn create() -> GtpClient {
         GtpClient { inner: RefCell::new(RustGtpClient::new()) }
     }

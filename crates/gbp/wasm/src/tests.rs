@@ -7,6 +7,7 @@
 //!  - Two-member group lifecycle (MLS invite → GBP bootstrap → GTP exchange)
 
 use super::*;
+use gbp_core::StreamType;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_node_experimental);
@@ -32,7 +33,7 @@ fn two_member_group() -> (MlsContext, GroupNode, GtpClient, MlsContext, GroupNod
     let alice_mls = MlsContext::create("alice").unwrap();
     let bob_mls   = MlsContext::create("bob").unwrap();
 
-    let welcome = alice_mls.invite(&bob_mls.key_package()).unwrap();
+    let welcome = alice_mls.invite(&bob_mls.key_package().to_vec()).unwrap();
     bob_mls.accept_welcome(&welcome.to_vec()).unwrap();
 
     let group_id = alice_mls.group_id().to_vec();

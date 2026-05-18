@@ -4,6 +4,16 @@
 
 - feat(wasm): implement MLS invite/acceptWelcome, add tests, examples, CI (696b557)
 
+### Bug Fixes
+
+- fix(wasm): pass Uint8Array as &[u8] via .to_vec() in wasm-bindgen-test tests
+- fix(wasm): remove redundant static_method_of from impl-block #[wasm_bindgen] attrs; fixes unused-variable warnings
+- fix(wasm): remove unused StreamType import from lib.rs; move to tests module
+
+### Documentation
+
+- docs(readme): remove file extensions from WASM example links in bindings table
+
 ---
 
 ## 1.5.2 (2026-05-17)
