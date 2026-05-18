@@ -1,4 +1,12 @@
-﻿## 1.5.2 (2026-05-17)
+﻿## 1.5.4 (2026-05-18)
+
+### Features
+
+- feat(wasm): implement MLS invite/acceptWelcome, add tests, examples, CI (696b557)
+
+---
+
+## 1.5.2 (2026-05-17)
 
 ### Documentation
 
@@ -236,6 +244,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
