@@ -48,7 +48,7 @@ package manager. Each binding ships pre-built native binaries for `win-x64`,
 | .NET    | [`GBPStack`](https://www.nuget.org/packages/GBPStack)                          | [`csharp/GBPStack`](csharp/GBPStack)   | [README](csharp/README.md)           | [GtpChat](csharp/examples/GtpChat.cs) · [GapAudio](csharp/examples/GapAudio.cs) · [GspSignals](csharp/examples/GspSignals.cs) |
 | Python  | [`gbp-stack`](https://pypi.org/project/gbp-stack/)                             | [`python`](python)                     | [README](python/README.md)           | [gtp_chat](python/examples/gtp_chat.py) · [gap_audio](python/examples/gap_audio.py) · [gsp_signals](python/examples/gsp_signals.py) |
 | Node.js | [`@voluntas-progressus/gbp-stack`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack) | [`js`](js) | [README](js/README.md) | [gtpChat](js/examples/gtpChat.ts) · [gapAudio](js/examples/gapAudio.ts) · [gspSignals](js/examples/gspSignals.ts) |
-| Browser (WASM) | [`@voluntas-progressus/gbp-stack-wasm`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack-wasm) | [`crates/gbp/wasm`](crates/gbp/wasm) | [README](crates/gbp/wasm/README.md) | [gtpChat](crates/gbp/wasm/examples/gtpChat.ts) · [gtpChat (html)](crates/gbp/wasm/examples/gtpChat.html) |
+| Browser (WASM) | [`@voluntas-progressus/gbp-stack-wasm`](https://www.npmjs.com/package/@voluntas-progressus/gbp-stack-wasm) | [`crates/gbp/wasm`](crates/gbp/wasm) | [README](crates/gbp/wasm/README.md) | [gtpChat](crates/gbp/wasm/examples/gtpChat.ts) · [gapAudio](crates/gbp/wasm/examples/gapAudio.ts) · [gspSignals](crates/gbp/wasm/examples/gspSignals.ts) · [gtpChat (html)](crates/gbp/wasm/examples/gtpChat.html) |
 
 ## Rust crates
 

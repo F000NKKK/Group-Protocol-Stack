@@ -1,10 +1,15 @@
 //! Integration tests for the gbp-stack-wasm WASM bindings.
 //!
 //! Covers:
-//!  - MlsContext: create, epoch, keyPackage, groupId, invite, acceptWelcome
-//!  - GroupNode: create, bootstrap (creator + joiner), onWire, checkTimeouts
-//!  - GtpClient: create, send, accept (roundtrip, duplicate, unicode)
-//!  - Two-member group lifecycle (MLS invite → GBP bootstrap → GTP exchange)
+//!  - MlsContext: create, epoch, keyPackage, groupId, invite, acceptWelcome,
+//!    inviteFull/finalizeCommit, removeMember, processMessage
+//!  - GroupNode: create, bootstrap (creator + joiner), onWire, checkTimeouts,
+//!    sendControl, drainEvents
+//!  - GtpClient: create, send, accept (roundtrip, duplicate, unicode, codec)
+//!  - GapClient: send, accept (audio roundtrip)
+//!  - GspClient: send, accept (signal roundtrip)
+//!  - SFrameSession/SFrameEncryptor: encrypt → decrypt roundtrip
+//!  - Two-member group lifecycle (MLS invite → GBP bootstrap → exchange)
 
 use super::*;
 use gbp_core::StreamType;
@@ -48,7 +53,8 @@ fn two_member_group() -> (MlsContext, GroupNode, GtpClient, MlsContext, GroupNod
     )
 }
 
-fn text_events(arr: &Array) -> Vec<JsValue> {
+/// Filters `payload_received` events of one stream type out of an events array.
+fn events_for(arr: &Array, want: StreamType) -> Vec<JsValue> {
     (0..arr.length())
         .map(|i| arr.get(i))
         .filter(|ev| {
@@ -58,14 +64,38 @@ fn text_events(arr: &Array) -> Vec<JsValue> {
             let st = Reflect::get(ev, &"streamType".into())
                 .map(|v| v.as_f64().unwrap_or(-1.0) as u8)
                 .unwrap_or(255);
-            kind == "payload_received" && st == StreamType::Text.as_u8()
+            kind == "payload_received" && st == want.as_u8()
         })
         .collect()
+}
+
+fn text_events(arr: &Array) -> Vec<JsValue> {
+    events_for(arr, StreamType::Text)
+}
+fn audio_events(arr: &Array) -> Vec<JsValue> {
+    events_for(arr, StreamType::Audio)
+}
+fn signal_events(arr: &Array) -> Vec<JsValue> {
+    events_for(arr, StreamType::Signal)
 }
 
 fn plaintext_of(ev: &JsValue) -> Vec<u8> {
     let pt = Reflect::get(ev, &"plaintext".into()).unwrap();
     Uint8Array::new(&pt).to_vec()
+}
+
+fn wire_of(frame: &JsValue) -> Vec<u8> {
+    Uint8Array::new(&Reflect::get(frame, &"wire".into()).unwrap()).to_vec()
+}
+
+fn str_field(obj: &JsValue, key: &str) -> String {
+    Reflect::get(obj, &key.into()).unwrap().as_string().unwrap()
+}
+fn num_field(obj: &JsValue, key: &str) -> f64 {
+    Reflect::get(obj, &key.into()).unwrap().as_f64().unwrap()
+}
+fn bytes_field(obj: &JsValue, key: &str) -> Vec<u8> {
+    Uint8Array::new(&Reflect::get(obj, &key.into()).unwrap()).to_vec()
 }
 
 // ─── MlsContext ──────────────────────────────────────────────────────────────
@@ -111,6 +141,84 @@ fn mls_two_distinct_users_have_different_key_packages() {
     assert_ne!(alice.key_package().to_vec(), bob.key_package().to_vec());
 }
 
+#[wasm_bindgen_test]
+fn mls_invite_full_stages_then_finalize_advances_epoch() {
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+
+    let res = alice.invite_full(&bob.key_package().to_vec()).unwrap();
+    let commit  = Reflect::get(&res, &"commit".into()).unwrap();
+    let welcome = Reflect::get(&res, &"welcome".into()).unwrap();
+    assert!(Uint8Array::new(&commit).length() > 0);
+    assert!(Uint8Array::new(&welcome).length() > 0);
+
+    // inviteFull stages the commit — epoch must NOT advance until finalize.
+    assert_eq!(alice.epoch(), 0u64);
+    alice.finalize_commit().unwrap();
+    assert_eq!(alice.epoch(), 1u64);
+
+    bob.accept_welcome(&Uint8Array::new(&welcome).to_vec()).unwrap();
+    assert_eq!(bob.epoch(), 1u64);
+    assert_eq!(alice.group_id().to_vec(), bob.group_id().to_vec());
+}
+
+#[wasm_bindgen_test]
+fn mls_clear_pending_commit_rolls_back() {
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+
+    let _res = alice.invite_full(&bob.key_package().to_vec()).unwrap();
+    assert_eq!(alice.epoch(), 0u64);
+    alice.clear_pending_commit().unwrap();
+    // Rolled back — still epoch 0, and a fresh invite still works.
+    assert_eq!(alice.epoch(), 0u64);
+    let welcome = alice.invite(&bob.key_package().to_vec()).unwrap();
+    bob.accept_welcome(&welcome.to_vec()).unwrap();
+    assert_eq!(alice.epoch(), 1u64);
+}
+
+#[wasm_bindgen_test]
+fn mls_remove_member_advances_epoch() {
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+    let welcome = alice.invite(&bob.key_package().to_vec()).unwrap();
+    bob.accept_welcome(&welcome.to_vec()).unwrap();
+    assert_eq!(alice.epoch(), 1u64);
+
+    // Creator is leaf 0; the first joiner (bob) is leaf 1.
+    let commit = alice.remove_member(1).unwrap();
+    assert!(commit.length() > 0);
+    alice.finalize_commit().unwrap();
+    assert_eq!(alice.epoch(), 2u64);
+}
+
+#[wasm_bindgen_test]
+fn mls_process_message_applies_commit() {
+    // Three members so a remove produces a Commit that a *third* member must
+    // process to advance. alice=leaf0 creator, bob=leaf1, carol=leaf2.
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+    let carol = MlsContext::create("carol").unwrap();
+
+    let w_bob = alice.invite(&bob.key_package().to_vec()).unwrap();
+    bob.accept_welcome(&w_bob.to_vec()).unwrap();
+
+    // Add carol via the two-phase flow and broadcast the commit to bob.
+    let res = alice.invite_full(&carol.key_package().to_vec()).unwrap();
+    let commit  = Uint8Array::new(&Reflect::get(&res, &"commit".into()).unwrap()).to_vec();
+    let welcome = Uint8Array::new(&Reflect::get(&res, &"welcome".into()).unwrap()).to_vec();
+    alice.finalize_commit().unwrap();
+    carol.accept_welcome(&welcome).unwrap();
+
+    // Bob processes the add-commit → "commit" (staged), then finalizes to
+    // advance his epoch to match alice + carol.
+    let kind = bob.process_message(&commit).unwrap();
+    assert_eq!(kind, "commit");
+    bob.finalize_commit().unwrap();
+    assert_eq!(bob.epoch(), alice.epoch());
+    assert_eq!(bob.epoch(), carol.epoch());
+}
+
 // ─── GroupNode ───────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
@@ -146,71 +254,89 @@ fn group_node_check_timeouts_returns_array() {
     assert!(evs.is_array());
 }
 
+#[wasm_bindgen_test]
+fn group_node_send_control_returns_wire() {
+    let (mls, node, _gtp) = creator_group("alice", 0x20);
+    // CapabilitiesAdvertise = 0x0008, no args, broadcast.
+    let r = node.send_control(&mls, 0, 0x0008, 0, 1, &[]).unwrap();
+    assert!(Uint8Array::new(&Reflect::get(&r, &"wire".into()).unwrap()).length() > 0);
+}
+
+#[wasm_bindgen_test]
+fn group_node_send_control_rejects_bad_opcode() {
+    let (mls, node, _gtp) = creator_group("alice", 0x23);
+    assert!(node.send_control(&mls, 0, 0xFFFF, 0, 1, &[]).is_err());
+}
+
+#[wasm_bindgen_test]
+fn group_node_drain_events_returns_array() {
+    let (_mls, node, _gtp) = creator_group("alice", 0x21);
+    assert!(node.drain_events().is_array());
+}
+
 // ─── GtpClient ───────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
 fn gtp_send_returns_wire_bytes() {
     let (mls, node, gtp) = creator_group("alice", 0x03);
-    let frame = gtp.send(&node, &mls, 0, 1, "hello");
+    let frame = gtp.send(&node, &mls, 0, 1, "hello", None);
     assert!(!frame.is_null());
-    let wire = Reflect::get(&frame, &"wire".into()).unwrap();
-    assert!(Uint8Array::new(&wire).length() > 0);
+    assert!(Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).length() > 0);
 }
 
 #[wasm_bindgen_test]
 fn gtp_single_member_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x04);
-    let frame = gtp.send(&node, &mls, 0, 1, "hello wasm");
-    let wire = Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec();
+    let frame = gtp.send(&node, &mls, 0, 1, "hello wasm", None);
+    let wire  = wire_of(&frame);
 
-    let evs   = node.on_wire(&mls, &wire);
-    let texts = text_events(&evs);
+    let texts = text_events(&node.on_wire(&mls, &wire));
     assert_eq!(texts.len(), 1);
 
-    let result = gtp.accept(&plaintext_of(&texts[0]), mls.epoch());
+    let result = gtp.accept(&plaintext_of(&texts[0]), mls.epoch(), None);
     assert!(!result.is_null());
-    let text = Reflect::get(&result, &"text".into()).unwrap().as_string().unwrap();
-    assert_eq!(text, "hello wasm");
+    assert_eq!(str_field(&result, "text"), "hello wasm");
 }
 
 #[wasm_bindgen_test]
 fn gtp_unicode_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x05);
     let msg = "Привет 🌍 こんにちは";
-    let frame = gtp.send(&node, &mls, 0, 1, msg);
-    let wire = Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec();
+    let frame = gtp.send(&node, &mls, 0, 1, msg, None);
+    let wire  = wire_of(&frame);
 
     for ev in text_events(&node.on_wire(&mls, &wire)) {
-        let result = gtp.accept(&plaintext_of(&ev), mls.epoch());
-        let text = Reflect::get(&result, &"text".into()).unwrap().as_string().unwrap();
-        assert_eq!(text, msg);
+        let result = gtp.accept(&plaintext_of(&ev), mls.epoch(), None);
+        assert_eq!(str_field(&result, "text"), msg);
     }
+}
+
+#[wasm_bindgen_test]
+fn gtp_flatbuffers_codec_roundtrip() {
+    let (mls, node, gtp) = creator_group("alice", 0x22);
+    // PayloadCodec.FlatBuffers = 2.
+    let frame = gtp.send(&node, &mls, 0, 1, "fb!", Some(2));
+    let wire  = wire_of(&frame);
+    let evs   = text_events(&node.on_wire(&mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let codec = num_field(&evs[0], "codec") as u8;
+    assert_eq!(codec, 2, "delivered payload should report the FlatBuffers codec");
+    let r = gtp.accept(&plaintext_of(&evs[0]), mls.epoch(), Some(codec));
+    assert_eq!(str_field(&r, "text"), "fb!");
 }
 
 #[wasm_bindgen_test]
 fn gtp_duplicate_returns_status_duplicate() {
     let (mls, node, gtp) = creator_group("alice", 0x06);
 
-    // First delivery → "new"
-    let wire1 = {
-        let frame = gtp.send(&node, &mls, 0, 42, "msg");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire1 = wire_of(&gtp.send(&node, &mls, 0, 42, "msg", None));
     for ev in text_events(&node.on_wire(&mls, &wire1)) {
-        let r = gtp.accept(&plaintext_of(&ev), mls.epoch());
-        let status = Reflect::get(&r, &"status".into()).unwrap().as_string().unwrap();
-        assert_eq!(status, "new");
+        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
     }
 
-    // Same message_id again → "duplicate"
-    let wire2 = {
-        let frame = gtp.send(&node, &mls, 0, 42, "msg");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire2 = wire_of(&gtp.send(&node, &mls, 0, 42, "msg", None));
     for ev in text_events(&node.on_wire(&mls, &wire2)) {
-        let r = gtp.accept(&plaintext_of(&ev), mls.epoch());
-        let status = Reflect::get(&r, &"status".into()).unwrap().as_string().unwrap();
-        assert_eq!(status, "duplicate");
+        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "duplicate");
     }
 }
 
@@ -218,13 +344,10 @@ fn gtp_duplicate_returns_status_duplicate() {
 fn gtp_sequential_message_ids() {
     let (mls, node, gtp) = creator_group("alice", 0x07);
     for i in 1u64..=5 {
-        let frame = gtp.send(&node, &mls, 0, i, &format!("msg {i}"));
-        let wire = Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec();
+        let wire = wire_of(&gtp.send(&node, &mls, 0, i, &format!("msg {i}"), None));
         let evs = text_events(&node.on_wire(&mls, &wire));
         assert_eq!(evs.len(), 1, "msg {i} should produce exactly one text event");
-        let r = gtp.accept(&plaintext_of(&evs[0]), mls.epoch());
-        let text = Reflect::get(&r, &"text".into()).unwrap().as_string().unwrap();
-        assert_eq!(text, format!("msg {i}"));
+        assert_eq!(str_field(&gtp.accept(&plaintext_of(&evs[0]), mls.epoch(), None), "text"), format!("msg {i}"));
     }
 }
 
@@ -232,72 +355,206 @@ fn gtp_sequential_message_ids() {
 fn gtp_reset_clears_dedup_set() {
     let (mls, node, gtp) = creator_group("alice", 0x08);
 
-    let wire = {
-        let frame = gtp.send(&node, &mls, 0, 1, "a");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire = wire_of(&gtp.send(&node, &mls, 0, 1, "a", None));
     for ev in text_events(&node.on_wire(&mls, &wire)) {
-        let r = gtp.accept(&plaintext_of(&ev), mls.epoch());
-        assert_eq!(Reflect::get(&r, &"status".into()).unwrap().as_string().unwrap(), "new");
+        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
     }
 
     gtp.reset();
 
-    // After reset, same message_id is "new" again.
-    let wire2 = {
-        let frame = gtp.send(&node, &mls, 0, 1, "a");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire2 = wire_of(&gtp.send(&node, &mls, 0, 1, "a", None));
     for ev in text_events(&node.on_wire(&mls, &wire2)) {
-        let r = gtp.accept(&plaintext_of(&ev), mls.epoch());
-        assert_eq!(Reflect::get(&r, &"status".into()).unwrap().as_string().unwrap(), "new");
+        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
     }
 }
 
-// ─── Two-member group ────────────────────────────────────────────────────────
+// ─── GapClient (audio) ─────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn gap_single_member_roundtrip() {
+    let (mls, node, _gtp) = creator_group("alice", 0x10);
+    let gap = GapClient::create();
+    let opus = vec![0xAAu8, 0xBB, 0xCC, 0xDD, 0xEE];
+
+    let frame = gap.send(&node, &mls, 0, 7, 1_000, &opus, None);
+    assert!(!frame.is_null());
+    let wire = wire_of(&frame);
+
+    let evs = audio_events(&node.on_wire(&mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let r = gap.accept(&plaintext_of(&evs[0]), mls.epoch(), None);
+    assert!(!r.is_null());
+    assert_eq!(str_field(&r, "status"), "new");
+    assert_eq!(num_field(&r, "source") as u32, 7);
+    assert_eq!(bytes_field(&r, "opus"), opus);
+}
+
+#[wasm_bindgen_test]
+fn gap_two_member_flatbuffers_roundtrip() {
+    let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
+    let gap_alice = GapClient::create();
+    let gap_bob   = GapClient::create();
+    let opus = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
+
+    // FlatBuffers codec for audio.
+    let frame = gap_alice.send(&alice_node, &alice_mls, 2, 11, 2_000, &opus, Some(2));
+    let wire  = wire_of(&frame);
+
+    let evs = audio_events(&bob_node.on_wire(&bob_mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let codec = num_field(&evs[0], "codec") as u8;
+    let r = gap_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), Some(codec));
+    assert_eq!(str_field(&r, "status"), "new");
+    assert_eq!(num_field(&r, "source") as u32, 11);
+    assert_eq!(bytes_field(&r, "opus"), opus);
+}
+
+// ─── GspClient (signalling) ──────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn gsp_join_signal_roundtrip() {
+    let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
+    let gsp_alice = GspClient::create();
+    let gsp_bob   = GspClient::create();
+
+    // SignalType.Join = 100, request_id 1, broadcast role_claim 0.
+    let frame = gsp_alice.send(&alice_node, &alice_mls, 2, 100, 0, 1, None).unwrap();
+    let wire  = wire_of(&frame);
+
+    let evs = signal_events(&bob_node.on_wire(&bob_mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let r = gsp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None).unwrap();
+    assert_eq!(str_field(&r, "status"), "new");
+    assert_eq!(str_field(&r, "signal"), "JOIN");
+    assert_eq!(num_field(&r, "signalCode") as u32, 100);
+    assert_eq!(num_field(&r, "requestId") as u32, 1);
+}
+
+#[wasm_bindgen_test]
+fn gsp_mute_with_args_roundtrip() {
+    let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
+    let gsp_alice = GspClient::create();
+    let gsp_bob   = GspClient::create();
+
+    // SignalType.Mute = 200 requires a CBOR map {0: target_member_id (uint)}.
+    let mut args = Vec::new();
+    let m = ciborium::Value::Map(vec![(
+        ciborium::Value::Integer(0u64.into()),
+        ciborium::Value::Integer(1u64.into()),
+    )]);
+    ciborium::ser::into_writer(&m, &mut args).unwrap();
+    let frame = gsp_alice.send_with_args(&alice_node, &alice_mls, 2, 200, 0, 5, &args, None).unwrap();
+    let wire  = wire_of(&frame);
+
+    let evs = signal_events(&bob_node.on_wire(&bob_mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let r = gsp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None).unwrap();
+    assert_eq!(str_field(&r, "signal"), "MUTE");
+    assert_eq!(num_field(&r, "requestId") as u32, 5);
+}
+
+#[wasm_bindgen_test]
+fn gsp_bad_signal_type_errors() {
+    let (mls, node, _gtp) = creator_group("alice", 0x24);
+    let gsp = GspClient::create();
+    // 999 is not a valid SignalType.
+    assert!(gsp.send(&node, &mls, 0, 999, 0, 1, None).is_err());
+}
+
+// ─── SFrame (media E2EE) ──────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn sframe_encrypt_decrypt_roundtrip() {
+    // alice + bob share one MLS group at epoch 1 → identical exporter secret.
+    let (alice_mls, _an, _ga, bob_mls, _bn, _gb) = two_member_group();
+    let label = "gbp/sframe v1";
+
+    // Receiver session on bob; sender encryptor on alice (leaf 0 = creator).
+    let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
+    let alice_session = SFrameSession::create(&alice_mls, label, 0).unwrap();
+    let enc = alice_session.create_encryptor(&alice_mls, 0, label, 0).unwrap();
+
+    let plaintext = vec![9u8, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+    let aad: Vec<u8> = Vec::new();
+    let ct = enc.encrypt(&plaintext, &aad).unwrap().to_vec();
+    assert!(ct.len() > plaintext.len(), "ciphertext carries header + tag");
+
+    let r = bob_session.decrypt(&ct, &aad).unwrap();
+    assert_eq!(bytes_field(&r, "plaintext"), plaintext);
+    assert_eq!(num_field(&r, "senderLeaf") as u32, 0);
+}
+
+#[wasm_bindgen_test]
+fn sframe_wrong_aad_fails() {
+    let (alice_mls, _an, _ga, bob_mls, _bn, _gb) = two_member_group();
+    let label = "gbp/sframe v1";
+    let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
+    let enc = SFrameSession::create(&alice_mls, label, 0)
+        .unwrap()
+        .create_encryptor(&alice_mls, 0, label, 0)
+        .unwrap();
+
+    let ct = enc.encrypt(&[1, 2, 3], b"aad-A").unwrap().to_vec();
+    // Decrypt with a different AAD → authentication failure.
+    assert!(bob_session.decrypt(&ct, b"aad-B").is_err());
+}
+
+#[wasm_bindgen_test]
+fn sframe_full_audio_pipeline() {
+    // End-to-end: encrypt opus → GAP send → onWire → GAP accept → SFrame decrypt.
+    let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
+    let label = "gbp/sframe v1";
+    let gap_alice = GapClient::create();
+    let gap_bob   = GapClient::create();
+    let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
+    let enc = SFrameSession::create(&alice_mls, label, 0)
+        .unwrap()
+        .create_encryptor(&alice_mls, 0, label, 0)
+        .unwrap();
+
+    let opus = vec![0x10u8, 0x20, 0x30, 0x40];
+    let sframe = enc.encrypt(&opus, &[]).unwrap().to_vec();
+
+    // Ship the SFrame ciphertext as the GAP payload.
+    let frame = gap_alice.send(&alice_node, &alice_mls, 2, 3, 4_000, &sframe, Some(2));
+    let wire  = wire_of(&frame);
+    let evs   = audio_events(&bob_node.on_wire(&bob_mls, &wire));
+    assert_eq!(evs.len(), 1);
+    let r = gap_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), Some(num_field(&evs[0], "codec") as u8));
+    let recovered_sframe = bytes_field(&r, "opus");
+
+    let dec = bob_session.decrypt(&recovered_sframe, &[]).unwrap();
+    assert_eq!(bytes_field(&dec, "plaintext"), opus);
+}
+
+// ─── Two-member group (text) ───────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
 fn two_member_gtp_alice_to_bob() {
     let (alice_mls, alice_node, gtp_alice, bob_mls, bob_node, gtp_bob) = two_member_group();
 
-    let frame = gtp_alice.send(&alice_node, &alice_mls, 2, 1, "hello bob");
-    let wire  = Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec();
+    let frame = gtp_alice.send(&alice_node, &alice_mls, 2, 1, "hello bob", None);
+    let wire  = wire_of(&frame);
 
     let evs = text_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
-    let r = gtp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch());
-    assert_eq!(
-        Reflect::get(&r, &"text".into()).unwrap().as_string().unwrap(),
-        "hello bob"
-    );
-    assert_eq!(
-        Reflect::get(&r, &"status".into()).unwrap().as_string().unwrap(),
-        "new"
-    );
+    let r = gtp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None);
+    assert_eq!(str_field(&r, "text"), "hello bob");
+    assert_eq!(str_field(&r, "status"), "new");
 }
 
 #[wasm_bindgen_test]
 fn two_member_gtp_bidirectional() {
     let (alice_mls, alice_node, gtp_alice, bob_mls, bob_node, gtp_bob) = two_member_group();
 
-    // Alice → Bob
-    let wire_ab = {
-        let frame = gtp_alice.send(&alice_node, &alice_mls, 2, 1, "ping");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire_ab = wire_of(&gtp_alice.send(&alice_node, &alice_mls, 2, 1, "ping", None));
     for ev in text_events(&bob_node.on_wire(&bob_mls, &wire_ab)) {
-        let r = gtp_bob.accept(&plaintext_of(&ev), bob_mls.epoch());
-        assert_eq!(Reflect::get(&r, &"text".into()).unwrap().as_string().unwrap(), "ping");
+        assert_eq!(str_field(&gtp_bob.accept(&plaintext_of(&ev), bob_mls.epoch(), None), "text"), "ping");
     }
 
-    // Bob → Alice
-    let wire_ba = {
-        let frame = gtp_bob.send(&bob_node, &bob_mls, 1, 1, "pong");
-        Uint8Array::new(&Reflect::get(&frame, &"wire".into()).unwrap()).to_vec()
-    };
+    let wire_ba = wire_of(&gtp_bob.send(&bob_node, &bob_mls, 1, 1, "pong", None));
     for ev in text_events(&alice_node.on_wire(&alice_mls, &wire_ba)) {
-        let r = gtp_alice.accept(&plaintext_of(&ev), alice_mls.epoch());
-        assert_eq!(Reflect::get(&r, &"text".into()).unwrap().as_string().unwrap(), "pong");
+        assert_eq!(str_field(&gtp_alice.accept(&plaintext_of(&ev), alice_mls.epoch(), None), "text"), "pong");
     }
 }
 

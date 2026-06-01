@@ -20,7 +20,7 @@ README for a worked example.
 from ._native import PayloadCodec, last_error, version
 from .capabilities import CapabilitiesNegotiator
 from .gap_client import GapAcceptResult, GapClient
-from .gbp_node import GroupNode, NodeEvent, NodeState, OutboundFrame, StreamType, encode_gbp_frame, lookup_error
+from .gbp_node import ControlOpcode, GroupNode, NodeEvent, NodeState, OutboundFrame, StreamType, encode_gbp_frame, lookup_error
 from .gsp_client import GspAcceptResult, GspClient, SignalType
 from .gtp_client import GtpAcceptResult, GtpClient
 from .history import MessageEntry, MessageHistory, Watermark
@@ -40,6 +40,7 @@ __all__ = [
     "AES_256_GCM",
     "AudioFrame",
     "CapabilitiesNegotiator",
+    "ControlOpcode",
     "GapAcceptResult",
     "GapClient",
     "GroupNode",
@@ -56,6 +57,7 @@ __all__ = [
     "NodeEvent",
     "NodeState",
     "OutboundFrame",
+    "PayloadCodec",
     "Permissions",
     "RoleError",
     "RoleRegistry",

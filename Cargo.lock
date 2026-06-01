@@ -1109,11 +1109,15 @@ dependencies = [
 name = "gbp-stack-wasm"
 version = "1.5.5"
 dependencies = [
+ "ciborium",
  "fluvio-wasm-timer",
+ "gap-protocol",
  "gbp-core",
  "gbp-mls",
  "gbp-node",
+ "gbp-sframe",
  "getrandom 0.2.17",
+ "gsp-protocol",
  "gtp-protocol",
  "js-sys",
  "openmls",

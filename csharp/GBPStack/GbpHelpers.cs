@@ -4,6 +4,14 @@ namespace GBPStack;
 public static class GbpHelpers
 {
     /// <summary>
+    /// The native GBPStack library version string (e.g.
+    /// <c>"group-protocol-stack 1.6.0 (gbp + gtp + gap + gsp)"</c>). Useful for
+    /// diagnostics and asserting the loaded native library matches the expected
+    /// pinned version.
+    /// </summary>
+    public static string Version => Native.CopyAndFree(Native.gbp_version());
+
+    /// <summary>
     /// Encodes a raw GBP frame to CBOR bytes.
     /// Most callers should use <see cref="GroupNode.SendControl"/> or the
     /// sub-protocol <c>Send</c> methods instead.
