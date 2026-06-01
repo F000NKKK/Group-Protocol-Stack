@@ -1,4 +1,25 @@
-﻿## 1.5.5 (2026-05-20)
+## 1.6.0 (2026-06-01)
+
+### Features
+
+- feat(wasm): expose gap, gsp, sframe + full MLS lifecycle and control plane (1e2a5e8)
+
+### Tests
+
+- feat(wasm): expose gap, gsp, sframe + full MLS lifecycle and control plane (1e2a5e8)
+
+### Chores
+
+- chore(deps-dev): bump ts-jest from 29.4.9 to 29.4.11 in /js (#25) (3ef32bf)
+- chore(deps-dev): bump @types/node from 25.9.0 to 25.9.1 in /js (#24) (cff35b7)
+- chore(deps): bump serde_json from 1.0.149 to 1.0.150 (#27) (466a0fd)
+- chore(deps): bump koffi from 3.0.0 to 3.0.1 in /js (#26) (e5aad48)
+- chore(deps): bump actions/cache from 4 to 5 (#22) (373e744)
+- chore(deps-dev): bump @types/node from 25.8.0 to 25.9.0 in /js (#23) (0f9ad2a)
+
+---
+
+## 1.5.5 (2026-05-20)
 
 _No conventional commits found in this range._
 
@@ -260,6 +281,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
