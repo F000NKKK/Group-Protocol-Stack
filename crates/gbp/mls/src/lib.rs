@@ -736,6 +736,36 @@ mod tests {
     }
 
     #[test]
+    fn restored_prekey_accepts_welcome() {
+        // A published KeyPackage's owner persists its context (export_state),
+        // then a fresh process restores it (restore_state) — the restored
+        // context MUST still accept a Welcome targeting that KeyPackage. This is
+        // the secret-DM reload path (Hush ADR-0023): the joiner's pre-key
+        // survives a reload (e.g. browser IndexedDB) and can still join.
+        let (mut alice, _akp) = alice();
+        let (bob, bob_kp) = bob();
+
+        // Persist bob's pre-key context, then drop the live one (simulate reload).
+        let bob_blob = bob.export_state().unwrap();
+        let bob_kp_inner = bob_kp.key_package().clone();
+        drop(bob);
+
+        // Alice invites bob's published KeyPackage.
+        let welcome = alice.invite(&[bob_kp_inner]).unwrap();
+        assert_eq!(alice.epoch(), 1);
+
+        // Bob restored from the blob accepts the Welcome — i.e. the private
+        // KeyPackage keys (init/encryption) survived export/restore.
+        let mut bob_restored = MlsContext::restore_state(&bob_blob).unwrap();
+        bob_restored.accept_welcome(&welcome).unwrap();
+        assert_eq!(bob_restored.epoch(), 1);
+
+        // Mutual decryption confirms the shared group.
+        let ct = alice.seal(StreamLabel::Text, 1, b"after reload").unwrap();
+        assert_eq!(bob_restored.open(StreamLabel::Text, 1, &ct).unwrap(), b"after reload");
+    }
+
+    #[test]
     fn restore_state_rejects_truncated_blob() {
         let (ctx, _kp) = alice();
         let blob = ctx.export_state().unwrap();
