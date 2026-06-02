@@ -1,3 +1,11 @@
+## 1.7.0 (2026-06-02)
+
+### Features
+
+- feat(mls): export/restore MLS state across all bindings (45f4411)
+
+---
+
 ## 1.6.0 (2026-06-01)
 
 ### Features
@@ -281,6 +289,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
