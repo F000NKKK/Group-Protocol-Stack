@@ -210,6 +210,33 @@ impl MlsContext {
         Ok(Uint8Array::from(welcome.as_slice()))
     }
 
+    /// Invites several members in a SINGLE Add commit. `keyPackages` is an
+    /// array of raw TLS KeyPackage byte arrays (each from a joiner's
+    /// [`keyPackage`] getter). Returns ONE Welcome that every newly-added
+    /// member accepts with their own KeyPackage via [`acceptWelcome`]. Merges
+    /// the commit immediately and advances this member's epoch by one
+    /// (regardless of how many members were added). Errors if the array is
+    /// empty.
+    #[wasm_bindgen(js_name = "inviteMany")]
+    pub fn invite_many(&self, key_packages: Array) -> Result<Uint8Array, JsValue> {
+        let mut ctx = self.inner.borrow_mut();
+        let mut kps = Vec::with_capacity(key_packages.length() as usize);
+        for v in key_packages.iter() {
+            let bytes = Uint8Array::new(&v).to_vec();
+            let kp_in = KeyPackageIn::tls_deserialize(&mut bytes.as_slice())
+                .map_err(|e| js_err(format!("kp parse: {e:?}")))?;
+            let kp = kp_in
+                .validate(ctx.provider.crypto(), ProtocolVersion::Mls10)
+                .map_err(|e| js_err(format!("kp validate: {e:?}")))?;
+            kps.push(kp);
+        }
+        if kps.is_empty() {
+            return Err(js_err("inviteMany: no key packages".to_string()));
+        }
+        let welcome = ctx.invite(&kps).map_err(|e| js_err(e))?;
+        Ok(Uint8Array::from(welcome.as_slice()))
+    }
+
     /// Joins a group from a Welcome message produced by [`invite`].
     ///
     /// After this call [`epoch`] will match the inviter's epoch and

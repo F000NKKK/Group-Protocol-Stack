@@ -100,7 +100,8 @@ for (const ev of bobNode.onWire(bobMls, frame.wire)) {
 | `.epoch: bigint` | Current MLS group epoch |
 | `.groupId: Uint8Array` | 16-byte group identifier |
 | `.invite(keyPackageBytes: Uint8Array): Uint8Array` | Invites another member (merges immediately); returns Welcome bytes |
-| `.acceptWelcome(welcomeBytes: Uint8Array): void` | Joins a group from a Welcome produced by `invite` |
+| `.inviteMany(keyPackages: Uint8Array[]): Uint8Array` | Invites several members in ONE Add commit (merges immediately, epoch advances once); returns a single Welcome that every joiner accepts with their own key package |
+| `.acceptWelcome(welcomeBytes: Uint8Array): void` | Joins a group from a Welcome produced by `invite` / `inviteMany` |
 | `.inviteFull(keyPackageBytes: Uint8Array): { commit, welcome }` | Two-phase invite — stages a pending commit; returns both Commit and Welcome bytes. Broadcast the Commit, then `finalizeCommit` (or `clearPendingCommit` to roll back) |
 | `.removeMember(leafIndex: number): Uint8Array` | Stages a Remove commit for `leafIndex`; returns the Commit to broadcast |
 | `.processMessage(msgBytes: Uint8Array): string` | Applies an inbound MLS message; returns `"commit"`, `"application"`, `"proposal"` or `"external"` |
@@ -239,7 +240,7 @@ wasm-pack test --node crates/gbp/wasm
 
 The test suite covers:
 
-- `MlsContext`: create, epoch, keyPackage, groupId, invite / acceptWelcome, inviteFull / finalizeCommit / clearPendingCommit, removeMember, processMessage
+- `MlsContext`: create, epoch, keyPackage, groupId, invite / inviteMany / acceptWelcome, inviteFull / finalizeCommit / clearPendingCommit, removeMember, processMessage
 - `GroupNode`: bootstrap (creator + joiner), onWire, checkTimeouts, getters, sendControl, drainEvents
 - `GtpClient`: send, accept (roundtrip, unicode, duplicate, sequential, reset, codec selection)
 - `GapClient`: audio send / accept roundtrip (CBOR + FlatBuffers)

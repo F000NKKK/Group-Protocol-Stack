@@ -135,6 +135,34 @@ fn mls_invite_accept_syncs_epoch() {
 }
 
 #[wasm_bindgen_test]
+fn mls_invite_many_one_welcome_serves_all_joiners() {
+    // inviteMany adds several members in one commit and returns ONE Welcome
+    // that each joiner accepts with their own KeyPackage.
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+    let carol = MlsContext::create("carol").unwrap();
+
+    let kps = Array::new();
+    kps.push(&JsValue::from(bob.key_package()));
+    kps.push(&JsValue::from(carol.key_package()));
+    let welcome = alice.invite_many(kps).unwrap();
+    assert_eq!(alice.epoch(), 1u64, "one Add commit advances the epoch once");
+
+    bob.accept_welcome(&welcome.to_vec()).unwrap();
+    carol.accept_welcome(&welcome.to_vec()).unwrap();
+    assert_eq!(bob.epoch(), 1u64);
+    assert_eq!(carol.epoch(), 1u64);
+    assert_eq!(alice.group_id().to_vec(), bob.group_id().to_vec());
+    assert_eq!(alice.group_id().to_vec(), carol.group_id().to_vec());
+}
+
+#[wasm_bindgen_test]
+fn mls_invite_many_empty_errors() {
+    let alice = MlsContext::create("alice").unwrap();
+    assert!(alice.invite_many(Array::new()).is_err());
+}
+
+#[wasm_bindgen_test]
 fn mls_two_distinct_users_have_different_key_packages() {
     let alice = MlsContext::create("alice").unwrap();
     let bob   = MlsContext::create("bob").unwrap();

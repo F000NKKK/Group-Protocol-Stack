@@ -736,6 +736,34 @@ mod tests {
     }
 
     #[test]
+    fn multi_member_invite_one_welcome_serves_all_joiners() {
+        // A single Add commit for several KeyPackages yields ONE Welcome that
+        // every new member accepts with their own KeyPackage (RFC 9420 §12.4).
+        // This is what Hush secret groups rely on: claim N KeyPackages, one
+        // invite, broadcast one Welcome. (Existing tests only ever added one
+        // joiner at a time — this covers the multi-element slice.)
+        let (mut alice, _a) = alice();
+        let (mut bob, bob_kp) = bob();
+        let (mut carol, carol_kp) = MlsContext::new_member(b"carol").unwrap();
+
+        let welcome = alice
+            .invite(&[bob_kp.key_package().clone(), carol_kp.key_package().clone()])
+            .unwrap();
+        assert_eq!(alice.epoch(), 1, "one Add commit advances the epoch once");
+
+        // Both joiners accept the SAME Welcome and land at the same epoch.
+        bob.accept_welcome(&welcome).unwrap();
+        carol.accept_welcome(&welcome).unwrap();
+        assert_eq!(bob.epoch(), 1);
+        assert_eq!(carol.epoch(), 1);
+
+        // All three share the group key → mutual decryption.
+        let ct = alice.seal(StreamLabel::Text, 1, b"hello group").unwrap();
+        assert_eq!(bob.open(StreamLabel::Text, 1, &ct).unwrap(), b"hello group");
+        assert_eq!(carol.open(StreamLabel::Text, 1, &ct).unwrap(), b"hello group");
+    }
+
+    #[test]
     fn restored_prekey_accepts_welcome() {
         // A published KeyPackage's owner persists its context (export_state),
         // then a fresh process restores it (restore_state) — the restored
