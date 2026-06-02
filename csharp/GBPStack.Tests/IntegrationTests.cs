@@ -96,6 +96,30 @@ public class MlsContextTests
     }
 
     [Fact]
+    public void ExportState_RestoreState_Preserves_Epoch_And_GroupId()
+    {
+        using var alice = MlsContext.Create("alice");
+        using var bob = MlsContext.Create("bob");
+        bob.AcceptWelcome(alice.Invite(bob.ExportKeyPackage()));
+        Assert.Equal(1UL, alice.Epoch);
+
+        var blob = alice.ExportState();
+        Assert.True(blob.Length > 0);
+        using var restored = MlsContext.RestoreState(blob, "alice");
+        Assert.Equal(alice.Epoch, restored.Epoch);
+        Assert.Equal(alice.GroupId, restored.GroupId);
+    }
+
+    [Fact]
+    public void RestoreState_Rejects_Truncated_Blob()
+    {
+        using var alice = MlsContext.Create("alice");
+        var blob = alice.ExportState();
+        Assert.Throws<InvalidOperationException>(
+            () => MlsContext.RestoreState(blob[..(blob.Length / 2)]));
+    }
+
+    [Fact]
     public void InviteFull_Returns_Commit_And_Welcome()
     {
         using var alice = MlsContext.Create("alice");

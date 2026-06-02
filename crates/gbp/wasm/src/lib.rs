@@ -287,6 +287,25 @@ impl MlsContext {
             .clear_pending_commit()
             .map_err(|e| js_err(e))
     }
+
+    /// Serialises the full MLS state into an opaque blob that [`restoreState`]
+    /// can reconstruct, so a browser client can persist the context (e.g. to
+    /// IndexedDB) and survive a reload. The blob contains **private key
+    /// material** — store it encrypted at rest.
+    #[wasm_bindgen(js_name = "exportState")]
+    pub fn export_state(&self) -> Result<Uint8Array, JsValue> {
+        let bytes = self.inner.borrow().export_state().map_err(|e| js_err(e))?;
+        Ok(Uint8Array::from(bytes.as_slice()))
+    }
+
+    /// Reconstructs a context from a blob produced by [`exportState`]. The
+    /// restored context is at the same epoch / group state and can immediately
+    /// send and receive again.
+    #[wasm_bindgen(js_name = "restoreState")]
+    pub fn restore_state(blob: &[u8]) -> Result<MlsContext, JsValue> {
+        let ctx = gbp_mls::MlsContext::restore_state(blob).map_err(|e| js_err(e))?;
+        Ok(MlsContext { inner: RefCell::new(ctx), kp_bytes: Vec::new() })
+    }
 }
 
 // ─── GroupNode ───────────────────────────────────────────────────────────────

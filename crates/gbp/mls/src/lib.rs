@@ -21,10 +21,12 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
 };
 use gbp_core::StreamType;
+use openmls::prelude::tls_codec::DeserializeBytes as _;
 use openmls::prelude::tls_codec::Serialize as _;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_rust_crypto::{MemoryStorage, OpenMlsRustCrypto};
+use std::collections::HashMap;
 
 /// MLS ciphersuite used by the stack: X25519-AES128GCM-SHA256-Ed25519.
 pub const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -117,6 +119,57 @@ pub struct MlsContext {
     /// READY frame would be sealed under an epoch the coordinator can't
     /// open.
     pub pending_staged: Option<StagedCommit>,
+}
+
+// ── Storage (de)serialisation for export_state / restore_state ────────────────
+// MemoryStorage exposes its key-value map as a public field; its built-in
+// serialize/deserialize are behind the `test-utils` feature, so we (de)serialise
+// the map ourselves with a simple length-prefixed (u32-LE) record format.
+
+fn serialize_storage(s: &MemoryStorage) -> Result<Vec<u8>, MlsError> {
+    let map = s
+        .values
+        .read()
+        .map_err(|_| MlsError::OpenMls("storage lock poisoned".into()))?;
+    let mut out = Vec::new();
+    out.extend_from_slice(&(map.len() as u32).to_le_bytes());
+    for (k, v) in map.iter() {
+        out.extend_from_slice(&(k.len() as u32).to_le_bytes());
+        out.extend_from_slice(k);
+        out.extend_from_slice(&(v.len() as u32).to_le_bytes());
+        out.extend_from_slice(v);
+    }
+    Ok(out)
+}
+
+fn deserialize_storage(bytes: &[u8]) -> Result<HashMap<Vec<u8>, Vec<u8>>, MlsError> {
+    let mut cur = bytes;
+    fn rd_u32(cur: &mut &[u8]) -> Result<usize, MlsError> {
+        if cur.len() < 4 {
+            return Err(MlsError::OpenMls("truncated storage blob".into()));
+        }
+        let n = u32::from_le_bytes([cur[0], cur[1], cur[2], cur[3]]) as usize;
+        *cur = &cur[4..];
+        Ok(n)
+    }
+    fn rd_bytes<'a>(cur: &mut &'a [u8], len: usize) -> Result<&'a [u8], MlsError> {
+        if cur.len() < len {
+            return Err(MlsError::OpenMls("truncated storage blob".into()));
+        }
+        let (head, tail) = cur.split_at(len);
+        *cur = tail;
+        Ok(head)
+    }
+    let count = rd_u32(&mut cur)?;
+    let mut map = HashMap::with_capacity(count);
+    for _ in 0..count {
+        let klen = rd_u32(&mut cur)?;
+        let k = rd_bytes(&mut cur, klen)?.to_vec();
+        let vlen = rd_u32(&mut cur)?;
+        let v = rd_bytes(&mut cur, vlen)?.to_vec();
+        map.insert(k, v);
+    }
+    Ok(map)
 }
 
 impl MlsContext {
@@ -345,6 +398,90 @@ impl MlsContext {
         out
     }
 
+    /// Serialises the full local MLS state into an opaque blob that
+    /// [`MlsContext::restore_state`] can reconstruct verbatim. Lets a client
+    /// persist the context (disk / IndexedDB) so a chat survives a restart
+    /// without re-establishing the group — the basis for deterministic,
+    /// reload-surviving secret chats.
+    ///
+    /// The blob bundles four length-prefixed (u32-LE) sections:
+    /// `[provider storage | signer | identity | group_id]`. It contains
+    /// **private key material** — callers MUST store it encrypted at rest.
+    pub fn export_state(&self) -> Result<Vec<u8>, MlsError> {
+        let storage_buf = serialize_storage(self.provider.storage())?;
+        let signer_buf = self
+            .signer
+            .tls_serialize_detached()
+            .map_err(|e| MlsError::OpenMls(format!("signer serialize: {e:?}")))?;
+        let gid = self.group.group_id().as_slice().to_vec();
+
+        let mut out = Vec::with_capacity(16 + storage_buf.len() + signer_buf.len() + self.identity.len() + gid.len());
+        for part in [
+            storage_buf.as_slice(),
+            signer_buf.as_slice(),
+            self.identity.as_slice(),
+            gid.as_slice(),
+        ] {
+            out.extend_from_slice(&(part.len() as u32).to_le_bytes());
+            out.extend_from_slice(part);
+        }
+        Ok(out)
+    }
+
+    /// Reconstructs a context from a blob produced by
+    /// [`MlsContext::export_state`]. The restored context is at the same epoch
+    /// with the same group state, signer and identity, and can immediately
+    /// send / receive again.
+    pub fn restore_state(blob: &[u8]) -> Result<Self, MlsError> {
+        let mut cur = blob;
+        let mut take = || -> Result<&[u8], MlsError> {
+            if cur.len() < 4 {
+                return Err(MlsError::OpenMls("truncated state blob (length)".into()));
+            }
+            let len = u32::from_le_bytes([cur[0], cur[1], cur[2], cur[3]]) as usize;
+            cur = &cur[4..];
+            if cur.len() < len {
+                return Err(MlsError::OpenMls("truncated state blob (body)".into()));
+            }
+            let (head, tail) = cur.split_at(len);
+            cur = tail;
+            Ok(head)
+        };
+        let storage_bytes = take()?.to_vec();
+        let signer_bytes = take()?.to_vec();
+        let identity = take()?.to_vec();
+        let gid_bytes = take()?.to_vec();
+
+        // Rehydrate a fresh provider's (public) key-value map from the blob.
+        let provider = OpenMlsRustCrypto::default();
+        let map = deserialize_storage(&storage_bytes)?;
+        *provider
+            .storage()
+            .values
+            .write()
+            .map_err(|_| MlsError::OpenMls("storage lock poisoned".into()))? = map;
+
+        let signer = SignatureKeyPair::tls_deserialize_exact_bytes(&signer_bytes)
+            .map_err(|e| MlsError::OpenMls(format!("signer parse: {e:?}")))?;
+        let credential = CredentialWithKey {
+            credential: BasicCredential::new(identity.clone()).into(),
+            signature_key: signer.public().into(),
+        };
+        let group_id = GroupId::from_slice(&gid_bytes);
+        let group = MlsGroup::load(provider.storage(), &group_id)
+            .map_err(|e| MlsError::OpenMls(format!("group load: {e:?}")))?
+            .ok_or_else(|| MlsError::OpenMls("no group in restored state".into()))?;
+
+        Ok(Self {
+            provider,
+            signer,
+            group,
+            credential,
+            identity,
+            pending_staged: None,
+        })
+    }
+
     /// Exports a 32-byte secret under the given stream label.
     pub fn export_stream_key(&self, label: StreamLabel) -> Result<[u8; 32], MlsError> {
         let secret = self
@@ -555,5 +692,54 @@ mod tests {
         bob2.accept_welcome(&welcome_bytes).unwrap();
         assert_eq!(alice2.epoch(), 1);
         assert_eq!(bob2.epoch(), 1);
+    }
+
+    #[test]
+    fn export_restore_round_trip_preserves_state() {
+        let (ctx, _kp) = alice();
+        let blob = ctx.export_state().unwrap();
+        let restored = MlsContext::restore_state(&blob).unwrap();
+        assert_eq!(restored.epoch(), ctx.epoch());
+        assert_eq!(restored.group_id_16(), ctx.group_id_16());
+        // Identical exporter secret ⇒ the full group state was restored.
+        assert_eq!(
+            restored.export_stream_key(StreamLabel::Text).unwrap(),
+            ctx.export_stream_key(StreamLabel::Text).unwrap()
+        );
+    }
+
+    #[test]
+    fn restored_context_can_seal_and_open() {
+        let (ctx, _kp) = alice();
+        let blob = ctx.export_state().unwrap();
+        let restored = MlsContext::restore_state(&blob).unwrap();
+        let ct = restored.seal(StreamLabel::Text, 7, b"after restore").unwrap();
+        assert_eq!(restored.open(StreamLabel::Text, 7, &ct).unwrap(), b"after restore");
+    }
+
+    #[test]
+    fn export_restore_preserves_multi_member_group() {
+        let (mut alice, _akp) = alice();
+        let (mut bob, bob_kp) = bob();
+        let welcome = alice.invite(&[bob_kp.key_package().clone()]).unwrap();
+        bob.accept_welcome(&welcome).unwrap();
+        assert_eq!(alice.epoch(), 1);
+
+        // Persist Alice at epoch 1, then restore from the blob.
+        let blob = alice.export_state().unwrap();
+        let restored_alice = MlsContext::restore_state(&blob).unwrap();
+        assert_eq!(restored_alice.epoch(), 1);
+
+        // Restored Alice still shares the group key with Bob.
+        let ct = restored_alice.seal(StreamLabel::Control, 3, b"still in group").unwrap();
+        assert_eq!(bob.open(StreamLabel::Control, 3, &ct).unwrap(), b"still in group");
+    }
+
+    #[test]
+    fn restore_state_rejects_truncated_blob() {
+        let (ctx, _kp) = alice();
+        let blob = ctx.export_state().unwrap();
+        assert!(MlsContext::restore_state(&blob[..blob.len() / 2]).is_err());
+        assert!(MlsContext::restore_state(&[]).is_err());
     }
 }

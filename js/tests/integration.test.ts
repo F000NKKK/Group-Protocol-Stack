@@ -92,6 +92,30 @@ describe("MlsContext", () => {
         } finally { alice.close(); bob.close(); }
     });
 
+    test("exportState + restoreState preserves epoch and groupId", () => {
+        const alice = MlsContext.create("alice");
+        const bob   = MlsContext.create("bob");
+        try {
+            bob.acceptWelcome(alice.invite(bob.exportKeyPackage()));
+            expect(alice.epoch).toBe(1n);
+            const blob = alice.exportState();
+            expect(blob.length).toBeGreaterThan(0);
+            const restored = MlsContext.restoreState(blob, "alice");
+            try {
+                expect(restored.epoch).toBe(alice.epoch);
+                expect(Buffer.compare(restored.groupId, alice.groupId)).toBe(0);
+            } finally { restored.close(); }
+        } finally { alice.close(); bob.close(); }
+    });
+
+    test("restoreState rejects a truncated blob", () => {
+        const alice = MlsContext.create("alice");
+        try {
+            const blob = alice.exportState();
+            expect(() => MlsContext.restoreState(blob.subarray(0, blob.length >> 1))).toThrow();
+        } finally { alice.close(); }
+    });
+
     test("inviteFull returns commit and welcome", () => {
         const alice = MlsContext.create("alice");
         const bob   = MlsContext.create("bob");

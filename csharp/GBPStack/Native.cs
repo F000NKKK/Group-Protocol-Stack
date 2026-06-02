@@ -74,6 +74,12 @@ internal static class Native
     public static extern bool gbp_mls_accept_welcome(int handle, IntPtr welcomePtr, nuint welcomeLen);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern GbpBuffer gbp_mls_export_state(int handle);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int gbp_mls_restore_state(IntPtr ptr, nuint len);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
     public static extern int gbp_node_create(uint memberId, IntPtr groupId16);
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]

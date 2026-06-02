@@ -160,6 +160,32 @@ public sealed class MlsContext : IDisposable
         if (!ok) throw new InvalidOperationException($"accept_welcome: {Native.LastError()}");
     }
 
+    /// <summary>
+    /// Serialises the full MLS state into an opaque blob that
+    /// <see cref="RestoreState"/> can reconstruct, letting a consumer persist
+    /// the context across restarts. The blob contains <b>private key
+    /// material</b> — store it encrypted at rest.
+    /// </summary>
+    public byte[] ExportState()
+    {
+        var buf = Native.gbp_mls_export_state(Handle);
+        if (buf.IsEmpty) throw new InvalidOperationException($"export_state: {Native.LastError()}");
+        return Native.CopyAndFree(buf);
+    }
+
+    /// <summary>
+    /// Reconstructs a context from a blob produced by <see cref="ExportState"/>.
+    /// The restored context is at the same epoch / group state and can send and
+    /// receive again. <paramref name="identity"/> is informational (the real
+    /// identity is inside the blob).
+    /// </summary>
+    public static MlsContext RestoreState(byte[] state, string identity = "")
+    {
+        var h = Native.WithBytes(state, (p, l) => Native.gbp_mls_restore_state(p, l));
+        if (h <= 0) throw new InvalidOperationException($"restore_state: {Native.LastError()}");
+        return new MlsContext(h, identity);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

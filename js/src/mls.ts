@@ -128,6 +128,30 @@ export class MlsContext {
         if (!ok) throw new Error(`accept_welcome: ${N.lastError()}`);
     }
 
+    /**
+     * Serialise the full MLS state into an opaque blob that
+     * {@link MlsContext.restoreState} can reconstruct, so a consumer can
+     * persist the context across restarts. The blob contains **private key
+     * material** — store it encrypted at rest.
+     */
+    exportState(): Buffer {
+        const buf = N.gbp_mls_export_state(this.handle) as N.GbpBuffer;
+        const out = N.takeBuffer(buf);
+        if (out.length === 0) throw new Error(`export_state: ${N.lastError()}`);
+        return out;
+    }
+
+    /**
+     * Reconstruct a context from a blob produced by {@link MlsContext.exportState}.
+     * The restored context is at the same epoch / group state and can send and
+     * receive again. `identity` is informational (the real identity is in the blob).
+     */
+    static restoreState(state: Buffer, identity = ""): MlsContext {
+        const h = N.gbp_mls_restore_state(state, state.length) as number;
+        if (h <= 0) throw new Error(`restore_state: ${N.lastError()}`);
+        return new MlsContext(h, identity);
+    }
+
     /** Release the native handle. Idempotent. */
     close(): void {
         if (this.handle) {

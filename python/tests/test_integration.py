@@ -125,6 +125,22 @@ class TestMlsContext:
             bob.accept_welcome(welcome)
             assert bob.epoch == alice.epoch
 
+    def test_export_state_restore_state_preserves_epoch_and_group_id(self):
+        with MlsContext.create("alice") as alice, MlsContext.create("bob") as bob:
+            bob.accept_welcome(alice.invite(bob.export_key_package()))
+            assert alice.epoch == 1
+            blob = alice.export_state()
+            assert isinstance(blob, bytes) and len(blob) > 0
+            with MlsContext.restore_state(blob, "alice") as restored:
+                assert restored.epoch == alice.epoch
+                assert restored.group_id == alice.group_id
+
+    def test_restore_state_rejects_truncated_blob(self):
+        with MlsContext.create("alice") as alice:
+            blob = alice.export_state()
+            with pytest.raises(OSError):
+                MlsContext.restore_state(blob[: len(blob) // 2])
+
     def test_invite_full_two_members(self):
         with MlsContext.create("alice") as alice, MlsContext.create("bob") as bob:
             commit, welcome = alice.invite_full(bob.export_key_package())

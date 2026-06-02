@@ -193,6 +193,20 @@ fn mls_remove_member_advances_epoch() {
 }
 
 #[wasm_bindgen_test]
+fn mls_export_restore_preserves_epoch_and_group_id() {
+    let alice = MlsContext::create("alice").unwrap();
+    let bob   = MlsContext::create("bob").unwrap();
+    bob.accept_welcome(&alice.invite(&bob.key_package().to_vec()).unwrap().to_vec()).unwrap();
+    assert_eq!(alice.epoch(), 1u64);
+
+    let blob = alice.export_state().unwrap().to_vec();
+    assert!(!blob.is_empty());
+    let restored = MlsContext::restore_state(&blob).unwrap();
+    assert_eq!(restored.epoch(), alice.epoch());
+    assert_eq!(restored.group_id().to_vec(), alice.group_id().to_vec());
+}
+
+#[wasm_bindgen_test]
 fn mls_process_message_applies_commit() {
     // Three members so a remove produces a Commit that a *third* member must
     // process to advance. alice=leaf0 creator, bob=leaf1, carol=leaf2.

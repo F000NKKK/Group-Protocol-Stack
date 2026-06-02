@@ -513,6 +513,48 @@ pub unsafe extern "C" fn gbp_mls_accept_welcome(
     }
 }
 
+/// Serialises the full MLS state of handle `h` into an opaque blob that
+/// [`gbp_mls_restore_state`] can reconstruct. Lets consumers persist a context
+/// (disk / IndexedDB) so a group survives a restart. The blob contains
+/// **private key material** — store it encrypted at rest. The caller MUST free
+/// the returned buffer with [`gbp_buffer_free`]. Returns an empty buffer on
+/// failure (see [`gbp_last_error`]).
+#[unsafe(no_mangle)]
+pub extern "C" fn gbp_mls_export_state(h: i32) -> GbpBuffer {
+    clear_last_error();
+    let Some(ctx_arc) = mls().get(h) else {
+        set_last_error("invalid MLS handle");
+        return GbpBuffer::empty();
+    };
+    let ctx = ctx_arc.lock().unwrap();
+    match ctx.export_state() {
+        Ok(bytes) => GbpBuffer::from_vec(bytes),
+        Err(e) => {
+            set_last_error(e);
+            GbpBuffer::empty()
+        }
+    }
+}
+
+/// Reconstructs an MLS context from a blob produced by [`gbp_mls_export_state`].
+/// Returns the new handle, or `0` on failure. The restored context is at the
+/// same epoch / group state and can immediately send and receive again.
+///
+/// # Safety
+/// `ptr` MUST be valid for `len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gbp_mls_restore_state(ptr: *const u8, len: usize) -> i32 {
+    clear_last_error();
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    match MlsContext::restore_state(bytes) {
+        Ok(ctx) => mls().insert(ctx),
+        Err(e) => {
+            set_last_error(e);
+            0
+        }
+    }
+}
+
 // ============================================================================
 // GBP node API (the IP-like base layer)
 // ============================================================================

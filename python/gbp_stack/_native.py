@@ -101,6 +101,10 @@ gbp_mls_clear_pending_commit = _bind(
 gbp_mls_accept_welcome = _bind(
     "gbp_mls_accept_welcome", c_bool, [c_int32, c_void_p, c_size_t]
 )
+gbp_mls_export_state = _bind("gbp_mls_export_state", GbpBuffer, [c_int32])
+gbp_mls_restore_state = _bind(
+    "gbp_mls_restore_state", c_int32, [c_void_p, c_size_t]
+)
 
 gbp_node_create = _bind("gbp_node_create", c_int32, [c_uint32, c_void_p])
 gbp_node_destroy = _bind("gbp_node_destroy", None, [c_int32])

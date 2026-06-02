@@ -85,6 +85,8 @@ export const gbp_mls_process_message = lib.func("uint32_t gbp_mls_process_messag
 export const gbp_mls_finalize_commit = lib.func("bool gbp_mls_finalize_commit(int32_t)");
 export const gbp_mls_clear_pending_commit = lib.func("bool gbp_mls_clear_pending_commit(int32_t)");
 export const gbp_mls_accept_welcome = lib.func("bool gbp_mls_accept_welcome(int32_t, void *, size_t)");
+export const gbp_mls_export_state = lib.func("GbpBuffer gbp_mls_export_state(int32_t)");
+export const gbp_mls_restore_state = lib.func("int32_t gbp_mls_restore_state(void *, size_t)");
 
 // GBP node
 export const gbp_node_create = lib.func("int32_t gbp_node_create(uint32_t, void *)");

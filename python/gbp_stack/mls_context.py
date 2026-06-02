@@ -127,6 +127,30 @@ class MlsContext:
         if not ok:
             raise OSError(f"accept_welcome: {_n.last_error()}")
 
+    def export_state(self) -> bytes:
+        """Serialise the full MLS state into an opaque blob that
+        :meth:`restore_state` can reconstruct, so a consumer can persist the
+        context across restarts. The blob contains **private key material** —
+        store it encrypted at rest."""
+        buf = _n.gbp_mls_export_state(self._handle)
+        out = _n.take_buffer(buf)
+        if not out:
+            raise OSError(f"export_state: {_n.last_error()}")
+        return out
+
+    @classmethod
+    def restore_state(cls, state: bytes, identity: str = "") -> "MlsContext":
+        """Reconstruct a context from a blob produced by :meth:`export_state`.
+
+        The restored context is at the same epoch / group state and can send
+        and receive again. ``identity`` is informational (the real identity is
+        inside the blob).
+        """
+        handle = _n.call_with_bytes(state, _n.gbp_mls_restore_state)
+        if handle <= 0:
+            raise OSError(f"restore_state: {_n.last_error()}")
+        return cls(handle, identity)
+
     def close(self) -> None:
         """Release the native handle. Idempotent."""
         if self._handle:

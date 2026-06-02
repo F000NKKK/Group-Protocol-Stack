@@ -169,6 +169,19 @@ carolMls.acceptWelcome(welcome);    // carol joins
 console.assert(aliceMls.epoch === bobMls.epoch && bobMls.epoch === carolMls.epoch);
 ```
 
+## Persisting MLS state
+
+Serialise a context so it survives a restart, then restore it later — the
+restored context is at the same epoch and can send / receive again. The blob
+holds **private key material**, so store it encrypted at rest.
+
+```ts
+const blob = mls.exportState();             // persist (encrypted) to disk
+// ... later / after restart ...
+const restored = MlsContext.restoreState(blob, "alice");
+// restored.epoch === mls.epoch
+```
+
 ## License
 
 Licensed under [Apache License, Version 2.0](https://github.com/F000NKKK/Group-Protocol-Stack/blob/main/LICENSE).

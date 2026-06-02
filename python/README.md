@@ -167,6 +167,20 @@ carol_mls.accept_welcome(welcome)    # carol joins
 assert alice_mls.epoch == bob_mls.epoch == carol_mls.epoch
 ```
 
+## Persisting MLS state
+
+Serialise a context so it survives a restart, then restore it later — the
+restored context is at the same epoch and can send / receive again. The blob
+holds **private key material**, so store it encrypted at rest.
+
+```python
+blob = mls.export_state()                   # persist (encrypted) to disk
+# ... later / after restart ...
+with MlsContext.restore_state(blob, "alice") as restored:
+    assert restored.epoch == mls.epoch
+    assert restored.group_id == mls.group_id
+```
+
 ## License
 
 Licensed under [Apache License, Version 2.0](https://github.com/F000NKKK/Group-Protocol-Stack/blob/main/LICENSE).

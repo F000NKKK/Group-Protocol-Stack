@@ -165,6 +165,19 @@ carolMls.AcceptWelcome(welcome);   // carol joins
 Debug.Assert(aliceMls.Epoch == bobMls.Epoch && bobMls.Epoch == carolMls.Epoch);
 ```
 
+## Persisting MLS state
+
+Serialise a context so it survives a restart, then restore it later — the
+restored context is at the same epoch and can send / receive again. The blob
+holds **private key material**, so store it encrypted at rest.
+
+```csharp
+byte[] blob = mls.ExportState();            // persist (encrypted) to disk
+// ... later / after restart ...
+using var restored = MlsContext.RestoreState(blob, "alice");
+// restored.Epoch == mls.Epoch, restored.GroupId == mls.GroupId
+```
+
 ## License
 
 Licensed under [Apache License, Version 2.0](https://github.com/F000NKKK/Group-Protocol-Stack/blob/main/LICENSE).

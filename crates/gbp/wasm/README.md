@@ -106,6 +106,8 @@ for (const ev of bobNode.onWire(bobMls, frame.wire)) {
 | `.processMessage(msgBytes: Uint8Array): string` | Applies an inbound MLS message; returns `"commit"`, `"application"`, `"proposal"` or `"external"` |
 | `.finalizeCommit(): void` | Merges a pending commit from `inviteFull`/`removeMember` (advances the epoch) |
 | `.clearPendingCommit(): void` | Discards a pending commit without applying it (use on `ABORT_TRANSITION`) |
+| `.exportState(): Uint8Array` | Serialises the full MLS state into an opaque blob (persist to IndexedDB to survive a reload). **Contains private keys — store encrypted.** |
+| `MlsContext.restoreState(blob: Uint8Array): MlsContext` | Reconstructs a context from `exportState` output — same epoch / group, ready to send & receive again |
 
 ### `GroupNode`
 
