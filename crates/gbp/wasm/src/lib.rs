@@ -374,6 +374,22 @@ impl GroupNode {
         self.inner.borrow_mut().bootstrap_as_joiner(epoch, expected_first_tid);
     }
 
+    /// Serialises the outbound sequence counters so a rebuilt node (after a
+    /// client restart / re-login that restores the MLS state) resumes sending
+    /// above the high-water-marks peers already recorded — otherwise its frames
+    /// are dropped as replays. The inbound window is NOT included (the rebuilt
+    /// node must re-accept re-fetched history).
+    #[wasm_bindgen(js_name = "exportOutSeq")]
+    pub fn export_out_seq(&self) -> Uint8Array {
+        Uint8Array::from(self.inner.borrow().export_out_seq().as_slice())
+    }
+
+    /// Restores outbound counters produced by [`GroupNode::exportOutSeq`].
+    #[wasm_bindgen(js_name = "restoreOutSeq")]
+    pub fn restore_out_seq(&self, bytes: &[u8]) {
+        self.inner.borrow_mut().restore_out_seq(bytes);
+    }
+
     /// Delivers a wire frame and returns the resulting events array.
     ///
     /// Each element is a plain JS object with at minimum `{ kind: string }`.

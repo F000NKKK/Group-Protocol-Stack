@@ -245,6 +245,50 @@ impl GroupNode {
         base + self.member_id * 100
     }
 
+    /// Serialises the OUTBOUND sequence counters (`out_seq`) so a rebuilt node
+    /// (e.g. after a client restart / re-login that restores the MLS state)
+    /// resumes sending ABOVE the high-water-marks its peers already recorded.
+    /// A fresh node would otherwise restart outbound seqs at 1 and have every
+    /// frame dropped by peers as `REPLAY_DETECTED` until the counter caught up.
+    ///
+    /// The INBOUND replay window (`in_hw`) is intentionally NOT exported — a
+    /// rebuilt node must re-accept re-fetched history (its `in_hw` resets to 0).
+    /// Format: `u32 count`, then `count` × (`u8 stream_type`, `u32 stream_id`,
+    /// `u32 seq`), little-endian.
+    pub fn export_out_seq(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(4 + self.out_seq.len() * 9);
+        out.extend_from_slice(&(self.out_seq.len() as u32).to_le_bytes());
+        for ((st, sid), seq) in &self.out_seq {
+            out.push(*st as u8);
+            out.extend_from_slice(&sid.to_le_bytes());
+            out.extend_from_slice(&seq.to_le_bytes());
+        }
+        out
+    }
+
+    /// Restores outbound counters produced by [`GroupNode::export_out_seq`].
+    /// Tolerant of a malformed/empty blob (leaves counters unchanged).
+    pub fn restore_out_seq(&mut self, bytes: &[u8]) {
+        if bytes.len() < 4 {
+            return;
+        }
+        let n = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+        let mut cur = &bytes[4..];
+        for _ in 0..n {
+            if cur.len() < 9 {
+                break;
+            }
+            let st = match StreamType::try_from(cur[0]) {
+                Ok(s) => s,
+                Err(_) => break,
+            };
+            let sid = u32::from_le_bytes([cur[1], cur[2], cur[3], cur[4]]);
+            let seq = u32::from_le_bytes([cur[5], cur[6], cur[7], cur[8]]);
+            self.out_seq.insert((st, sid), seq);
+            cur = &cur[9..];
+        }
+    }
+
     /// Sends an opaque plaintext payload on the given stream.
     ///
     /// Used by the sub-protocol clients: each one encodes its message and

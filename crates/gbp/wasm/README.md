@@ -118,6 +118,8 @@ for (const ev of bobNode.onWire(bobMls, frame.wire)) {
 | `.bootstrapAsCreator(epoch: bigint)` | Drives the node to `ACTIVE` as the group creator |
 | `.bootstrapAsJoiner(epoch: bigint, expectedFirstTid: number)` | Drives the node to `ACTIVE` as a joiner |
 | `.onWire(mls: MlsContext, wireBytes: Uint8Array): NodeEvent[]` | Delivers a wire frame; returns decoded events |
+| `.exportOutSeq(): Uint8Array` | Serialises the OUTBOUND sequence counters so a rebuilt node (restart/re-login that restores MLS state) resumes sending above peers' replay high-water-marks — otherwise its frames are dropped as replays. Inbound window is NOT included (rebuilt node re-accepts re-fetched history) |
+| `.restoreOutSeq(bytes: Uint8Array)` | Restores outbound counters from `exportOutSeq` |
 | `.checkTimeouts(): NodeEvent[]` | Polls timeout events — call ~every 500 ms from the app loop |
 | `.lastTransitionId: number` | `transition_id` of the last applied epoch transition |
 | `.currentEpoch: bigint` | Current epoch as seen by the GBP layer |

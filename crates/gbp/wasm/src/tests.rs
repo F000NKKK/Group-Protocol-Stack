@@ -340,6 +340,47 @@ fn gtp_single_member_roundtrip() {
     assert_eq!(str_field(&result, "text"), "hello wasm");
 }
 
+// Re-login regression: a rebuilt node restarts outbound seqs at 1, so its
+// frames are dropped by a peer whose replay high-water-mark is already higher.
+#[wasm_bindgen_test]
+fn relogin_without_out_seq_restore_is_replay_dropped() {
+    let (alice_mls, alice_node, alice_gtp, bob_mls, bob_node, _bob_gtp) = two_member_group();
+    let gid = alice_mls.group_id().to_vec();
+    for (mid, t) in [(1u64, "m1"), (2u64, "m2")] {
+        let f = alice_gtp.send(&alice_node, &alice_mls, 0, mid, t, None);
+        let _ = bob_node.on_wire(&bob_mls, &wire_of(&f)); // advances bob's in_hw to 2
+    }
+    // Fresh node + client (re-login), NO out_seq restore.
+    let alice_node2 = GroupNode::create(1, &gid);
+    alice_node2.bootstrap_as_creator(alice_mls.epoch());
+    let alice_gtp2 = GtpClient::create();
+    let f = alice_gtp2.send(&alice_node2, &alice_mls, 0, 3, "m3", None);
+    let texts = text_events(&bob_node.on_wire(&bob_mls, &wire_of(&f)));
+    assert_eq!(texts.len(), 0, "fresh node frame (seq 1) is replay-dropped at the peer");
+}
+
+// …restoring the outbound counters lets the rebuilt node resume above the
+// peer's high-water-mark, so new messages are delivered.
+#[wasm_bindgen_test]
+fn relogin_with_out_seq_restore_delivers_new_frames() {
+    let (alice_mls, alice_node, alice_gtp, bob_mls, bob_node, bob_gtp) = two_member_group();
+    let gid = alice_mls.group_id().to_vec();
+    for (mid, t) in [(1u64, "m1"), (2u64, "m2")] {
+        let f = alice_gtp.send(&alice_node, &alice_mls, 0, mid, t, None);
+        let _ = bob_node.on_wire(&bob_mls, &wire_of(&f));
+    }
+    let saved = alice_node.export_out_seq().to_vec();
+    let alice_node2 = GroupNode::create(1, &gid);
+    alice_node2.bootstrap_as_creator(alice_mls.epoch());
+    alice_node2.restore_out_seq(&saved); // resume outbound counters
+    let alice_gtp2 = GtpClient::create();
+    let f = alice_gtp2.send(&alice_node2, &alice_mls, 0, 3, "m3", None);
+    let texts = text_events(&bob_node.on_wire(&bob_mls, &wire_of(&f)));
+    assert_eq!(texts.len(), 1, "restored out_seq continues above the peer high-water-mark");
+    let r = bob_gtp.accept(&plaintext_of(&texts[0]), bob_mls.epoch(), None);
+    assert_eq!(str_field(&r, "text"), "m3");
+}
+
 #[wasm_bindgen_test]
 fn gtp_unicode_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x05);
