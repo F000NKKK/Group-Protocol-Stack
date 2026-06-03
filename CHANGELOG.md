@@ -1,3 +1,11 @@
+## 1.8.1 (2026-06-03)
+
+### Bug Fixes
+
+- fix(node): koffi 3.0.2 moved LibraryHandle to a named type export (ed016f4)
+
+---
+
 ## 1.8.0 (2026-06-03)
 
 ### Features
@@ -310,6 +318,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 

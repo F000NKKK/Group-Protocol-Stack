@@ -80,7 +80,7 @@ Beyond the protocol clients, the package ships ready-made helpers:
 ## Install
 
 ```sh
-dotnet add package GBPStack --version 1.8.0
+dotnet add package GBPStack --version 1.8.1
 ```
 
 ## Quick start
