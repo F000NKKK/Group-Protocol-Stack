@@ -11,7 +11,7 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import koffi from "koffi";
+import koffi, { type LibraryHandle } from "koffi";
 
 function rid(): string {
     const arch = process.arch;
@@ -37,7 +37,7 @@ function candidates(): string[] {
     ];
 }
 
-function load(): koffi.LibraryHandle {
+function load(): LibraryHandle {
     let lastErr: unknown;
     for (const path of candidates()) {
         try {
