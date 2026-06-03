@@ -1,3 +1,24 @@
+## 1.8.0 (2026-06-03)
+
+### Features
+
+- feat(node): export/restore outbound sequence counters (survive rebuild) (6231c70)
+- feat(wasm): inviteMany — add several members in one Add commit (abef8be)
+
+### Bug Fixes
+
+- feat(node): export/restore outbound sequence counters (survive rebuild) (6231c70)
+
+### Tests
+
+- test(mls): restored pre-key still accepts a Welcome (4f1e5e0)
+
+### Chores
+
+- chore(deps): bump koffi from 3.0.1 to 3.0.2 in /js (#28) (89800a4)
+
+---
+
 ## 1.7.0 (2026-06-02)
 
 ### Features
@@ -289,6 +310,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
