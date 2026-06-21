@@ -1,3 +1,12 @@
+## 1.8.2 (2026-06-21)
+
+### Chores
+
+- chore(deps-dev): bump @types/node from 25.9.1 to 25.9.3 in /js (#30) (4689fda)
+- chore(deps): bump prost from 0.14.3 to 0.14.4 (#31) (adb370c)
+
+---
+
 ## 1.8.1 (2026-06-03)
 
 ### Bug Fixes
@@ -318,6 +327,7 @@ _No conventional commits found in this range._
 ## 0.2.1 (2026-05-10)
 
 _No conventional commits found in this range._
+
 
 
 
