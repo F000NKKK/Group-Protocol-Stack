@@ -24,9 +24,8 @@
 //! After each MLS epoch change:
 //!
 //! 1. **Base key** — `MLS.ExportSecret(label, context=epoch_be8, length=32)`.
-//! 2. **Per-sender key** — `HKDF-Expand(base_key, "gbp sframe key " ‖ leaf_be4, L)`.
-//! 3. **Per-sender salt** — `HKDF-Expand(base_key, "gbp sframe salt " ‖ leaf_be4, 12)`.
-//! 4. **Frame nonce** — `salt XOR (CTR_LE64 ‖ 0x00_00_00_00)`.
+//! 2. **Per-sender key/salt/nonce** — expanded from the base key by the
+//!    [`sframe`] crate (RFC 9605 §5.2), keyed by the frame's KID.
 //!
 //! The `label` passed to [`SFrameSession::from_mls`] is application-defined
 //! (e.g. `"gbp/sframe v1"`); this lets different deployments use distinct
@@ -59,12 +58,10 @@
 pub mod cipher;
 /// Error type for SFrame operations.
 pub mod error;
-/// SFrame header wire format.
+/// SFrame Key ID scheme.
 pub mod header;
 /// Key derivation from MLS export secret.
 pub mod kdf;
-/// Sliding-window replay protection.
-pub mod replay;
 
 pub use cipher::{SFrameDecryptor, SFrameEncryptor};
 pub use error::SFrameError;
@@ -72,7 +69,6 @@ pub use header::SFrameHeader;
 pub use kdf::{CipherSuite, derive_base_key};
 
 use gbp_mls::MlsContext;
-use kdf::derive_participant;
 
 /// An SFrame session bound to one MLS epoch.
 ///
@@ -132,8 +128,7 @@ impl SFrameSession {
     /// **not** share an encryptor across multiple goroutines/threads.
     pub fn encryptor(&self, leaf_index: u32) -> SFrameEncryptor {
         let kid = SFrameHeader::kid_from(self.epoch, leaf_index);
-        let keys = derive_participant(&self.base_key, leaf_index, self.suite);
-        SFrameEncryptor::new(keys, kid, self.suite)
+        SFrameEncryptor::new(&self.base_key, kid, self.suite)
     }
 
     /// Creates a receiver-side decryptor for this epoch.
