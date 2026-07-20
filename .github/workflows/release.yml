@@ -353,7 +353,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
@@ -431,7 +431,7 @@ jobs:
           key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-wasm-
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
