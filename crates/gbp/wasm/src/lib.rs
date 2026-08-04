@@ -228,7 +228,7 @@ impl MlsContext {
     /// to [`acceptWelcome`]. This call merges the commit immediately and
     /// advances this member's epoch.
     #[wasm_bindgen(js_name = "invite")]
-    pub fn invite(&self, key_package_bytes: &[u8]) -> Result<Uint8Array, JsValue> {
+    pub fn invite(&self, mut key_package_bytes: &[u8]) -> Result<Uint8Array, JsValue> {
         let mut ctx = self.inner.borrow_mut();
         let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes)
             .map_err(|e| js_err(format!("kp parse: {e:?}")))?;
@@ -285,7 +285,7 @@ impl MlsContext {
     /// [`finalizeCommit`] (or [`clearPendingCommit`] to roll back). This is the
     /// two-phase flow used for coordinated epoch transitions.
     #[wasm_bindgen(js_name = "inviteFull")]
-    pub fn invite_full(&self, key_package_bytes: &[u8]) -> Result<JsValue, JsValue> {
+    pub fn invite_full(&self, mut key_package_bytes: &[u8]) -> Result<JsValue, JsValue> {
         let mut ctx = self.inner.borrow_mut();
         let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes)
             .map_err(|e| js_err(format!("kp parse: {e:?}")))?;
@@ -570,6 +570,10 @@ impl GtpClient {
     /// Returns `{ wire: Uint8Array, to: number }` or `null` on error.
     /// Pass `target = 0` to broadcast to all members. `codec` is optional
     /// (a [`PayloadCodec`] value); omit it for the CBOR default.
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `RefMut<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::explicit_auto_deref)]
     #[wasm_bindgen(js_name = "send")]
     pub fn send(
         &self,
@@ -584,7 +588,7 @@ impl GtpClient {
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
         match gtp.send(
-            &mut *n,
+            &mut n,
             &mut *m,
             target as MemberId,
             message_id,
@@ -700,6 +704,11 @@ impl GapClient {
     /// Sends one Opus audio frame. Returns `{ wire: Uint8Array, to: number }`
     /// or `null` on error. Pass `target = 0` to broadcast. `codec` is optional;
     /// for audio prefer `PayloadCodec.FlatBuffers` for lowest decode latency.
+    // One parameter per RTP/GAP field passed through to the inner `GapClient`;
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `RefMut<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::too_many_arguments, clippy::explicit_auto_deref)]
     #[wasm_bindgen(js_name = "send")]
     pub fn send(
         &self,
@@ -715,7 +724,7 @@ impl GapClient {
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
         match gap.send(
-            &mut *n,
+            &mut n,
             &mut *m,
             target as MemberId,
             media_source_id,
@@ -780,6 +789,10 @@ impl GspClient {
     /// Sends a bare signal with no arguments (e.g. `SignalType.Join` /
     /// `SignalType.Leave`). Returns `{ wire, to }` or throws. `target = 0`
     /// broadcasts.
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `RefMut<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::too_many_arguments, clippy::explicit_auto_deref)]
     #[wasm_bindgen(js_name = "send")]
     pub fn send(
         &self,
@@ -797,7 +810,7 @@ impl GspClient {
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
         gsp.send(
-            &mut *n,
+            &mut n,
             &mut *m,
             target as MemberId,
             sig,
@@ -811,6 +824,10 @@ impl GspClient {
 
     /// Sends a signal carrying opcode-specific CBOR `args` — MUTE, UNMUTE,
     /// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE.
+    // `&mut *m` is required, not redundant: `send_with_args`'s `seal: &mut S` is
+    // generic, and deref coercion doesn't apply across a generic bound (only
+    // `MlsContext`, not `RefMut<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::too_many_arguments, clippy::explicit_auto_deref)]
     #[wasm_bindgen(js_name = "sendWithArgs")]
     pub fn send_with_args(
         &self,
@@ -829,7 +846,7 @@ impl GspClient {
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
         gsp.send_with_args(
-            &mut *n,
+            &mut n,
             &mut *m,
             target as MemberId,
             sig,
