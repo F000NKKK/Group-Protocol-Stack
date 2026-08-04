@@ -31,12 +31,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-unknown-unknown
+          components: clippy
       - name: cargo test
         run: cargo test --workspace --lib --tests --exclude gbp-stack-wasm
       - name: cargo build
         run: cargo build --workspace --exclude gbp-stack-wasm
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --exclude gbp-stack-wasm -- -D warnings
       - name: check wasm target
         run: cargo check -p gbp-stack-wasm --target wasm32-unknown-unknown
+      - name: clippy (wasm target)
+        run: cargo clippy -p gbp-stack-wasm --all-targets --target wasm32-unknown-unknown -- -D warnings
+      - name: cargo deny (duplicate/banned dependency versions)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check bans
       - name: install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: test wasm
