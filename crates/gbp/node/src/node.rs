@@ -295,6 +295,9 @@ impl GroupNode {
     /// forwards the resulting bytes here together with the codec that was used.
     /// Pass [`PayloadCodec::Cbor`] for the default encoding; it is
     /// backward-compatible with pre-1.5 peers.
+    // One parameter per wire-frame field passed through to `GbpFrame::new`
+    // below; a builder would just shuffle the same arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn send_payload<S: Sealer>(
         &mut self,
         seal: &mut S,

@@ -3,7 +3,7 @@
 //! Each signal type has defined arg requirements:
 //! - JOIN, LEAVE          — args MAY be empty; no required keys.
 //! - ROLE_CHANGE          — args MUST be a CBOR map with keys 0 (target_member_id)
-//!                          and 1 (new_role).
+//!   and 1 (new_role).
 //! - MUTE, UNMUTE         — args MUST be a CBOR map with key 0 (target_member_id).
 //! - STREAM_START,
 //!   STREAM_STOP          — args MUST be a CBOR map with key 0 (stream_type).
@@ -92,8 +92,8 @@ mod tests {
             .iter()
             .map(|(k, v)| {
                 (
-                    ciborium::Value::Integer((*k as u64).into()),
-                    ciborium::Value::Integer((*v as u64).into()),
+                    ciborium::Value::Integer((*k).into()),
+                    ciborium::Value::Integer((*v).into()),
                 )
             })
             .collect();

@@ -63,6 +63,12 @@ pub struct GspClient {
     current_epoch: Option<u64>,
 }
 
+impl Default for GspClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GspClient {
     /// Creates an empty client.
     pub fn new() -> Self {
@@ -77,6 +83,9 @@ impl GspClient {
     /// Sends a signal. Uses the `O | R | A` profile required by GSP §3.
     /// `codec` controls payload encoding; use [`PayloadCodec::Cbor`] for
     /// maximum compatibility.
+    // One parameter per GSP signal field passed through to `send_with_args`
+    // below; a builder would just shuffle the same arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn send<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -104,6 +113,9 @@ impl GspClient {
     /// ROLE_CHANGE, STREAM_START, STREAM_STOP, CODEC_UPDATE).
     /// `codec` controls how the [`GspSignal`] envelope is encoded; `args`
     /// bytes are always opaque and carried as-is regardless of codec.
+    // One parameter per wire-signal field passed through to `node.send_payload`
+    // below; a builder would just shuffle the same arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn send_with_args<S: Sealer>(
         &mut self,
         node: &mut GroupNode,

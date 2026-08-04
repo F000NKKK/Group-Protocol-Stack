@@ -64,12 +64,12 @@ fn main() -> anyhow::Result<()> {
         PayloadCodec::Cbor,
     )?;
     for ev in bob.on_wire(&mut bob_mls, &frame.wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Text {
-                match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(msg) => println!("new:       {:?}", msg.text()),
-                    GtpAccept::Duplicate(msg) => println!("duplicate: {:?}", msg.text()),
-                }
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Text
+        {
+            match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GtpAccept::New(msg) => println!("new:       {:?}", msg.text()),
+                GtpAccept::Duplicate(msg) => println!("duplicate: {:?}", msg.text()),
             }
         }
     }
@@ -84,14 +84,14 @@ fn main() -> anyhow::Result<()> {
         PayloadCodec::FlatBuffers,
     )?;
     for ev in bob.on_wire(&mut bob_mls, &frame2.wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Text {
-                match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(msg) => {
-                        println!("new (fbs): {:?}  codec={:?}", msg.text(), p.codec)
-                    }
-                    GtpAccept::Duplicate(msg) => println!("dup (fbs): {:?}", msg.text()),
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Text
+        {
+            match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GtpAccept::New(msg) => {
+                    println!("new (fbs): {:?}  codec={:?}", msg.text(), p.codec)
                 }
+                GtpAccept::Duplicate(msg) => println!("dup (fbs): {:?}", msg.text()),
             }
         }
     }
@@ -106,12 +106,12 @@ fn main() -> anyhow::Result<()> {
         PayloadCodec::Cbor,
     )?;
     for ev in bob.on_wire(&mut bob_mls, &dup.wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Text {
-                match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(_) => println!("ERROR: expected duplicate"),
-                    GtpAccept::Duplicate(_) => println!("replay correctly rejected as duplicate"),
-                }
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Text
+        {
+            match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GtpAccept::New(_) => println!("ERROR: expected duplicate"),
+                GtpAccept::Duplicate(_) => println!("replay correctly rejected as duplicate"),
             }
         }
     }

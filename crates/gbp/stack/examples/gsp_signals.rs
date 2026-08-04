@@ -134,14 +134,14 @@ fn recv(
     label: &str,
 ) -> anyhow::Result<()> {
     for ev in node.on_wire(mls, wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Signal {
-                let r = gsp.accept(&p.plaintext, mls.epoch(), p.codec)?;
-                println!(
-                    "{}: signal={:?}  sender={}  request_id={}",
-                    label, r.signal, r.sender_id, r.request_id
-                );
-            }
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Signal
+        {
+            let r = gsp.accept(&p.plaintext, mls.epoch(), p.codec)?;
+            println!(
+                "{}: signal={:?}  sender={}  request_id={}",
+                label, r.signal, r.sender_id, r.request_id
+            );
         }
     }
     Ok(())

@@ -71,23 +71,13 @@ struct OldEpochWindow {
 /// Old-epoch windows are retained for [`timeouts::T_GAP_KEY_OVERLAP_MS`]
 /// (default 10 s) so that in-flight audio frames from the previous epoch can
 /// still be accepted after an epoch transition (gap_rfc §4).
+#[derive(Default)]
 pub struct GapClient {
     out_rtp_seq: HashMap<u32, u32>,
     in_hw: HashMap<u32, u32>,
     current_epoch: Option<u64>,
     /// Old replay windows from previous epochs, retained until T_overlap expires.
     old_windows: Vec<OldEpochWindow>,
-}
-
-impl Default for GapClient {
-    fn default() -> Self {
-        Self {
-            out_rtp_seq: HashMap::new(),
-            in_hw: HashMap::new(),
-            current_epoch: None,
-            old_windows: Vec::new(),
-        }
-    }
 }
 
 impl GapClient {
@@ -104,6 +94,9 @@ impl GapClient {
     /// `codec` controls how the payload is encoded; use [`PayloadCodec::Cbor`]
     /// for maximum compatibility or [`PayloadCodec::FlatBuffers`] for
     /// lowest decode latency.
+    // One parameter per RTP/GAP field passed through to `node.send_payload`
+    // below; a builder would just shuffle the same arguments.
+    #[allow(clippy::too_many_arguments)]
     pub fn send<S: Sealer>(
         &mut self,
         node: &mut GroupNode,
@@ -196,14 +189,14 @@ impl GapClient {
 
         if Some(epoch) != self.current_epoch {
             // Save current window to overlap buffer before resetting.
-            if let Some(old_epoch) = self.current_epoch {
-                if !self.in_hw.is_empty() {
-                    self.old_windows.push(OldEpochWindow {
-                        epoch: old_epoch,
-                        in_hw: std::mem::take(&mut self.in_hw),
-                        expires: now + Duration::from_millis(timeouts::T_GAP_KEY_OVERLAP_MS),
-                    });
-                }
+            if let Some(old_epoch) = self.current_epoch
+                && !self.in_hw.is_empty()
+            {
+                self.old_windows.push(OldEpochWindow {
+                    epoch: old_epoch,
+                    in_hw: std::mem::take(&mut self.in_hw),
+                    expires: now + Duration::from_millis(timeouts::T_GAP_KEY_OVERLAP_MS),
+                });
             }
             self.out_rtp_seq.clear();
             self.in_hw.clear();

@@ -52,6 +52,12 @@ pub struct GtpClient {
     current_epoch: Option<u64>,
 }
 
+impl Default for GtpClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GtpClient {
     /// Creates an empty client.
     pub fn new() -> Self {

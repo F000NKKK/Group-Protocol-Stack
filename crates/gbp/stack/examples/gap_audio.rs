@@ -63,17 +63,17 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     for ev in bob.on_wire(&mut bob_mls, &frame.wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Audio {
-                match gap_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GapAccept::New(pl) => println!(
-                        "new audio frame: {} bytes  seq={}  codec={:?}",
-                        pl.opus_frame.len(),
-                        pl.rtp_sequence,
-                        p.codec,
-                    ),
-                    GapAccept::Late(pl) => println!("late frame: seq={}", pl.rtp_sequence),
-                }
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Audio
+        {
+            match gap_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GapAccept::New(pl) => println!(
+                    "new audio frame: {} bytes  seq={}  codec={:?}",
+                    pl.opus_frame.len(),
+                    pl.rtp_sequence,
+                    p.codec,
+                ),
+                GapAccept::Late(pl) => println!("late frame: seq={}", pl.rtp_sequence),
             }
         }
     }
@@ -89,12 +89,12 @@ fn main() -> anyhow::Result<()> {
         PayloadCodec::FlatBuffers,
     )?;
     for ev in bob.on_wire(&mut bob_mls, &frame2.wire)? {
-        if let Event::PayloadReceived(p) = ev {
-            if p.stream_type == StreamType::Audio {
-                match gap_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GapAccept::New(pl) => println!("frame 2: seq={}", pl.rtp_sequence),
-                    GapAccept::Late(pl) => println!("late:    seq={}", pl.rtp_sequence),
-                }
+        if let Event::PayloadReceived(p) = ev
+            && p.stream_type == StreamType::Audio
+        {
+            match gap_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
+                GapAccept::New(pl) => println!("frame 2: seq={}", pl.rtp_sequence),
+                GapAccept::Late(pl) => println!("late:    seq={}", pl.rtp_sequence),
             }
         }
     }

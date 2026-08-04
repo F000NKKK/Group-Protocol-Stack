@@ -803,7 +803,7 @@ pub unsafe extern "C" fn gtp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut *n, &mut *m, target, message_id, text, codec) {
+    match c.send(&mut n, &mut m, target, message_id, text, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -927,8 +927,8 @@ pub unsafe extern "C" fn gap_client_send(
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
     match c.send(
-        &mut *n,
-        &mut *m,
+        &mut n,
+        &mut m,
         target,
         media_source_id,
         rtp_timestamp,
@@ -1055,7 +1055,7 @@ pub extern "C" fn gsp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut *n, &mut *m, target, sig, role_claim, request_id, codec) {
+    match c.send(&mut n, &mut m, target, sig, role_claim, request_id, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
