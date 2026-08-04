@@ -24,7 +24,13 @@
 // Re-export planus so downstream crates can use it without adding it directly.
 pub use planus;
 
-include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+// planus-generated code isn't ours to lint — it's regenerated from the .fbs
+// schemas on every build, so clippy findings in it can't be fixed by hand.
+#[allow(clippy::all)]
+mod flat_generated {
+    include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+}
+pub use flat_generated::*;
 
 #[cfg(test)]
 mod tests {
@@ -97,7 +103,7 @@ mod tests {
         let bytes = builder.finish(err, None).to_vec();
         let r = crate::gbp::ErrorObjectRef::read_as_root(&bytes).unwrap();
         assert_eq!(r.code().unwrap(), 404);
-        assert_eq!(r.retryable().unwrap(), true);
+        assert!(r.retryable().unwrap());
         assert_eq!(r.reason().unwrap(), Some("not found"));
     }
 

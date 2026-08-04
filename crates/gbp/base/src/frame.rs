@@ -62,6 +62,9 @@ impl GbpFrame {
     /// Pass `PayloadCodec::Cbor` (or `0`) for the default CBOR encoding; the
     /// `pf` field is omitted from the wire when the codec is CBOR so older
     /// peers continue to decode the frame correctly.
+    // One-to-one with the wire frame's own fields (see the struct above); a
+    // builder would just shuffle the same 9 fields without cutting complexity.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         group_id: GroupId,
         epoch: u64,
