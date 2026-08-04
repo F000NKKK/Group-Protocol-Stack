@@ -25,7 +25,7 @@ fn gid(b: u8) -> Vec<u8> {
 
 /// Creates a bootstrapped single-member creator group.
 fn creator_group(user: &str, group_byte: u8) -> (MlsContext, GroupNode, GtpClient) {
-    let mls  = MlsContext::create(user).expect("MlsContext::create");
+    let mls = MlsContext::create(user).expect("MlsContext::create");
     let node = GroupNode::create(1, &gid(group_byte));
     node.bootstrap_as_creator(mls.epoch());
     let gtp = GtpClient::create();
@@ -34,22 +34,33 @@ fn creator_group(user: &str, group_byte: u8) -> (MlsContext, GroupNode, GtpClien
 
 /// Creates a two-member group via MLS invite.
 /// Returns (alice_mls, alice_node, alice_gtp, bob_mls, bob_node, bob_gtp).
-fn two_member_group() -> (MlsContext, GroupNode, GtpClient, MlsContext, GroupNode, GtpClient) {
+fn two_member_group() -> (
+    MlsContext,
+    GroupNode,
+    GtpClient,
+    MlsContext,
+    GroupNode,
+    GtpClient,
+) {
     let alice_mls = MlsContext::create("alice").unwrap();
-    let bob_mls   = MlsContext::create("bob").unwrap();
+    let bob_mls = MlsContext::create("bob").unwrap();
 
     let welcome = alice_mls.invite(&bob_mls.key_package().to_vec()).unwrap();
     bob_mls.accept_welcome(&welcome.to_vec()).unwrap();
 
     let group_id = alice_mls.group_id().to_vec();
     let alice_node = GroupNode::create(1, &group_id);
-    let bob_node   = GroupNode::create(2, &group_id);
+    let bob_node = GroupNode::create(2, &group_id);
     alice_node.bootstrap_as_creator(alice_mls.epoch());
     bob_node.bootstrap_as_joiner(bob_mls.epoch(), 0);
 
     (
-        alice_mls, alice_node, GtpClient::create(),
-        bob_mls,   bob_node,   GtpClient::create(),
+        alice_mls,
+        alice_node,
+        GtpClient::create(),
+        bob_mls,
+        bob_node,
+        GtpClient::create(),
     )
 }
 
@@ -121,7 +132,7 @@ fn mls_group_id_16_bytes() {
 #[wasm_bindgen_test]
 fn mls_invite_accept_syncs_epoch() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
 
     assert_eq!(alice.epoch(), 0u64);
     assert_eq!(bob.epoch(), 0u64);
@@ -139,14 +150,18 @@ fn mls_invite_many_one_welcome_serves_all_joiners() {
     // inviteMany adds several members in one commit and returns ONE Welcome
     // that each joiner accepts with their own KeyPackage.
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
     let carol = MlsContext::create("carol").unwrap();
 
     let kps = Array::new();
     kps.push(&JsValue::from(bob.key_package()));
     kps.push(&JsValue::from(carol.key_package()));
     let welcome = alice.invite_many(kps).unwrap();
-    assert_eq!(alice.epoch(), 1u64, "one Add commit advances the epoch once");
+    assert_eq!(
+        alice.epoch(),
+        1u64,
+        "one Add commit advances the epoch once"
+    );
 
     bob.accept_welcome(&welcome.to_vec()).unwrap();
     carol.accept_welcome(&welcome.to_vec()).unwrap();
@@ -165,17 +180,17 @@ fn mls_invite_many_empty_errors() {
 #[wasm_bindgen_test]
 fn mls_two_distinct_users_have_different_key_packages() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
     assert_ne!(alice.key_package().to_vec(), bob.key_package().to_vec());
 }
 
 #[wasm_bindgen_test]
 fn mls_invite_full_stages_then_finalize_advances_epoch() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
 
     let res = alice.invite_full(&bob.key_package().to_vec()).unwrap();
-    let commit  = Reflect::get(&res, &"commit".into()).unwrap();
+    let commit = Reflect::get(&res, &"commit".into()).unwrap();
     let welcome = Reflect::get(&res, &"welcome".into()).unwrap();
     assert!(Uint8Array::new(&commit).length() > 0);
     assert!(Uint8Array::new(&welcome).length() > 0);
@@ -185,7 +200,8 @@ fn mls_invite_full_stages_then_finalize_advances_epoch() {
     alice.finalize_commit().unwrap();
     assert_eq!(alice.epoch(), 1u64);
 
-    bob.accept_welcome(&Uint8Array::new(&welcome).to_vec()).unwrap();
+    bob.accept_welcome(&Uint8Array::new(&welcome).to_vec())
+        .unwrap();
     assert_eq!(bob.epoch(), 1u64);
     assert_eq!(alice.group_id().to_vec(), bob.group_id().to_vec());
 }
@@ -193,7 +209,7 @@ fn mls_invite_full_stages_then_finalize_advances_epoch() {
 #[wasm_bindgen_test]
 fn mls_clear_pending_commit_rolls_back() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
 
     let _res = alice.invite_full(&bob.key_package().to_vec()).unwrap();
     assert_eq!(alice.epoch(), 0u64);
@@ -208,7 +224,7 @@ fn mls_clear_pending_commit_rolls_back() {
 #[wasm_bindgen_test]
 fn mls_remove_member_advances_epoch() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
     let welcome = alice.invite(&bob.key_package().to_vec()).unwrap();
     bob.accept_welcome(&welcome.to_vec()).unwrap();
     assert_eq!(alice.epoch(), 1u64);
@@ -223,8 +239,9 @@ fn mls_remove_member_advances_epoch() {
 #[wasm_bindgen_test]
 fn mls_export_restore_preserves_epoch_and_group_id() {
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
-    bob.accept_welcome(&alice.invite(&bob.key_package().to_vec()).unwrap().to_vec()).unwrap();
+    let bob = MlsContext::create("bob").unwrap();
+    bob.accept_welcome(&alice.invite(&bob.key_package().to_vec()).unwrap().to_vec())
+        .unwrap();
     assert_eq!(alice.epoch(), 1u64);
 
     let blob = alice.export_state().unwrap().to_vec();
@@ -239,7 +256,7 @@ fn mls_process_message_applies_commit() {
     // Three members so a remove produces a Commit that a *third* member must
     // process to advance. alice=leaf0 creator, bob=leaf1, carol=leaf2.
     let alice = MlsContext::create("alice").unwrap();
-    let bob   = MlsContext::create("bob").unwrap();
+    let bob = MlsContext::create("bob").unwrap();
     let carol = MlsContext::create("carol").unwrap();
 
     let w_bob = alice.invite(&bob.key_package().to_vec()).unwrap();
@@ -247,7 +264,7 @@ fn mls_process_message_applies_commit() {
 
     // Add carol via the two-phase flow and broadcast the commit to bob.
     let res = alice.invite_full(&carol.key_package().to_vec()).unwrap();
-    let commit  = Uint8Array::new(&Reflect::get(&res, &"commit".into()).unwrap()).to_vec();
+    let commit = Uint8Array::new(&Reflect::get(&res, &"commit".into()).unwrap()).to_vec();
     let welcome = Uint8Array::new(&Reflect::get(&res, &"welcome".into()).unwrap()).to_vec();
     alice.finalize_commit().unwrap();
     carol.accept_welcome(&welcome).unwrap();
@@ -265,7 +282,7 @@ fn mls_process_message_applies_commit() {
 
 #[wasm_bindgen_test]
 fn group_node_create_bootstrap_as_creator() {
-    let mls  = MlsContext::create("alice").unwrap();
+    let mls = MlsContext::create("alice").unwrap();
     let node = GroupNode::create(1, &gid(0x01));
     node.bootstrap_as_creator(mls.epoch());
     assert_eq!(node.current_epoch(), 0u64);
@@ -276,8 +293,8 @@ fn group_node_create_bootstrap_as_creator() {
 #[wasm_bindgen_test]
 fn group_node_bootstrap_as_joiner() {
     let alice_mls = MlsContext::create("alice").unwrap();
-    let bob_mls   = MlsContext::create("bob").unwrap();
-    let welcome   = alice_mls.invite(&bob_mls.key_package().to_vec()).unwrap();
+    let bob_mls = MlsContext::create("bob").unwrap();
+    let welcome = alice_mls.invite(&bob_mls.key_package().to_vec()).unwrap();
     bob_mls.accept_welcome(&welcome.to_vec()).unwrap();
 
     let gid = alice_mls.group_id().to_vec();
@@ -289,7 +306,7 @@ fn group_node_bootstrap_as_joiner() {
 
 #[wasm_bindgen_test]
 fn group_node_check_timeouts_returns_array() {
-    let mls  = MlsContext::create("alice").unwrap();
+    let mls = MlsContext::create("alice").unwrap();
     let node = GroupNode::create(1, &gid(0x02));
     node.bootstrap_as_creator(mls.epoch());
     let evs = node.check_timeouts();
@@ -330,7 +347,7 @@ fn gtp_send_returns_wire_bytes() {
 fn gtp_single_member_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x04);
     let frame = gtp.send(&node, &mls, 0, 1, "hello wasm", None);
-    let wire  = wire_of(&frame);
+    let wire = wire_of(&frame);
 
     let texts = text_events(&node.on_wire(&mls, &wire));
     assert_eq!(texts.len(), 1);
@@ -356,7 +373,11 @@ fn relogin_without_out_seq_restore_is_replay_dropped() {
     let alice_gtp2 = GtpClient::create();
     let f = alice_gtp2.send(&alice_node2, &alice_mls, 0, 3, "m3", None);
     let texts = text_events(&bob_node.on_wire(&bob_mls, &wire_of(&f)));
-    assert_eq!(texts.len(), 0, "fresh node frame (seq 1) is replay-dropped at the peer");
+    assert_eq!(
+        texts.len(),
+        0,
+        "fresh node frame (seq 1) is replay-dropped at the peer"
+    );
 }
 
 // …restoring the outbound counters lets the rebuilt node resume above the
@@ -376,7 +397,11 @@ fn relogin_with_out_seq_restore_delivers_new_frames() {
     let alice_gtp2 = GtpClient::create();
     let f = alice_gtp2.send(&alice_node2, &alice_mls, 0, 3, "m3", None);
     let texts = text_events(&bob_node.on_wire(&bob_mls, &wire_of(&f)));
-    assert_eq!(texts.len(), 1, "restored out_seq continues above the peer high-water-mark");
+    assert_eq!(
+        texts.len(),
+        1,
+        "restored out_seq continues above the peer high-water-mark"
+    );
     let r = bob_gtp.accept(&plaintext_of(&texts[0]), bob_mls.epoch(), None);
     assert_eq!(str_field(&r, "text"), "m3");
 }
@@ -386,7 +411,7 @@ fn gtp_unicode_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x05);
     let msg = "Привет 🌍 こんにちは";
     let frame = gtp.send(&node, &mls, 0, 1, msg, None);
-    let wire  = wire_of(&frame);
+    let wire = wire_of(&frame);
 
     for ev in text_events(&node.on_wire(&mls, &wire)) {
         let result = gtp.accept(&plaintext_of(&ev), mls.epoch(), None);
@@ -399,11 +424,14 @@ fn gtp_flatbuffers_codec_roundtrip() {
     let (mls, node, gtp) = creator_group("alice", 0x22);
     // PayloadCodec.FlatBuffers = 2.
     let frame = gtp.send(&node, &mls, 0, 1, "fb!", Some(2));
-    let wire  = wire_of(&frame);
-    let evs   = text_events(&node.on_wire(&mls, &wire));
+    let wire = wire_of(&frame);
+    let evs = text_events(&node.on_wire(&mls, &wire));
     assert_eq!(evs.len(), 1);
     let codec = num_field(&evs[0], "codec") as u8;
-    assert_eq!(codec, 2, "delivered payload should report the FlatBuffers codec");
+    assert_eq!(
+        codec, 2,
+        "delivered payload should report the FlatBuffers codec"
+    );
     let r = gtp.accept(&plaintext_of(&evs[0]), mls.epoch(), Some(codec));
     assert_eq!(str_field(&r, "text"), "fb!");
 }
@@ -414,12 +442,18 @@ fn gtp_duplicate_returns_status_duplicate() {
 
     let wire1 = wire_of(&gtp.send(&node, &mls, 0, 42, "msg", None));
     for ev in text_events(&node.on_wire(&mls, &wire1)) {
-        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
+        assert_eq!(
+            str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"),
+            "new"
+        );
     }
 
     let wire2 = wire_of(&gtp.send(&node, &mls, 0, 42, "msg", None));
     for ev in text_events(&node.on_wire(&mls, &wire2)) {
-        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "duplicate");
+        assert_eq!(
+            str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"),
+            "duplicate"
+        );
     }
 }
 
@@ -429,8 +463,18 @@ fn gtp_sequential_message_ids() {
     for i in 1u64..=5 {
         let wire = wire_of(&gtp.send(&node, &mls, 0, i, &format!("msg {i}"), None));
         let evs = text_events(&node.on_wire(&mls, &wire));
-        assert_eq!(evs.len(), 1, "msg {i} should produce exactly one text event");
-        assert_eq!(str_field(&gtp.accept(&plaintext_of(&evs[0]), mls.epoch(), None), "text"), format!("msg {i}"));
+        assert_eq!(
+            evs.len(),
+            1,
+            "msg {i} should produce exactly one text event"
+        );
+        assert_eq!(
+            str_field(
+                &gtp.accept(&plaintext_of(&evs[0]), mls.epoch(), None),
+                "text"
+            ),
+            format!("msg {i}")
+        );
     }
 }
 
@@ -440,14 +484,20 @@ fn gtp_reset_clears_dedup_set() {
 
     let wire = wire_of(&gtp.send(&node, &mls, 0, 1, "a", None));
     for ev in text_events(&node.on_wire(&mls, &wire)) {
-        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
+        assert_eq!(
+            str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"),
+            "new"
+        );
     }
 
     gtp.reset();
 
     let wire2 = wire_of(&gtp.send(&node, &mls, 0, 1, "a", None));
     for ev in text_events(&node.on_wire(&mls, &wire2)) {
-        assert_eq!(str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"), "new");
+        assert_eq!(
+            str_field(&gtp.accept(&plaintext_of(&ev), mls.epoch(), None), "status"),
+            "new"
+        );
     }
 }
 
@@ -476,12 +526,12 @@ fn gap_single_member_roundtrip() {
 fn gap_two_member_flatbuffers_roundtrip() {
     let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
     let gap_alice = GapClient::create();
-    let gap_bob   = GapClient::create();
+    let gap_bob = GapClient::create();
     let opus = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
 
     // FlatBuffers codec for audio.
     let frame = gap_alice.send(&alice_node, &alice_mls, 2, 11, 2_000, &opus, Some(2));
-    let wire  = wire_of(&frame);
+    let wire = wire_of(&frame);
 
     let evs = audio_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
@@ -498,15 +548,19 @@ fn gap_two_member_flatbuffers_roundtrip() {
 fn gsp_join_signal_roundtrip() {
     let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
     let gsp_alice = GspClient::create();
-    let gsp_bob   = GspClient::create();
+    let gsp_bob = GspClient::create();
 
     // SignalType.Join = 100, request_id 1, broadcast role_claim 0.
-    let frame = gsp_alice.send(&alice_node, &alice_mls, 2, 100, 0, 1, None).unwrap();
-    let wire  = wire_of(&frame);
+    let frame = gsp_alice
+        .send(&alice_node, &alice_mls, 2, 100, 0, 1, None)
+        .unwrap();
+    let wire = wire_of(&frame);
 
     let evs = signal_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
-    let r = gsp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None).unwrap();
+    let r = gsp_bob
+        .accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None)
+        .unwrap();
     assert_eq!(str_field(&r, "status"), "new");
     assert_eq!(str_field(&r, "signal"), "JOIN");
     assert_eq!(num_field(&r, "signalCode") as u32, 100);
@@ -517,7 +571,7 @@ fn gsp_join_signal_roundtrip() {
 fn gsp_mute_with_args_roundtrip() {
     let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
     let gsp_alice = GspClient::create();
-    let gsp_bob   = GspClient::create();
+    let gsp_bob = GspClient::create();
 
     // SignalType.Mute = 200 requires a CBOR map {0: target_member_id (uint)}.
     let mut args = Vec::new();
@@ -526,12 +580,16 @@ fn gsp_mute_with_args_roundtrip() {
         ciborium::Value::Integer(1u64.into()),
     )]);
     ciborium::ser::into_writer(&m, &mut args).unwrap();
-    let frame = gsp_alice.send_with_args(&alice_node, &alice_mls, 2, 200, 0, 5, &args, None).unwrap();
-    let wire  = wire_of(&frame);
+    let frame = gsp_alice
+        .send_with_args(&alice_node, &alice_mls, 2, 200, 0, 5, &args, None)
+        .unwrap();
+    let wire = wire_of(&frame);
 
     let evs = signal_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
-    let r = gsp_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None).unwrap();
+    let r = gsp_bob
+        .accept(&plaintext_of(&evs[0]), bob_mls.epoch(), None)
+        .unwrap();
     assert_eq!(str_field(&r, "signal"), "MUTE");
     assert_eq!(num_field(&r, "requestId") as u32, 5);
 }
@@ -555,12 +613,17 @@ fn sframe_encrypt_decrypt_roundtrip() {
     // Receiver session on bob; sender encryptor on alice (leaf 0 = creator).
     let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
     let alice_session = SFrameSession::create(&alice_mls, label, 0).unwrap();
-    let enc = alice_session.create_encryptor(&alice_mls, 0, label, 0).unwrap();
+    let enc = alice_session
+        .create_encryptor(&alice_mls, 0, label, 0)
+        .unwrap();
 
     let plaintext = vec![9u8, 8, 7, 6, 5, 4, 3, 2, 1, 0];
     let aad: Vec<u8> = Vec::new();
     let ct = enc.encrypt(&plaintext, &aad).unwrap().to_vec();
-    assert!(ct.len() > plaintext.len(), "ciphertext carries header + tag");
+    assert!(
+        ct.len() > plaintext.len(),
+        "ciphertext carries header + tag"
+    );
 
     let r = bob_session.decrypt(&ct, &aad).unwrap();
     assert_eq!(bytes_field(&r, "plaintext"), plaintext);
@@ -588,7 +651,7 @@ fn sframe_full_audio_pipeline() {
     let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
     let label = "gbp/sframe v1";
     let gap_alice = GapClient::create();
-    let gap_bob   = GapClient::create();
+    let gap_bob = GapClient::create();
     let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
     let enc = SFrameSession::create(&alice_mls, label, 0)
         .unwrap()
@@ -600,10 +663,14 @@ fn sframe_full_audio_pipeline() {
 
     // Ship the SFrame ciphertext as the GAP payload.
     let frame = gap_alice.send(&alice_node, &alice_mls, 2, 3, 4_000, &sframe, Some(2));
-    let wire  = wire_of(&frame);
-    let evs   = audio_events(&bob_node.on_wire(&bob_mls, &wire));
+    let wire = wire_of(&frame);
+    let evs = audio_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
-    let r = gap_bob.accept(&plaintext_of(&evs[0]), bob_mls.epoch(), Some(num_field(&evs[0], "codec") as u8));
+    let r = gap_bob.accept(
+        &plaintext_of(&evs[0]),
+        bob_mls.epoch(),
+        Some(num_field(&evs[0], "codec") as u8),
+    );
     let recovered_sframe = bytes_field(&r, "opus");
 
     let dec = bob_session.decrypt(&recovered_sframe, &[]).unwrap();
@@ -617,7 +684,7 @@ fn two_member_gtp_alice_to_bob() {
     let (alice_mls, alice_node, gtp_alice, bob_mls, bob_node, gtp_bob) = two_member_group();
 
     let frame = gtp_alice.send(&alice_node, &alice_mls, 2, 1, "hello bob", None);
-    let wire  = wire_of(&frame);
+    let wire = wire_of(&frame);
 
     let evs = text_events(&bob_node.on_wire(&bob_mls, &wire));
     assert_eq!(evs.len(), 1);
@@ -632,12 +699,24 @@ fn two_member_gtp_bidirectional() {
 
     let wire_ab = wire_of(&gtp_alice.send(&alice_node, &alice_mls, 2, 1, "ping", None));
     for ev in text_events(&bob_node.on_wire(&bob_mls, &wire_ab)) {
-        assert_eq!(str_field(&gtp_bob.accept(&plaintext_of(&ev), bob_mls.epoch(), None), "text"), "ping");
+        assert_eq!(
+            str_field(
+                &gtp_bob.accept(&plaintext_of(&ev), bob_mls.epoch(), None),
+                "text"
+            ),
+            "ping"
+        );
     }
 
     let wire_ba = wire_of(&gtp_bob.send(&bob_node, &bob_mls, 1, 1, "pong", None));
     for ev in text_events(&alice_node.on_wire(&alice_mls, &wire_ba)) {
-        assert_eq!(str_field(&gtp_alice.accept(&plaintext_of(&ev), alice_mls.epoch(), None), "text"), "pong");
+        assert_eq!(
+            str_field(
+                &gtp_alice.accept(&plaintext_of(&ev), alice_mls.epoch(), None),
+                "text"
+            ),
+            "pong"
+        );
     }
 }
 

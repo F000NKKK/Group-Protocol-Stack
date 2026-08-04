@@ -87,7 +87,16 @@ impl GspClient {
         request_id: u32,
         codec: PayloadCodec,
     ) -> Result<OutboundFrame, GspError> {
-        self.send_with_args(node, seal, target, signal, role_claim, request_id, &[], codec)
+        self.send_with_args(
+            node,
+            seal,
+            target,
+            signal,
+            role_claim,
+            request_id,
+            &[],
+            codec,
+        )
     }
 
     /// Sends a signal with opcode-specific `args` bytes.
@@ -205,25 +214,34 @@ mod tests {
     #[test]
     fn leave_removes_sender_from_members() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 7), 0, PayloadCodec::Cbor).unwrap();
-        c.accept(&encode_bare(SignalType::Leave, 2, 7), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 7), 0, PayloadCodec::Cbor)
+            .unwrap();
+        c.accept(&encode_bare(SignalType::Leave, 2, 7), 0, PayloadCodec::Cbor)
+            .unwrap();
         assert!(!c.members.contains(&7));
     }
 
     #[test]
     fn leave_also_removes_from_muted() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 5), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 5), 0, PayloadCodec::Cbor)
+            .unwrap();
         c.muted.insert(5); // manually mute
-        c.accept(&encode_bare(SignalType::Leave, 2, 5), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Leave, 2, 5), 0, PayloadCodec::Cbor)
+            .unwrap();
         assert!(!c.muted.contains(&5));
     }
 
     #[test]
     fn duplicate_request_id_is_rejected() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 99, 1), 0, PayloadCodec::Cbor).unwrap();
-        let result = c.accept(&encode_bare(SignalType::Leave, 99, 1), 0, PayloadCodec::Cbor);
+        c.accept(&encode_bare(SignalType::Join, 99, 1), 0, PayloadCodec::Cbor)
+            .unwrap();
+        let result = c.accept(
+            &encode_bare(SignalType::Leave, 99, 1),
+            0,
+            PayloadCodec::Cbor,
+        );
         assert!(matches!(result, Err(GspError::DuplicateRequest(99))));
     }
 
@@ -233,17 +251,23 @@ mod tests {
         let payload = encode_bare(SignalType::Join, 1, 10);
         c.accept(&payload, 0, PayloadCodec::Cbor).unwrap();
         // same request_id is allowed in new epoch
-        let result = c.accept(&encode_bare(SignalType::Leave, 1, 10), 1, PayloadCodec::Cbor);
+        let result = c.accept(
+            &encode_bare(SignalType::Leave, 1, 10),
+            1,
+            PayloadCodec::Cbor,
+        );
         assert!(result.is_ok());
     }
 
     #[test]
     fn reset_clears_state() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 3), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 3), 0, PayloadCodec::Cbor)
+            .unwrap();
         c.reset();
         // after reset, same request_id allowed again
-        c.accept(&encode_bare(SignalType::Join, 1, 4), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 4), 0, PayloadCodec::Cbor)
+            .unwrap();
         // and member state is NOT cleared by reset (only dedup)
         // members accumulated before reset remain
     }
@@ -270,9 +294,12 @@ mod tests {
     #[test]
     fn multiple_members_join_independently() {
         let mut c = GspClient::new();
-        c.accept(&encode_bare(SignalType::Join, 1, 10), 0, PayloadCodec::Cbor).unwrap();
-        c.accept(&encode_bare(SignalType::Join, 2, 20), 0, PayloadCodec::Cbor).unwrap();
-        c.accept(&encode_bare(SignalType::Join, 3, 30), 0, PayloadCodec::Cbor).unwrap();
+        c.accept(&encode_bare(SignalType::Join, 1, 10), 0, PayloadCodec::Cbor)
+            .unwrap();
+        c.accept(&encode_bare(SignalType::Join, 2, 20), 0, PayloadCodec::Cbor)
+            .unwrap();
+        c.accept(&encode_bare(SignalType::Join, 3, 30), 0, PayloadCodec::Cbor)
+            .unwrap();
         assert_eq!(c.members.len(), 3);
         assert!(c.members.contains(&10));
         assert!(c.members.contains(&20));

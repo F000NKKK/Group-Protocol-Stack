@@ -9,7 +9,7 @@
 //! Run with: cargo run --example gtp_chat -p gbp-stack
 
 use gbp_stack::{
-    ControlOpcode, Event, GtpAccept, GtpClient, GroupNode, MlsContext, PayloadCodec, StreamType,
+    ControlOpcode, Event, GroupNode, GtpAccept, GtpClient, MlsContext, PayloadCodec, StreamType,
 };
 use openmls::prelude::{
     DeserializeBytes as _, KeyPackageIn, OpenMlsProvider as _, ProtocolVersion,
@@ -34,28 +34,40 @@ fn main() -> anyhow::Result<()> {
     // --- GBP nodes ---------------------------------------------------
     let gid = alice_mls.group_id_16();
     let mut alice = GroupNode::new(1, gid);
-    let mut bob   = GroupNode::new(2, gid);
+    let mut bob = GroupNode::new(2, gid);
     alice.bootstrap_as_creator(0);
     bob.bootstrap_as_joiner(0, 1);
 
     // Apply epoch-1 transition so both nodes are live.
     let exec = alice.send_control(
-        &mut alice_mls, 0, ControlOpcode::ExecuteTransition, 1, 7, vec![],
+        &mut alice_mls,
+        0,
+        ControlOpcode::ExecuteTransition,
+        1,
+        7,
+        vec![],
     )?;
     alice.apply_transition(1);
     bob.on_wire(&mut bob_mls, &exec.wire)?;
 
     // --- GTP clients -------------------------------------------------
     let mut gtp_alice = GtpClient::new();
-    let mut gtp_bob   = GtpClient::new();
+    let mut gtp_bob = GtpClient::new();
 
     // Send "hello" with default CBOR codec.
-    let frame = gtp_alice.send(&mut alice, &mut alice_mls, 2, 1, "hello", PayloadCodec::Cbor)?;
+    let frame = gtp_alice.send(
+        &mut alice,
+        &mut alice_mls,
+        2,
+        1,
+        "hello",
+        PayloadCodec::Cbor,
+    )?;
     for ev in bob.on_wire(&mut bob_mls, &frame.wire)? {
         if let Event::PayloadReceived(p) = ev {
             if p.stream_type == StreamType::Text {
                 match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(msg)       => println!("new:       {:?}", msg.text()),
+                    GtpAccept::New(msg) => println!("new:       {:?}", msg.text()),
                     GtpAccept::Duplicate(msg) => println!("duplicate: {:?}", msg.text()),
                 }
             }
@@ -64,13 +76,20 @@ fn main() -> anyhow::Result<()> {
 
     // Send again with FlatBuffers codec (lower decode overhead).
     let frame2 = gtp_alice.send(
-        &mut alice, &mut alice_mls, 2, 2, "hello flatbuffers", PayloadCodec::FlatBuffers,
+        &mut alice,
+        &mut alice_mls,
+        2,
+        2,
+        "hello flatbuffers",
+        PayloadCodec::FlatBuffers,
     )?;
     for ev in bob.on_wire(&mut bob_mls, &frame2.wire)? {
         if let Event::PayloadReceived(p) = ev {
             if p.stream_type == StreamType::Text {
                 match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(msg) => println!("new (fbs): {:?}  codec={:?}", msg.text(), p.codec),
+                    GtpAccept::New(msg) => {
+                        println!("new (fbs): {:?}  codec={:?}", msg.text(), p.codec)
+                    }
                     GtpAccept::Duplicate(msg) => println!("dup (fbs): {:?}", msg.text()),
                 }
             }
@@ -78,12 +97,19 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Replay: resend message_id=1 — must come back as Duplicate.
-    let dup = gtp_alice.send(&mut alice, &mut alice_mls, 2, 1, "hello", PayloadCodec::Cbor)?;
+    let dup = gtp_alice.send(
+        &mut alice,
+        &mut alice_mls,
+        2,
+        1,
+        "hello",
+        PayloadCodec::Cbor,
+    )?;
     for ev in bob.on_wire(&mut bob_mls, &dup.wire)? {
         if let Event::PayloadReceived(p) = ev {
             if p.stream_type == StreamType::Text {
                 match gtp_bob.accept(&p.plaintext, bob_mls.epoch(), p.codec)? {
-                    GtpAccept::New(_)       => println!("ERROR: expected duplicate"),
+                    GtpAccept::New(_) => println!("ERROR: expected duplicate"),
                     GtpAccept::Duplicate(_) => println!("replay correctly rejected as duplicate"),
                 }
             }

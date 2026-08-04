@@ -20,9 +20,9 @@ use gbp_sframe::{
 use gsp::{GspAccept, GspClient as RustGspClient, GspError};
 use gtp::{GtpAccept, GtpClient as RustGtpClient};
 use js_sys::{Array, Object, Reflect, Uint8Array};
+use openmls::prelude::tls_codec::Deserialize as TlsDeserialize;
 use openmls::prelude::tls_codec::Serialize as TlsSerialize;
 use openmls::prelude::{KeyPackageIn, OpenMlsProvider, ProtocolVersion};
-use tls_codec::Deserialize as TlsDeserialize;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
@@ -45,7 +45,11 @@ fn event_to_js(ev: Event) -> JsValue {
     match ev {
         Event::PayloadReceived(p) => {
             set(&obj, "kind", &"payload_received".into());
-            set(&obj, "streamType", &JsValue::from_f64(p.stream_type.as_u8() as f64));
+            set(
+                &obj,
+                "streamType",
+                &JsValue::from_f64(p.stream_type.as_u8() as f64),
+            );
             set(&obj, "plaintext", &u8s(&p.plaintext));
             set(&obj, "sequenceNo", &JsValue::from_f64(p.sequence_no as f64));
             set(&obj, "codec", &JsValue::from_f64(p.codec as u8 as f64));
@@ -55,23 +59,45 @@ fn event_to_js(ev: Event) -> JsValue {
             set(&obj, "from", &JsValue::from_str(&from.to_string()));
             set(&obj, "to", &JsValue::from_str(&to.to_string()));
         }
-        Event::EpochAdvanced { epoch, transition_id } => {
+        Event::EpochAdvanced {
+            epoch,
+            transition_id,
+        } => {
             set(&obj, "kind", &"epoch_advanced".into());
             set(&obj, "epoch", &js_sys::BigInt::from(epoch).into());
-            set(&obj, "transitionId", &JsValue::from_f64(transition_id as f64));
+            set(
+                &obj,
+                "transitionId",
+                &JsValue::from_f64(transition_id as f64),
+            );
         }
-        Event::Error { code, reason, fatal, retryable, .. } => {
+        Event::Error {
+            code,
+            reason,
+            fatal,
+            retryable,
+            ..
+        } => {
             set(&obj, "kind", &"error".into());
             set(&obj, "code", &JsValue::from_f64(code as f64));
             set(&obj, "reason", &JsValue::from_str(&reason));
             set(&obj, "fatal", &JsValue::from_bool(fatal));
             set(&obj, "retryable", &JsValue::from_bool(retryable));
         }
-        Event::Control { from, opcode, transition_id, .. } => {
+        Event::Control {
+            from,
+            opcode,
+            transition_id,
+            ..
+        } => {
             set(&obj, "kind", &"control".into());
             set(&obj, "from", &JsValue::from_f64(from as f64));
             set(&obj, "opcode", &JsValue::from_f64(opcode as u8 as f64));
-            set(&obj, "transitionId", &JsValue::from_f64(transition_id as f64));
+            set(
+                &obj,
+                "transitionId",
+                &JsValue::from_f64(transition_id as f64),
+            );
         }
         _ => {
             set(&obj, "kind", &"other".into());
@@ -165,12 +191,16 @@ impl MlsContext {
     /// member can pass to [`invite`] to add this member to a group.
     #[wasm_bindgen(js_name = "create")]
     pub fn create(user_id: &str) -> Result<MlsContext, JsValue> {
-        let (ctx, kpb) = gbp_mls::MlsContext::new_member(user_id.as_bytes())
-            .map_err(|e| js_err(e))?;
-        let kp_bytes = kpb.key_package()
+        let (ctx, kpb) =
+            gbp_mls::MlsContext::new_member(user_id.as_bytes()).map_err(|e| js_err(e))?;
+        let kp_bytes = kpb
+            .key_package()
             .tls_serialize_detached()
             .map_err(|e| js_err(format!("kp serialize: {e:?}")))?;
-        Ok(MlsContext { inner: RefCell::new(ctx), kp_bytes })
+        Ok(MlsContext {
+            inner: RefCell::new(ctx),
+            kp_bytes,
+        })
     }
 
     /// TLS-serialised key package for this member (pass to the inviter's
@@ -243,7 +273,8 @@ impl MlsContext {
     /// [`groupId`] will match the inviter's group id.
     #[wasm_bindgen(js_name = "acceptWelcome")]
     pub fn accept_welcome(&self, welcome_bytes: &[u8]) -> Result<(), JsValue> {
-        self.inner.borrow_mut()
+        self.inner
+            .borrow_mut()
             .accept_welcome(welcome_bytes)
             .map_err(|e| js_err(e))
     }
@@ -301,7 +332,8 @@ impl MlsContext {
     /// advancing this member's epoch.
     #[wasm_bindgen(js_name = "finalizeCommit")]
     pub fn finalize_commit(&self) -> Result<(), JsValue> {
-        self.inner.borrow_mut()
+        self.inner
+            .borrow_mut()
             .finalize_pending_commit()
             .map_err(|e| js_err(e))
     }
@@ -310,7 +342,8 @@ impl MlsContext {
     /// `ABORT_TRANSITION` to roll back to the pre-commit MLS state.
     #[wasm_bindgen(js_name = "clearPendingCommit")]
     pub fn clear_pending_commit(&self) -> Result<(), JsValue> {
-        self.inner.borrow_mut()
+        self.inner
+            .borrow_mut()
             .clear_pending_commit()
             .map_err(|e| js_err(e))
     }
@@ -331,7 +364,10 @@ impl MlsContext {
     #[wasm_bindgen(js_name = "restoreState")]
     pub fn restore_state(blob: &[u8]) -> Result<MlsContext, JsValue> {
         let ctx = gbp_mls::MlsContext::restore_state(blob).map_err(|e| js_err(e))?;
-        Ok(MlsContext { inner: RefCell::new(ctx), kp_bytes: Vec::new() })
+        Ok(MlsContext {
+            inner: RefCell::new(ctx),
+            kp_bytes: Vec::new(),
+        })
     }
 }
 
@@ -356,7 +392,9 @@ impl GroupNode {
     #[wasm_bindgen(js_name = "create")]
     pub fn create(leaf_index: u32, group_id_bytes: &[u8]) -> GroupNode {
         let gid: [u8; 16] = group_id_bytes.try_into().unwrap_or([0u8; 16]);
-        GroupNode { inner: RefCell::new(RustGroupNode::new(leaf_index as MemberId, gid)) }
+        GroupNode {
+            inner: RefCell::new(RustGroupNode::new(leaf_index as MemberId, gid)),
+        }
     }
 
     /// Drives the node to `ACTIVE` as the group creator at the given epoch.
@@ -371,7 +409,9 @@ impl GroupNode {
     /// `transition_id` the coordinator will send in `EXECUTE_TRANSITION`.
     #[wasm_bindgen(js_name = "bootstrapAsJoiner")]
     pub fn bootstrap_as_joiner(&self, epoch: u64, expected_first_tid: u32) {
-        self.inner.borrow_mut().bootstrap_as_joiner(epoch, expected_first_tid);
+        self.inner
+            .borrow_mut()
+            .bootstrap_as_joiner(epoch, expected_first_tid);
     }
 
     /// Serialises the outbound sequence counters so a rebuilt node (after a
@@ -405,7 +445,9 @@ impl GroupNode {
     pub fn on_wire(&self, mls: &MlsContext, wire_bytes: &[u8]) -> Array {
         let mut node = self.inner.borrow_mut();
         let mut mls_inner = mls.inner.borrow_mut();
-        let events = node.on_wire(&mut *mls_inner, wire_bytes).unwrap_or_default();
+        let events = node
+            .on_wire(&mut *mls_inner, wire_bytes)
+            .unwrap_or_default();
         let arr = Array::new();
         for ev in events {
             arr.push(&event_to_js(ev));
@@ -461,7 +503,14 @@ impl GroupNode {
         let mut node = self.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
         let of = node
-            .send_control(&mut *m, target as MemberId, op, transition_id, request_id, args.to_vec())
+            .send_control(
+                &mut *m,
+                target as MemberId,
+                op,
+                transition_id,
+                request_id,
+                args.to_vec(),
+            )
             .map_err(|e| js_err(e))?;
         let obj = Object::new();
         set(&obj, "wire", &u8s(&of.wire));
@@ -512,7 +561,9 @@ impl GtpClient {
     /// Creates an empty GTP client.
     #[wasm_bindgen(js_name = "create")]
     pub fn create() -> GtpClient {
-        GtpClient { inner: RefCell::new(RustGtpClient::new()) }
+        GtpClient {
+            inner: RefCell::new(RustGtpClient::new()),
+        }
     }
 
     /// Sends a text message.
@@ -533,7 +584,14 @@ impl GtpClient {
         let mut gtp = self.inner.borrow_mut();
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
-        match gtp.send(&mut *n, &mut *m, target as MemberId, message_id, text, codec_from(codec)) {
+        match gtp.send(
+            &mut *n,
+            &mut *m,
+            target as MemberId,
+            message_id,
+            text,
+            codec_from(codec),
+        ) {
             Ok(frame) => {
                 let obj = Object::new();
                 set(&obj, "wire", &u8s(&frame.wire));
@@ -563,7 +621,11 @@ impl GtpClient {
                 let text = String::from_utf8_lossy(&msg.content).into_owned();
                 let obj = Object::new();
                 set(&obj, "text", &JsValue::from_str(&text));
-                set(&obj, "messageId", &js_sys::BigInt::from(msg.message_id).into());
+                set(
+                    &obj,
+                    "messageId",
+                    &js_sys::BigInt::from(msg.message_id).into(),
+                );
                 set(&obj, "senderId", &JsValue::from_f64(msg.sender_id as f64));
                 set(&obj, "status", &JsValue::from_str(status));
                 obj.into()
@@ -594,7 +656,11 @@ fn gap_payload_to_js(status: &str, p: gap::GapPayload) -> JsValue {
     set(&obj, "status", &JsValue::from_str(status));
     set(&obj, "source", &JsValue::from_f64(p.media_source_id as f64));
     set(&obj, "seq", &JsValue::from_f64(p.rtp_sequence as f64));
-    set(&obj, "rtpTimestamp", &js_sys::BigInt::from(p.rtp_timestamp).into());
+    set(
+        &obj,
+        "rtpTimestamp",
+        &js_sys::BigInt::from(p.rtp_timestamp).into(),
+    );
     set(&obj, "opus", &u8s(&p.opus_frame.into_vec()));
     obj.into()
 }
@@ -627,7 +693,9 @@ impl GapClient {
     /// Creates an empty GAP client.
     #[wasm_bindgen(js_name = "create")]
     pub fn create() -> GapClient {
-        GapClient { inner: RefCell::new(RustGapClient::new()) }
+        GapClient {
+            inner: RefCell::new(RustGapClient::new()),
+        }
     }
 
     /// Sends one Opus audio frame. Returns `{ wire: Uint8Array, to: number }`
@@ -705,7 +773,9 @@ impl GspClient {
     /// Creates an empty GSP client.
     #[wasm_bindgen(js_name = "create")]
     pub fn create() -> GspClient {
-        GspClient { inner: RefCell::new(RustGspClient::new()) }
+        GspClient {
+            inner: RefCell::new(RustGspClient::new()),
+        }
     }
 
     /// Sends a bare signal with no arguments (e.g. `SignalType.Join` /
@@ -727,9 +797,17 @@ impl GspClient {
         let mut gsp = self.inner.borrow_mut();
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
-        gsp.send(&mut *n, &mut *m, target as MemberId, sig, role_claim, request_id, codec_from(codec))
-            .map(outbound_to_js)
-            .map_err(|e| js_err(e))
+        gsp.send(
+            &mut *n,
+            &mut *m,
+            target as MemberId,
+            sig,
+            role_claim,
+            request_id,
+            codec_from(codec),
+        )
+        .map(outbound_to_js)
+        .map_err(|e| js_err(e))
     }
 
     /// Sends a signal carrying opcode-specific CBOR `args` — MUTE, UNMUTE,
@@ -751,9 +829,18 @@ impl GspClient {
         let mut gsp = self.inner.borrow_mut();
         let mut n = node.inner.borrow_mut();
         let mut m = mls.inner.borrow_mut();
-        gsp.send_with_args(&mut *n, &mut *m, target as MemberId, sig, role_claim, request_id, args, codec_from(codec))
-            .map(outbound_to_js)
-            .map_err(|e| js_err(e))
+        gsp.send_with_args(
+            &mut *n,
+            &mut *m,
+            target as MemberId,
+            sig,
+            role_claim,
+            request_id,
+            args,
+            codec_from(codec),
+        )
+        .map(outbound_to_js)
+        .map_err(|e| js_err(e))
     }
 
     /// Accepts a GSP signal payload. Returns
@@ -761,10 +848,20 @@ impl GspClient {
     /// signal, `{ status: "duplicate", requestId }` for a replayed request, or
     /// throws on a hard error. `codec` must match the sender (defaults to CBOR).
     #[wasm_bindgen(js_name = "accept")]
-    pub fn accept(&self, plaintext: &[u8], epoch: u64, codec: Option<u8>) -> Result<JsValue, JsValue> {
+    pub fn accept(
+        &self,
+        plaintext: &[u8],
+        epoch: u64,
+        codec: Option<u8>,
+    ) -> Result<JsValue, JsValue> {
         let mut gsp = self.inner.borrow_mut();
         match gsp.accept(plaintext, epoch, codec_from(codec)) {
-            Ok(GspAccept { signal, sender_id, role_claim, request_id }) => {
+            Ok(GspAccept {
+                signal,
+                sender_id,
+                role_claim,
+                request_id,
+            }) => {
                 let obj = Object::new();
                 set(&obj, "status", &JsValue::from_str("new"));
                 set(&obj, "signal", &JsValue::from_str(signal.name()));
@@ -820,7 +917,9 @@ impl SFrameSession {
         let suite = cipher_suite_from(suite)?;
         let m = mls.inner.borrow();
         let session = RustSFrameSession::from_mls(&m, label, suite).map_err(|e| js_err(e))?;
-        Ok(SFrameSession { inner: RefCell::new(session.decryptor()) })
+        Ok(SFrameSession {
+            inner: RefCell::new(session.decryptor()),
+        })
     }
 
     /// Creates a sender-side encryptor for `leafIndex` in this epoch. Re-derives
@@ -837,7 +936,9 @@ impl SFrameSession {
         let suite = cipher_suite_from(suite)?;
         let m = mls.inner.borrow();
         let session = RustSFrameSession::from_mls(&m, label, suite).map_err(|e| js_err(e))?;
-        Ok(SFrameEncryptor { inner: RefCell::new(session.encryptor(leaf_index)) })
+        Ok(SFrameEncryptor {
+            inner: RefCell::new(session.encryptor(leaf_index)),
+        })
     }
 
     /// Decrypts an SFrame payload, returning

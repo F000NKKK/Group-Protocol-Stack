@@ -67,7 +67,8 @@ impl GspSignal {
             }
             PayloadCodec::FlatBuffers => {
                 let mut b = gbp_flat::planus::Builder::new();
-                b.finish(gbp_flat::gsp::GspSignal::from(self), None).to_vec()
+                b.finish(gbp_flat::gsp::GspSignal::from(self), None)
+                    .to_vec()
             }
         }
     }

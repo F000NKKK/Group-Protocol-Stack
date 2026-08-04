@@ -1108,7 +1108,9 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send_with_args(&mut *n, &mut *m, target, sig, role_claim, request_id, args, codec) {
+    match c.send_with_args(
+        &mut *n, &mut *m, target, sig, role_claim, request_id, args, codec,
+    ) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());

@@ -164,8 +164,14 @@ mod tests {
         let mut client = GtpClient::new();
         let p1 = encode_msg(1, 1);
         let p2 = encode_msg(1, 2);
-        assert!(matches!(client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
-        assert!(matches!(client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(
+            client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(),
+            GtpAccept::New(_)
+        ));
+        assert!(matches!(
+            client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(),
+            GtpAccept::New(_)
+        ));
     }
 
     #[test]
@@ -173,8 +179,14 @@ mod tests {
         let mut client = GtpClient::new();
         let p1 = encode_msg(1, 42);
         let p2 = encode_msg(2, 42);
-        assert!(matches!(client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
-        assert!(matches!(client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(), GtpAccept::New(_)));
+        assert!(matches!(
+            client.accept(&p1, 0, PayloadCodec::Cbor).unwrap(),
+            GtpAccept::New(_)
+        ));
+        assert!(matches!(
+            client.accept(&p2, 0, PayloadCodec::Cbor).unwrap(),
+            GtpAccept::New(_)
+        ));
     }
 
     #[test]

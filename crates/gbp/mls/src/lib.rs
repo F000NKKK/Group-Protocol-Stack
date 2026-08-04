@@ -415,7 +415,9 @@ impl MlsContext {
             .map_err(|e| MlsError::OpenMls(format!("signer serialize: {e:?}")))?;
         let gid = self.group.group_id().as_slice().to_vec();
 
-        let mut out = Vec::with_capacity(16 + storage_buf.len() + signer_buf.len() + self.identity.len() + gid.len());
+        let mut out = Vec::with_capacity(
+            16 + storage_buf.len() + signer_buf.len() + self.identity.len() + gid.len(),
+        );
         for part in [
             storage_buf.as_slice(),
             signer_buf.as_slice(),
@@ -713,8 +715,13 @@ mod tests {
         let (ctx, _kp) = alice();
         let blob = ctx.export_state().unwrap();
         let restored = MlsContext::restore_state(&blob).unwrap();
-        let ct = restored.seal(StreamLabel::Text, 7, b"after restore").unwrap();
-        assert_eq!(restored.open(StreamLabel::Text, 7, &ct).unwrap(), b"after restore");
+        let ct = restored
+            .seal(StreamLabel::Text, 7, b"after restore")
+            .unwrap();
+        assert_eq!(
+            restored.open(StreamLabel::Text, 7, &ct).unwrap(),
+            b"after restore"
+        );
     }
 
     #[test]
@@ -731,8 +738,13 @@ mod tests {
         assert_eq!(restored_alice.epoch(), 1);
 
         // Restored Alice still shares the group key with Bob.
-        let ct = restored_alice.seal(StreamLabel::Control, 3, b"still in group").unwrap();
-        assert_eq!(bob.open(StreamLabel::Control, 3, &ct).unwrap(), b"still in group");
+        let ct = restored_alice
+            .seal(StreamLabel::Control, 3, b"still in group")
+            .unwrap();
+        assert_eq!(
+            bob.open(StreamLabel::Control, 3, &ct).unwrap(),
+            b"still in group"
+        );
     }
 
     #[test]
@@ -760,7 +772,10 @@ mod tests {
         // All three share the group key → mutual decryption.
         let ct = alice.seal(StreamLabel::Text, 1, b"hello group").unwrap();
         assert_eq!(bob.open(StreamLabel::Text, 1, &ct).unwrap(), b"hello group");
-        assert_eq!(carol.open(StreamLabel::Text, 1, &ct).unwrap(), b"hello group");
+        assert_eq!(
+            carol.open(StreamLabel::Text, 1, &ct).unwrap(),
+            b"hello group"
+        );
     }
 
     #[test]
@@ -790,7 +805,10 @@ mod tests {
 
         // Mutual decryption confirms the shared group.
         let ct = alice.seal(StreamLabel::Text, 1, b"after reload").unwrap();
-        assert_eq!(bob_restored.open(StreamLabel::Text, 1, &ct).unwrap(), b"after reload");
+        assert_eq!(
+            bob_restored.open(StreamLabel::Text, 1, &ct).unwrap(),
+            b"after reload"
+        );
     }
 
     #[test]

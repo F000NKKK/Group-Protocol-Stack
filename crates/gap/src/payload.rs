@@ -82,7 +82,8 @@ impl GapPayload {
             }
             PayloadCodec::FlatBuffers => {
                 let mut b = gbp_flat::planus::Builder::new();
-                b.finish(gbp_flat::gap::GapPayload::from(self), None).to_vec()
+                b.finish(gbp_flat::gap::GapPayload::from(self), None)
+                    .to_vec()
             }
         }
     }
