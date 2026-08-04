@@ -141,8 +141,22 @@ registries = [
 # More documentation about the 'bans' section can be found here:
 # https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
 [bans]
-# Lint level for when multiple versions of the same crate are detected
-multiple-versions = "warn"
+# Lint level for when multiple versions of the same crate are detected.
+#
+# This is "deny" rather than the default "warn" on purpose: PR #47 was a
+# near-miss where a Dependabot bump left `tls_codec` split into two
+# incompatible versions in the graph (one pinned directly by gbp-stack-wasm,
+# one required by openmls) and would have broken the wasm build if merged.
+# `cargo deny check bans` in CI now fails on *any* new duplicate crate, so
+# that class of bug is caught before merge instead of after.
+#
+# The `skip` list below is today's baseline of duplicates — all from
+# third-party crates independently migrating between semver-major versions
+# of shared RustCrypto/rand/etc. dependencies, which we don't control and
+# can't unify. If a new name shows up in `cargo deny check bans` output that
+# isn't already below, don't just add it here reflexively: check whether it's
+# actually unify-able first (as tls_codec was) before accepting it as noise.
+multiple-versions = "deny"
 # Lint level for when a crate version requirement is `*`
 wildcards = "allow"
 # The graph highlighting used when creating dotgraphs for crates
@@ -201,9 +215,39 @@ deny = [
 #exact = true
 
 # Certain crates/versions that will be skipped when doing duplicate detection.
+#
+# Baseline as of the v1.9.0 release — all transitive, from third-party crates
+# (RustCrypto family, rand, windows-sys, etc.) independently mid-migration
+# between their own major versions; nothing here is a workspace-level pin we
+# control. Re-run `cargo deny check bans` after dependency bumps to see if the
+# list has grown.
 skip = [
-    #"ansi_term@0.11.0",
-    #{ crate = "ansi_term@0.11.0", reason = "you can specify a reason why it can't be updated/removed" },
+    { crate = "aead", reason = "RustCrypto 0.5->0.6 migration: rust-crypto AEAD chain (aes-gcm/chacha20poly1305 0.10) vs ring/newer chacha20poly1305 0.11 chain" },
+    { crate = "bitflags", reason = "ecosystem-wide 1.x->2.x migration, not ours to unify" },
+    { crate = "block-buffer", reason = "RustCrypto digest 0.10->0.11 migration" },
+    { crate = "chacha20", reason = "RustCrypto 0.9->0.10 migration, tracks chacha20poly1305" },
+    { crate = "chacha20poly1305", reason = "gbp-mls pins 0.11 directly; openmls_rust_crypto pins 0.10 internally (upstream, not ours to change)" },
+    { crate = "cipher", reason = "RustCrypto 0.4->0.5 migration" },
+    { crate = "const-oid", reason = "transitive der/spki version skew" },
+    { crate = "cpufeatures", reason = "RustCrypto 0.2.x patch skew across the dependency graph" },
+    { crate = "crypto-common", reason = "RustCrypto 0.1->0.2 migration" },
+    { crate = "digest", reason = "RustCrypto 0.10->0.11 migration" },
+    { crate = "foldhash", reason = "hashbrown version skew" },
+    { crate = "getrandom", reason = "deliberate: rand 0.8 chain needs getrandom 0.2's \"js\" wasm backend, aead 0.6 chain needs getrandom 0.4's \"wasm_js\" backend — see crates/gbp/wasm/Cargo.toml" },
+    { crate = "hashbrown", reason = "transitive hashbrown version skew" },
+    { crate = "inout", reason = "RustCrypto 0.1->0.2 migration" },
+    { crate = "parking_lot", reason = "transitive parking_lot 0.11 vs newer version skew" },
+    { crate = "parking_lot_core", reason = "tracks parking_lot" },
+    { crate = "poly1305", reason = "RustCrypto 0.8->0.9 migration, tracks chacha20poly1305" },
+    { crate = "r-efi", reason = "getrandom's UEFI backend dependency, tracks the getrandom split above" },
+    { crate = "rand", reason = "rand 0.8 (openmls/RustCrypto chain) vs newer rand pulled in elsewhere" },
+    { crate = "rand_chacha", reason = "tracks rand" },
+    { crate = "rand_core", reason = "tracks rand / getrandom" },
+    { crate = "redox_syscall", reason = "transitive parking_lot_core/rand version skew" },
+    { crate = "sha2", reason = "gbp-mls pins 0.11 directly; openmls_rust_crypto pins 0.10 internally (upstream, not ours to change)" },
+    { crate = "syn", reason = "ecosystem-wide 1.x/2.x proc-macro dependency skew" },
+    { crate = "universal-hash", reason = "RustCrypto 0.5->0.6 migration, tracks poly1305/ghash" },
+    { crate = "windows-sys", reason = "transitive Windows FFI version skew across ring/tokio/quinn/etc." },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
