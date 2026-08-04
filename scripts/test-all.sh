@@ -53,8 +53,13 @@ INSTALL_ARGS=()
 if ! is_skipped python; then
     echo ""
     echo "=== Python tests ==="
-    (cd "$ROOT/python" && python -m pytest tests/test_integration.py -v --tb=short) \
-        || FAILURES+=("Python")
+    if [[ -z "$PYTHON_BIN" ]]; then
+        echo "No python or python3 binary found on PATH" >&2
+        FAILURES+=("Python")
+    else
+        (cd "$ROOT/python" && "$PYTHON_BIN" -m pytest tests/test_integration.py -v --tb=short) \
+            || FAILURES+=("Python")
+    fi
 fi
 
 # ── Step 3: C# tests ─────────────────────────────────────────────────────────
