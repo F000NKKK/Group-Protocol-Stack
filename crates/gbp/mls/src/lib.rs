@@ -514,11 +514,11 @@ impl MlsContext {
         plaintext: &[u8],
     ) -> Result<Vec<u8>, MlsError> {
         let key = self.export_stream_key(label)?;
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+        let cipher = ChaCha20Poly1305::new(&Key::from(key));
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&seq.to_be_bytes());
         cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext)
+            .encrypt(&Nonce::from(nonce), plaintext)
             .map_err(|e| MlsError::Aead(e.to_string()))
     }
 
@@ -530,11 +530,11 @@ impl MlsContext {
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, MlsError> {
         let key = self.export_stream_key(label)?;
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+        let cipher = ChaCha20Poly1305::new(&Key::from(key));
         let mut nonce = [0u8; 12];
         nonce[..4].copy_from_slice(&seq.to_be_bytes());
         cipher
-            .decrypt(Nonce::from_slice(&nonce), ciphertext)
+            .decrypt(&Nonce::from(nonce), ciphertext)
             .map_err(|e| MlsError::Aead(e.to_string()))
     }
 }
