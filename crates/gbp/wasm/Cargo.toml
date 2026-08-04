@@ -24,9 +24,8 @@ gbp-sframe    = { workspace = true }
 wasm-bindgen  = "0.2"
 js-sys        = "0.3"
 getrandom         = { version = "0.4", features = ["js"] }
-# Pulled in transitively (crypto-common -> getrandom 0.4, via chacha20poly1305 0.11's aead
-# dependency); needs the wasm_js backend enabled for the wasm32-unknown-unknown target.
 getrandom4        = { package = "getrandom", version = "0.4", default-features = false, features = ["wasm_js"] }
+
 fluvio-wasm-timer = "0.2"
 # Enable openmls WASM/JS backend (secure randomness + time via Web APIs)
 openmls           = { version = "0.8", features = ["js"] }
