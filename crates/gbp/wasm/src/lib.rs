@@ -191,8 +191,7 @@ impl MlsContext {
     /// member can pass to [`invite`] to add this member to a group.
     #[wasm_bindgen(js_name = "create")]
     pub fn create(user_id: &str) -> Result<MlsContext, JsValue> {
-        let (ctx, kpb) =
-            gbp_mls::MlsContext::new_member(user_id.as_bytes()).map_err(|e| js_err(e))?;
+        let (ctx, kpb) = gbp_mls::MlsContext::new_member(user_id.as_bytes()).map_err(js_err)?;
         let kp_bytes = kpb
             .key_package()
             .tls_serialize_detached()
@@ -231,12 +230,12 @@ impl MlsContext {
     #[wasm_bindgen(js_name = "invite")]
     pub fn invite(&self, key_package_bytes: &[u8]) -> Result<Uint8Array, JsValue> {
         let mut ctx = self.inner.borrow_mut();
-        let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes.as_ref())
+        let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes)
             .map_err(|e| js_err(format!("kp parse: {e:?}")))?;
         let kp = kp_in
             .validate(ctx.provider.crypto(), ProtocolVersion::Mls10)
             .map_err(|e| js_err(format!("kp validate: {e:?}")))?;
-        let welcome = ctx.invite(&[kp]).map_err(|e| js_err(e))?;
+        let welcome = ctx.invite(&[kp]).map_err(js_err)?;
         Ok(Uint8Array::from(welcome.as_slice()))
     }
 
@@ -263,7 +262,7 @@ impl MlsContext {
         if kps.is_empty() {
             return Err(js_err("inviteMany: no key packages".to_string()));
         }
-        let welcome = ctx.invite(&kps).map_err(|e| js_err(e))?;
+        let welcome = ctx.invite(&kps).map_err(js_err)?;
         Ok(Uint8Array::from(welcome.as_slice()))
     }
 
@@ -276,7 +275,7 @@ impl MlsContext {
         self.inner
             .borrow_mut()
             .accept_welcome(welcome_bytes)
-            .map_err(|e| js_err(e))
+            .map_err(js_err)
     }
 
     /// Invites a member and returns BOTH the Commit and the Welcome as
@@ -288,12 +287,12 @@ impl MlsContext {
     #[wasm_bindgen(js_name = "inviteFull")]
     pub fn invite_full(&self, key_package_bytes: &[u8]) -> Result<JsValue, JsValue> {
         let mut ctx = self.inner.borrow_mut();
-        let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes.as_ref())
+        let kp_in = KeyPackageIn::tls_deserialize(&mut key_package_bytes)
             .map_err(|e| js_err(format!("kp parse: {e:?}")))?;
         let kp = kp_in
             .validate(ctx.provider.crypto(), ProtocolVersion::Mls10)
             .map_err(|e| js_err(format!("kp validate: {e:?}")))?;
-        let (commit, welcome) = ctx.invite_full(&[kp]).map_err(|e| js_err(e))?;
+        let (commit, welcome) = ctx.invite_full(&[kp]).map_err(js_err)?;
         let obj = Object::new();
         set(&obj, "commit", &u8s(&commit));
         set(&obj, "welcome", &u8s(&welcome));
@@ -308,7 +307,7 @@ impl MlsContext {
     #[wasm_bindgen(js_name = "removeMember")]
     pub fn remove_member(&self, leaf_index: u32) -> Result<Uint8Array, JsValue> {
         let mut ctx = self.inner.borrow_mut();
-        let commit = ctx.remove_members(&[leaf_index]).map_err(|e| js_err(e))?;
+        let commit = ctx.remove_members(&[leaf_index]).map_err(js_err)?;
         Ok(Uint8Array::from(commit.as_slice()))
     }
 
@@ -318,7 +317,7 @@ impl MlsContext {
     #[wasm_bindgen(js_name = "processMessage")]
     pub fn process_message(&self, msg_bytes: &[u8]) -> Result<String, JsValue> {
         let mut ctx = self.inner.borrow_mut();
-        let kind = ctx.process_message(msg_bytes).map_err(|e| js_err(e))?;
+        let kind = ctx.process_message(msg_bytes).map_err(js_err)?;
         Ok(match kind {
             gbp_mls::ProcessedKind::Commit => "commit",
             gbp_mls::ProcessedKind::Application => "application",
@@ -335,7 +334,7 @@ impl MlsContext {
         self.inner
             .borrow_mut()
             .finalize_pending_commit()
-            .map_err(|e| js_err(e))
+            .map_err(js_err)
     }
 
     /// Discards a pending Commit without applying it — used on
@@ -345,7 +344,7 @@ impl MlsContext {
         self.inner
             .borrow_mut()
             .clear_pending_commit()
-            .map_err(|e| js_err(e))
+            .map_err(js_err)
     }
 
     /// Serialises the full MLS state into an opaque blob that [`restoreState`]
@@ -354,7 +353,7 @@ impl MlsContext {
     /// material** — store it encrypted at rest.
     #[wasm_bindgen(js_name = "exportState")]
     pub fn export_state(&self) -> Result<Uint8Array, JsValue> {
-        let bytes = self.inner.borrow().export_state().map_err(|e| js_err(e))?;
+        let bytes = self.inner.borrow().export_state().map_err(js_err)?;
         Ok(Uint8Array::from(bytes.as_slice()))
     }
 
@@ -363,7 +362,7 @@ impl MlsContext {
     /// send and receive again.
     #[wasm_bindgen(js_name = "restoreState")]
     pub fn restore_state(blob: &[u8]) -> Result<MlsContext, JsValue> {
-        let ctx = gbp_mls::MlsContext::restore_state(blob).map_err(|e| js_err(e))?;
+        let ctx = gbp_mls::MlsContext::restore_state(blob).map_err(js_err)?;
         Ok(MlsContext {
             inner: RefCell::new(ctx),
             kp_bytes: Vec::new(),
@@ -511,7 +510,7 @@ impl GroupNode {
                 request_id,
                 args.to_vec(),
             )
-            .map_err(|e| js_err(e))?;
+            .map_err(js_err)?;
         let obj = Object::new();
         set(&obj, "wire", &u8s(&of.wire));
         set(&obj, "to", &JsValue::from_f64(of.to as f64));
@@ -807,7 +806,7 @@ impl GspClient {
             codec_from(codec),
         )
         .map(outbound_to_js)
-        .map_err(|e| js_err(e))
+        .map_err(js_err)
     }
 
     /// Sends a signal carrying opcode-specific CBOR `args` — MUTE, UNMUTE,
@@ -840,7 +839,7 @@ impl GspClient {
             codec_from(codec),
         )
         .map(outbound_to_js)
-        .map_err(|e| js_err(e))
+        .map_err(js_err)
     }
 
     /// Accepts a GSP signal payload. Returns
@@ -916,7 +915,7 @@ impl SFrameSession {
     pub fn create(mls: &MlsContext, label: &str, suite: u8) -> Result<SFrameSession, JsValue> {
         let suite = cipher_suite_from(suite)?;
         let m = mls.inner.borrow();
-        let session = RustSFrameSession::from_mls(&m, label, suite).map_err(|e| js_err(e))?;
+        let session = RustSFrameSession::from_mls(&m, label, suite).map_err(js_err)?;
         Ok(SFrameSession {
             inner: RefCell::new(session.decryptor()),
         })
@@ -935,7 +934,7 @@ impl SFrameSession {
     ) -> Result<SFrameEncryptor, JsValue> {
         let suite = cipher_suite_from(suite)?;
         let m = mls.inner.borrow();
-        let session = RustSFrameSession::from_mls(&m, label, suite).map_err(|e| js_err(e))?;
+        let session = RustSFrameSession::from_mls(&m, label, suite).map_err(js_err)?;
         Ok(SFrameEncryptor {
             inner: RefCell::new(session.encryptor(leaf_index)),
         })
@@ -974,7 +973,7 @@ impl SFrameEncryptor {
     #[wasm_bindgen(js_name = "encrypt")]
     pub fn encrypt(&self, plaintext: &[u8], aad: &[u8]) -> Result<Uint8Array, JsValue> {
         let mut enc = self.inner.borrow_mut();
-        let ct = enc.encrypt(plaintext, aad).map_err(|e| js_err(e))?;
+        let ct = enc.encrypt(plaintext, aad).map_err(js_err)?;
         Ok(Uint8Array::from(ct.as_slice()))
     }
 }
