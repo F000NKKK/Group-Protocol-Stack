@@ -1,6 +1,13 @@
 # Scripts
 
-## release.ps1
+Each script has a PowerShell (`.ps1`, Windows) and a bash (`.sh`, Linux/macOS)
+version with equivalent behavior. Examples below use the PowerShell form —
+substitute `pwsh ./scripts/foo.ps1 -Bar baz` with `./scripts/foo.sh --bar baz`
+on Linux/macOS (`install-native.sh` auto-detects the host RID instead of
+defaulting to `win-x64`; `test-all.sh` picks whichever of `python`/`python3`
+is on `PATH`).
+
+## release.ps1 / release.sh
 
 Cuts a release: bumps all manifests, updates CHANGELOG.md and SECURITY.md,
 commits, tags and pushes. The GitHub Actions workflow picks up the tag and
@@ -26,7 +33,7 @@ pwsh ./scripts/release.ps1 -Version 1.5.0
 pwsh ./scripts/release.ps1 -Bump patch -NoPush
 ```
 
-## bump-version.ps1
+## bump-version.ps1 / bump-version.sh
 
 Updates the version string in every package manifest without committing or
 tagging. Useful when you need to inspect the diff before a release.
