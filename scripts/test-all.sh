@@ -25,6 +25,13 @@ done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+PYTHON_BIN=""
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+fi
+
 is_skipped() {
     local name="$1"
     IFS=',' read -ra parts <<<"$(tr '[:upper:]' '[:lower:]' <<<"$SKIP")"
