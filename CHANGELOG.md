@@ -1,3 +1,53 @@
+## 1.9.0 (2026-08-04)
+
+### Features
+
+- feat(sframe)!: migrate to existing sframe crate (#48) (a95394c)
+
+### Bug Fixes
+
+- fix(test-all): use detected PYTHON_BIN for pytest execution (9463927)
+- fix: remove unused tls_codec dependency and apply rustfmt formatting (d478bc9)
+
+### Performance
+
+- feat(sframe)!: migrate to existing sframe crate (#48) (a95394c)
+
+### Tests
+
+- fix: remove unused tls_codec dependency and apply rustfmt formatting (d478bc9)
+
+### Documentation
+
+- docs: document bash script equivalents in scripts README (5d66f7b)
+
+### Build
+
+- build(deps): move planus and anyhow to workspace deps (51c61c7)
+- build: centralize wasm dependencies in workspace (d9aab95)
+- build(gbp-wasm): enable wasm_js backend for getrandom 0.4 (3c1ee76)
+- build(deps): bump chacha20poly1305 from 0.10 to 0.11 (53e3fca)
+
+### Chores
+
+- chore(release): add script to automate release process (9264dc2)
+- chore: add atomic version bump script (a293874)
+- chore(wasm): remove outdated getrandom comments in Cargo.toml (a642575)
+- chore(deps): update dependencies in Cargo.lock (4784ad3)
+- chore(deps-dev): bump ts-jest from 29.4.11 to 29.4.12 in /js (#58) (d64876b)
+- chore(deps): bump actions/setup-python from 6 to 7 (#51) (63ab4d2)
+- chore(deps): bump actions/setup-dotnet from 5 to 6 (#50) (7e39ef0)
+- chore(deps): bump rustls from 0.23.40 to 0.23.43 (#45) (0e75410)
+- chore(deps): bump quinn from 0.11.9 to 0.11.11 (#35) (25adf2b)
+- chore(deps): bump tokio from 1.52.3 to 1.53.0 (#52) (0811814)
+- chore(deps): bump thiserror from 2.0.18 to 2.0.19 (#54) (088b6ee)
+- chore(deps): bump anyhow from 1.0.102 to 1.0.104 (#53) (4315c8c)
+- chore(deps): bump serde_json from 1.0.150 to 1.0.151 (#55) (57038f9)
+- chore(deps): bump serde from 1.0.228 to 1.0.229 (#56) (c6c3b13)
+- chore(deps): bump actions/setup-node from 6 to 7 (#49) (b03e612)
+- chore(deps): bump actions/cache from 5 to 6 (#36) (0966448)
+- chore(deps): bump actions/checkout from 6 to 7 (#32) (d89f871)---
+
 ## 1.8.2 (2026-06-21)
 
 ### Chores
