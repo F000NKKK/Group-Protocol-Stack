@@ -1,3 +1,30 @@
+## 1.9.1 (2026-08-04)
+
+### Bug Fixes
+
+- fix(wasm): resolve clippy lints and mutability issues (7e24e48)
+- fix(ffi): explicitly deref MutexGuard for generic Sealer (5c74c61)
+
+### Refactoring
+
+- refactor(wasm): simplify error mapping and remove redundant as_ref (065ddaa)
+- refactor: pass mutex guards directly to send_with_args (b77fc88)
+- refactor: flatten nested conditionals with let chains (fd0b80f)
+- refactor: use let-chains in BoundedSeen::insert (3d125a0)
+
+### CI
+
+- ci: deny duplicate crate versions in cargo-deny (feed112)
+- ci: add clippy and cargo-deny checks to release workflow (c29189a)
+
+### Chores
+
+- chore: add cargo-deny configuration for dependency checks (4acdbbd)
+
+### Style
+
+- style: address clippy lints in gbp-flat and gbp-base (8208e03)---
+
 ## 1.9.0 (2026-08-04)
 
 ### Features
