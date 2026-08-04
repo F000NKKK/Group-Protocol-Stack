@@ -41,10 +41,10 @@ impl<T: Eq + Hash + Clone> BoundedSeen<T> {
             return false;
         }
         self.order.push_back(item);
-        if self.order.len() > self.cap {
-            if let Some(old) = self.order.pop_front() {
-                self.set.remove(&old);
-            }
+        if self.order.len() > self.cap
+            && let Some(old) = self.order.pop_front()
+        {
+            self.set.remove(&old);
         }
         true
     }
