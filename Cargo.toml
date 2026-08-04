@@ -60,6 +60,7 @@ wasm-bindgen      = "0.2"
 wasm-bindgen-test = "0.3"
 js-sys            = "0.3"
 fluvio-wasm-timer = "0.2"
+
 # rand 0.8 chain (openmls) needs getrandom 0.2's "js" backend; chacha20poly1305's
 # aead 0.6 chain pulls getrandom 0.4 separately, needing its "wasm_js" backend.
 getrandom  = { version = "0.2", features = ["js"] }
@@ -74,6 +75,10 @@ gbp-proto  = { path = "crates/gbp-proto",  version = "1.8.2" }
 gbp-flat   = { path = "crates/gbp-flat",   version = "1.8.2" }
 
 prost = "0.14"
+
+planus              = "1.3"
+planus-translation  = "1.3"
+planus-codegen      = "1.3"
 
 quinn  = "0.11"
 rustls = { version = "0.23", features = ["ring"] }

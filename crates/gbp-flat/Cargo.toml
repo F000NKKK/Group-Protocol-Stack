@@ -18,9 +18,9 @@ name = "gbp_flat"
 path = "src/lib.rs"
 
 [dependencies]
-planus = "1.3"
-serde = { workspace = true }
+planus = { workspace = true }
+serde  = { workspace = true }
 
 [build-dependencies]
-planus-translation = "1.3"
-planus-codegen = "1.3"
+planus-translation = { workspace = true }
+planus-codegen      = { workspace = true }
