@@ -803,7 +803,11 @@ pub unsafe extern "C" fn gtp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut n, &mut m, target, message_id, text, codec) {
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `MutexGuard<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::explicit_auto_deref)]
+    match c.send(&mut n, &mut *m, target, message_id, text, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -926,9 +930,13 @@ pub unsafe extern "C" fn gap_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `MutexGuard<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::explicit_auto_deref)]
     match c.send(
         &mut n,
-        &mut m,
+        &mut *m,
         target,
         media_source_id,
         rtp_timestamp,
@@ -1055,7 +1063,11 @@ pub extern "C" fn gsp_client_send(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
-    match c.send(&mut n, &mut m, target, sig, role_claim, request_id, codec) {
+    // `&mut *m` is required, not redundant: `send`'s `seal: &mut S` is generic,
+    // and deref coercion doesn't apply across a generic bound (only `MlsContext`,
+    // not `MutexGuard<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::explicit_auto_deref)]
+    match c.send(&mut n, &mut *m, target, sig, role_claim, request_id, codec) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
             set_last_error(e.to_string());
@@ -1108,8 +1120,12 @@ pub unsafe extern "C" fn gsp_client_send_with_args(
     let mut c = c_arc.lock().unwrap();
     let mut n = n_arc.lock().unwrap();
     let mut m = m_arc.lock().unwrap();
+    // `&mut *m` is required, not redundant: `send_with_args`'s `seal: &mut S` is
+    // generic, and deref coercion doesn't apply across a generic bound (only
+    // `MlsContext`, not `MutexGuard<MlsContext>`, implements `Sealer`).
+    #[allow(clippy::explicit_auto_deref)]
     match c.send_with_args(
-        &mut n, &mut m, target, sig, role_claim, request_id, args, codec,
+        &mut n, &mut *m, target, sig, role_claim, request_id, args, codec,
     ) {
         Ok(of) => outbound_to_buffer(of),
         Err(e) => {
