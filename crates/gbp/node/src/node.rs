@@ -627,20 +627,18 @@ impl GroupNode {
                     self.transition(NodeState::Active);
                 }
             }
-            ControlOpcode::CapabilitiesAdvertise => {
-                if Self::is_coordinator_claim(&c.args) {
-                    // Coordinator is alive — reset silence timer.
-                    self.note_coordinator_activity();
-                    // Collision resolution (gbp-control-plane §5.1): if we
-                    // also claimed and the remote claimant has a lower
-                    // MemberId, yield the coordinator role to them.
-                    if self.is_coordinator && c.sender_id < self.member_id {
-                        self.is_coordinator = false;
-                    }
-                    self.events.push(Event::CoordinatorClaim {
-                        claimant: c.sender_id,
-                    });
+            ControlOpcode::CapabilitiesAdvertise if Self::is_coordinator_claim(&c.args) => {
+                // Coordinator is alive — reset silence timer.
+                self.note_coordinator_activity();
+                // Collision resolution (gbp-control-plane §5.1): if we
+                // also claimed and the remote claimant has a lower
+                // MemberId, yield the coordinator role to them.
+                if self.is_coordinator && c.sender_id < self.member_id {
+                    self.is_coordinator = false;
                 }
+                self.events.push(Event::CoordinatorClaim {
+                    claimant: c.sender_id,
+                });
             }
             _ => {}
         }

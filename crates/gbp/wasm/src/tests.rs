@@ -646,6 +646,32 @@ fn sframe_wrong_aad_fails() {
 }
 
 #[wasm_bindgen_test]
+fn sframe_repeated_create_encryptor_shares_counter_state() {
+    // Regression test for a critical nonce-reuse bug: createEncryptor() used to re-derive a
+    // brand new session (and therefore a counter reset to 0) on every call, so two calls for
+    // the same leaf could both encrypt a frame under (key, KID, CTR=0).
+    let (alice_mls, _an, _ga, bob_mls, _bn, _gb) = two_member_group();
+    let label = "gbp/sframe v1";
+    let bob_session = SFrameSession::create(&bob_mls, label, 0).unwrap();
+    let alice_session = SFrameSession::create(&alice_mls, label, 0).unwrap();
+
+    let enc1 = alice_session
+        .create_encryptor(&alice_mls, 0, label, 0)
+        .unwrap();
+    let enc2 = alice_session
+        .create_encryptor(&alice_mls, 0, label, 0)
+        .unwrap();
+
+    let ct1 = enc1.encrypt(&[1], &[]).unwrap().to_vec();
+    let ct2 = enc2.encrypt(&[2], &[]).unwrap().to_vec();
+
+    // Both must decrypt. Had `enc2` reset the counter to 0, this second frame would carry the
+    // same CTR as the first and be rejected by bob's replay window as a duplicate.
+    assert!(bob_session.decrypt(&ct1, &[]).is_ok());
+    assert!(bob_session.decrypt(&ct2, &[]).is_ok());
+}
+
+#[wasm_bindgen_test]
 fn sframe_full_audio_pipeline() {
     // End-to-end: encrypt opus → GAP send → onWire → GAP accept → SFrame decrypt.
     let (alice_mls, alice_node, _ga, bob_mls, bob_node, _gb) = two_member_group();
