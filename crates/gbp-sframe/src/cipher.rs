@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use sframe::frame::{EncryptedFrameView, MediaFrameView, MonotonicCounter, ReplayAttackProtection};
 use sframe::header::KeyId;
@@ -13,15 +14,27 @@ const REPLAY_WINDOW: u64 = 1024;
 
 // ─── SFrameEncryptor ─────────────────────────────────────────────────────────
 
-/// Stateful per-sender SFrame encryptor.
+/// The key + counter for one `(epoch, leaf_index)` KID.
 ///
-/// Holds the derived key for one `(epoch, leaf_index)` KID and an internal
-/// counter that increments on every call to [`encrypt`](Self::encrypt).
-///
-/// Obtain via [`crate::SFrameSession::encryptor`].
-pub struct SFrameEncryptor {
+/// Shared behind an [`Arc<Mutex<_>>`] by every [`SFrameEncryptor`] handle for
+/// that KID, so cloning a handle - or obtaining a new one from
+/// [`crate::SFrameSession::encryptor`] - can never produce a second,
+/// independent counter that would reuse a `(key, KID, CTR)` nonce.
+struct EncryptorState {
     key: EncryptionKey,
     counter: MonotonicCounter,
+}
+
+/// Stateful per-sender SFrame encryptor handle.
+///
+/// Cloning a handle, or requesting another one for the same `(epoch,
+/// leaf_index)` via [`crate::SFrameSession::encryptor`], shares the same
+/// underlying counter - it does **not** create an independent one. This
+/// makes it safe to hold multiple handles (e.g. one per thread) for the same
+/// sender without risking AEAD nonce reuse.
+#[derive(Clone)]
+pub struct SFrameEncryptor {
+    state: Arc<Mutex<EncryptorState>>,
     kid: KeyId,
 }
 
@@ -30,8 +43,10 @@ impl SFrameEncryptor {
         let key = EncryptionKey::derive_from(suite.to_sframe(), kid, base_key)
             .expect("key derivation from a 32-byte base key never fails");
         Self {
-            key,
-            counter: MonotonicCounter::default(),
+            state: Arc::new(Mutex::new(EncryptorState {
+                key,
+                counter: MonotonicCounter::default(),
+            })),
             kid,
         }
     }
@@ -42,9 +57,19 @@ impl SFrameEncryptor {
     /// `extra_aad` is bound into the AEAD tag (e.g. an RTP header) but is **not**
     /// carried in the returned payload; the receiver supplies the same slice to
     /// [`SFrameDecryptor::decrypt`].
+    ///
+    /// Safe to call concurrently from multiple handles sharing this sender's
+    /// state: the counter is allocated under a lock, so concurrent calls
+    /// never allocate the same value twice.
     pub fn encrypt(&mut self, plaintext: &[u8], extra_aad: &[u8]) -> Result<Vec<u8>, SFrameError> {
-        let frame = MediaFrameView::with_meta_data(&mut self.counter, plaintext, extra_aad);
-        let encrypted = frame.encrypt(&self.key).map_err(|_| SFrameError::Encrypt)?;
+        let mut state = self
+            .state
+            .lock()
+            .expect("sframe encryptor state mutex poisoned");
+        let frame = MediaFrameView::with_meta_data(&mut state.counter, plaintext, extra_aad);
+        let encrypted = frame
+            .encrypt(&state.key)
+            .map_err(|_| SFrameError::Encrypt)?;
 
         // sframe serialises `meta_data ‖ header ‖ ciphertext`; strip the
         // metadata prefix so `extra_aad` stays off the wire.
@@ -53,7 +78,11 @@ impl SFrameEncryptor {
 
     /// Current counter value (number of frames encrypted so far).
     pub fn counter(&self) -> u64 {
-        self.counter.current()
+        self.state
+            .lock()
+            .expect("sframe encryptor state mutex poisoned")
+            .counter
+            .current()
     }
 
     /// KID this encryptor was created for.

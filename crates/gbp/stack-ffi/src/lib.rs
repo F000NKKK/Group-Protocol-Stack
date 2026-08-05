@@ -218,6 +218,33 @@ fn sframe_encryptors() -> &'static SFrameEncryptorRegistry {
     R.get_or_init(SFrameEncryptorRegistry::new)
 }
 
+/// Shares one [`SFrameEncryptor`] (and therefore one counter) across every
+/// `gbp_sframe_encryptor_create` call for the same `(session_handle,
+/// leaf_index)`.
+///
+/// [`gbp_sframe_encryptor_create`] re-derives a fresh [`SFrameSession`] on
+/// every call (it only borrows an [`MlsContext`], not a persisted session
+/// object), so without this cache each call would otherwise construct an
+/// independent, counter-reset-to-0 encryptor for the same KID - a critical
+/// AEAD nonce-reuse bug. Entries outlive individual `..._free` calls on
+/// purpose, so recreating a handle for the same session+leaf always
+/// reconnects to the same counter instead of resetting it.
+struct SFrameEncryptorDedup {
+    by_session_leaf: Mutex<HashMap<(i32, u32), SFrameEncryptor>>,
+}
+impl SFrameEncryptorDedup {
+    fn new() -> Self {
+        Self {
+            by_session_leaf: Mutex::new(HashMap::new()),
+        }
+    }
+}
+fn sframe_encryptor_dedup() -> &'static SFrameEncryptorDedup {
+    use std::sync::OnceLock;
+    static R: OnceLock<SFrameEncryptorDedup> = OnceLock::new();
+    R.get_or_init(SFrameEncryptorDedup::new)
+}
+
 // ============================================================================
 // Version
 // ============================================================================
@@ -1491,16 +1518,28 @@ pub unsafe extern "C" fn gbp_sframe_session_create(
 }
 
 /// Frees an SFrame session created by [`gbp_sframe_session_create`].
+///
+/// Also releases any encryptor state cached for this session by
+/// [`gbp_sframe_encryptor_create`] - call this on epoch change so a later,
+/// unrelated session cannot be handed a stale cache entry.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_sframe_session_free(handle: i32) {
     sframe_sessions().remove(handle);
+    sframe_encryptor_dedup()
+        .by_session_leaf
+        .lock()
+        .unwrap()
+        .retain(|(session_handle, _), _| *session_handle != handle);
 }
 
-/// Creates an encryptor for the local sender (`leaf_index`) within an epoch.
+/// Creates (or reconnects to) an encryptor for the local sender (`leaf_index`)
+/// within an epoch.
 ///
 /// The session handle MUST be the one returned by [`gbp_sframe_session_create`]
-/// for the same epoch.  One encryptor per sender; do **not** share across
-/// threads.
+/// for the same epoch. Calling this more than once for the same
+/// `(session_handle, leaf_index)` - e.g. one call per thread, or after
+/// freeing a previous handle - returns a handle sharing the *same* counter;
+/// it never resets it, so it is always safe against AEAD nonce reuse.
 ///
 /// Returns a positive encryptor handle, or `0` on failure.
 ///
@@ -1537,13 +1576,31 @@ pub unsafe extern "C" fn gbp_sframe_encryptor_create(
         set_last_error("invalid session handle");
         return 0;
     }
+    let dedup_key = (session_handle, leaf_index);
+    if let Some(existing) = sframe_encryptor_dedup()
+        .by_session_leaf
+        .lock()
+        .unwrap()
+        .get(&dedup_key)
+    {
+        return sframe_encryptors().insert(existing.clone());
+    }
+
     let Some(mls_arc) = mls().get(mls_handle) else {
         set_last_error("invalid MLS handle");
         return 0;
     };
     let mls = mls_arc.lock().unwrap();
     match SFrameSession::from_mls(&mls, label, suite) {
-        Ok(session) => sframe_encryptors().insert(session.encryptor(leaf_index)),
+        Ok(session) => {
+            let encryptor = session.encryptor(leaf_index);
+            sframe_encryptor_dedup()
+                .by_session_leaf
+                .lock()
+                .unwrap()
+                .insert(dedup_key, encryptor.clone());
+            sframe_encryptors().insert(encryptor)
+        }
         Err(e) => {
             set_last_error(e);
             0
@@ -1551,7 +1608,14 @@ pub unsafe extern "C" fn gbp_sframe_encryptor_create(
     }
 }
 
-/// Frees an encryptor created by [`gbp_sframe_encryptor_create`].
+/// Frees an encryptor handle created by [`gbp_sframe_encryptor_create`].
+///
+/// This only releases *this* handle; the underlying per-`(session, leaf)`
+/// counter state is kept alive (by [`sframe_encryptor_dedup`]) for the
+/// lifetime of the session, so a later `gbp_sframe_encryptor_create` call for
+/// the same `(session_handle, leaf_index)` reconnects to it rather than
+/// starting a new counter at `0`. Use [`gbp_sframe_session_free`] to release
+/// it for good, on epoch change.
 #[unsafe(no_mangle)]
 pub extern "C" fn gbp_sframe_encryptor_free(handle: i32) {
     sframe_encryptors().remove(handle);

@@ -68,6 +68,9 @@ pub use error::SFrameError;
 pub use header::SFrameHeader;
 pub use kdf::{CipherSuite, derive_base_key};
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use gbp_mls::MlsContext;
 
 /// An SFrame session bound to one MLS epoch.
@@ -75,10 +78,17 @@ use gbp_mls::MlsContext;
 /// A new session must be created whenever the MLS group commits (epoch
 /// changes) — the old base key becomes unreachable and all per-sender keys
 /// are rotated automatically.
+///
+/// Owns the per-leaf encryptor state for this epoch: repeated calls to
+/// [`encryptor`](Self::encryptor) for the same `leaf_index` return a handle
+/// to the *same* counter, never a fresh one, so callers cannot accidentally
+/// reuse a `(key, KID, CTR)` nonce by recreating a handle (e.g. one per
+/// thread, or on every request).
 pub struct SFrameSession {
     base_key: [u8; 32],
     epoch: u64,
     suite: CipherSuite,
+    encryptors: Mutex<HashMap<u32, SFrameEncryptor>>,
 }
 
 impl SFrameSession {
@@ -91,6 +101,7 @@ impl SFrameSession {
             base_key,
             epoch,
             suite,
+            encryptors: Mutex::new(HashMap::new()),
         }
     }
 
@@ -121,14 +132,25 @@ impl SFrameSession {
         self.suite
     }
 
-    /// Creates a sender-side encryptor for `leaf_index`.
+    /// Returns a sender-side encryptor handle for `leaf_index`.
     ///
-    /// The returned [`SFrameEncryptor`] owns the derived key+salt for this
-    /// sender and maintains an internal counter.  Create one per sender; do
-    /// **not** share an encryptor across multiple goroutines/threads.
+    /// The returned [`SFrameEncryptor`] holds the derived key+salt for this
+    /// sender and shares its counter with every other handle returned for
+    /// the same `leaf_index` on this session - calling this repeatedly (one
+    /// per thread, one per request, ...) is safe and will never produce two
+    /// independent counters for the same KID.
     pub fn encryptor(&self, leaf_index: u32) -> SFrameEncryptor {
-        let kid = SFrameHeader::kid_from(self.epoch, leaf_index);
-        SFrameEncryptor::new(&self.base_key, kid, self.suite)
+        let mut encryptors = self
+            .encryptors
+            .lock()
+            .expect("sframe session encryptor map mutex poisoned");
+        encryptors
+            .entry(leaf_index)
+            .or_insert_with(|| {
+                let kid = SFrameHeader::kid_from(self.epoch, leaf_index);
+                SFrameEncryptor::new(&self.base_key, kid, self.suite)
+            })
+            .clone()
     }
 
     /// Creates a receiver-side decryptor for this epoch.
@@ -224,5 +246,65 @@ mod tests {
 
         let payload = enc.encrypt(b"stale", b"").unwrap();
         assert!(dec.decrypt(&payload, b"").is_err());
+    }
+
+    #[test]
+    fn repeated_encryptor_calls_share_one_counter_sequence() {
+        // Regression test for a critical nonce-reuse bug: session.encryptor(leaf) used to
+        // return a fresh MonotonicCounter starting at 0 on every call, so e.g. recreating a
+        // handle per request/thread could encrypt multiple frames under the same
+        // (key, KID, CTR).
+        let session = test_session(0);
+
+        let mut first = session.encryptor(0);
+        let mut second = session.encryptor(0); // must reconnect to the same state, not reset it
+
+        assert_eq!(first.counter(), 0);
+        assert_eq!(second.counter(), 0);
+
+        first.encrypt(b"one", b"").unwrap();
+        assert_eq!(first.counter(), 1);
+        // `second` observes the counter `first` already advanced - proof they share state.
+        assert_eq!(second.counter(), 1);
+
+        second.encrypt(b"two", b"").unwrap();
+        assert_eq!(first.counter(), 2);
+    }
+
+    #[test]
+    fn cloned_encryptor_handles_never_duplicate_a_counter_value() {
+        let session = test_session(0);
+        let enc = session.encryptor(0);
+        let mut dec = session.decryptor();
+
+        // Simulate "one encryptor per thread": clone the handle and encrypt concurrently.
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let mut enc = enc.clone();
+                std::thread::spawn(move || enc.encrypt(format!("frame-{i}").as_bytes(), b""))
+            })
+            .collect();
+
+        let payloads: Vec<Vec<u8>> = handles
+            .into_iter()
+            .map(|h| h.join().unwrap().unwrap())
+            .collect();
+
+        // Every counter value in [0, 8) must have been used exactly once: if two threads had
+        // allocated the same CTR, one of these decrypts would fail (duplicate nonce corrupts
+        // the AEAD tag input) - but more importantly, the exact same (key, KID, CTR) must never
+        // have produced two ciphertexts in the first place.
+        let mut counters: Vec<u64> = payloads
+            .iter()
+            .map(|payload| {
+                let (_, _leaf) = dec.decrypt(payload, b"").unwrap();
+                sframe::frame::EncryptedFrameView::try_new(payload.as_slice())
+                    .unwrap()
+                    .header()
+                    .counter()
+            })
+            .collect();
+        counters.sort_unstable();
+        assert_eq!(counters, (0..8).collect::<Vec<_>>());
     }
 }

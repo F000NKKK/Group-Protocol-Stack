@@ -24,6 +24,7 @@ use openmls::prelude::tls_codec::Deserialize as TlsDeserialize;
 use openmls::prelude::tls_codec::Serialize as TlsSerialize;
 use openmls::prelude::{KeyPackageIn, OpenMlsProvider, ProtocolVersion};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -921,6 +922,13 @@ impl GspClient {
 #[wasm_bindgen]
 pub struct SFrameSession {
     inner: RefCell<RustSFrameDecryptor>,
+    /// Caches the encryptor handle per `leafIndex` so repeated
+    /// `createEncryptor` calls (each of which re-derives a fresh
+    /// [`RustSFrameSession`] from MLS) reconnect to the same counter instead
+    /// of resetting it - re-deriving the session alone would otherwise hand
+    /// out a fresh, independent `MonotonicCounter` for the same KID on every
+    /// call, reusing `(key, KID, CTR)` and breaking AEAD confidentiality.
+    encryptors: RefCell<HashMap<u32, RustSFrameEncryptor>>,
 }
 
 #[wasm_bindgen]
@@ -935,12 +943,14 @@ impl SFrameSession {
         let session = RustSFrameSession::from_mls(&m, label, suite).map_err(js_err)?;
         Ok(SFrameSession {
             inner: RefCell::new(session.decryptor()),
+            encryptors: RefCell::new(HashMap::new()),
         })
     }
 
-    /// Creates a sender-side encryptor for `leafIndex` in this epoch. Re-derives
-    /// the session from MLS (same `label` + `suite`) so encryptor and decryptor
-    /// share the epoch base key.
+    /// Creates (or reconnects to) a sender-side encryptor for `leafIndex` in
+    /// this epoch. Calling this more than once for the same `leafIndex`
+    /// always returns a handle sharing the *same* counter - it never resets
+    /// it, so it is always safe against AEAD nonce reuse.
     #[wasm_bindgen(js_name = "createEncryptor")]
     pub fn create_encryptor(
         &self,
@@ -949,11 +959,21 @@ impl SFrameSession {
         label: &str,
         suite: u8,
     ) -> Result<SFrameEncryptor, JsValue> {
+        if let Some(existing) = self.encryptors.borrow().get(&leaf_index) {
+            return Ok(SFrameEncryptor {
+                inner: RefCell::new(existing.clone()),
+            });
+        }
+
         let suite = cipher_suite_from(suite)?;
         let m = mls.inner.borrow();
         let session = RustSFrameSession::from_mls(&m, label, suite).map_err(js_err)?;
+        let encryptor = session.encryptor(leaf_index);
+        self.encryptors
+            .borrow_mut()
+            .insert(leaf_index, encryptor.clone());
         Ok(SFrameEncryptor {
-            inner: RefCell::new(session.encryptor(leaf_index)),
+            inner: RefCell::new(encryptor),
         })
     }
 
