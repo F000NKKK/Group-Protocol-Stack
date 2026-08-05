@@ -71,7 +71,7 @@ can depend on individual crates directly.
 | [`gbp-flat`](https://crates.io/crates/gbp-flat)                  | FlatBuffers schemas for GBP/GTP/GAP/GSP (via planus, no flatc) |
 | [`gbp-stack`](https://crates.io/crates/gbp-stack)                | Top-level facade re-exporting every layer                     |
 | [`gbp-stack-ffi`](https://crates.io/crates/gbp-stack-ffi)        | C ABI / cdylib for non-Rust consumers                         |
-| [`gbp-cli`](https://crates.io/crates/gbp-cli)                    | Reference CLI (`gbp-node listen|connect`)                     |
+| [`gbp-cli`](https://crates.io/crates/gbp-cli)                    | Reference CLI (`gbp-node listen` / `gbp-node connect`)         |
 
 ## Payload codec
 
