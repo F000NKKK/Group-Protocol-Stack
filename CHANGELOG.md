@@ -1,3 +1,10 @@
+## 1.9.2-rc1 (2026-08-05)
+
+### Bug Fixes
+
+- fix(gbp-node): collapse nested if into match guard to satisfy clippy (4789176)
+- fix(gbp-sframe): prevent SFrame nonce reuse when encryptors are recreated (0ad87e3)---
+
 ## 1.9.1 (2026-08-04)
 
 ### Bug Fixes
