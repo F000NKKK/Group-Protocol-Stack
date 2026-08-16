@@ -69,6 +69,10 @@ impl SFrameEncryptor {
             .state
             .lock()
             .expect("sframe encryptor state mutex poisoned");
+        // next() panics once exhausted, which would poison this mutex.
+        if state.counter.is_exhausted() {
+            return Err(SFrameError::CounterExhausted(self.kid));
+        }
         let frame = MediaFrameView::with_meta_data(&mut state.counter, plaintext, extra_aad);
         let encrypted = frame
             .encrypt(&state.key)
@@ -77,6 +81,15 @@ impl SFrameEncryptor {
         // sframe serialises `meta_data ‖ header ‖ ciphertext`; strip the
         // metadata prefix so `extra_aad` stays off the wire.
         Ok(encrypted.as_ref()[extra_aad.len()..].to_vec())
+    }
+
+    /// Starts the counter at `start`, to reach exhaustion without 2^64 frames.
+    #[cfg(test)]
+    fn with_counter_at(base_key: &[u8; 32], kid: u64, suite: CipherSuite, start: u64) -> Self {
+        let encryptor = Self::new(base_key, kid, suite);
+        encryptor.state.lock().unwrap().counter =
+            MonotonicCounter::with_start_value(start, u64::MAX);
+        encryptor
     }
 
     /// Current counter value (number of frames encrypted so far).
@@ -168,5 +181,36 @@ impl SFrameDecryptor {
     pub fn reset(&mut self) {
         self.keys.clear();
         self.replay = ReplayAttackProtectionStore::with_tolerance(REPLAY_WINDOW);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KID: u64 = 0xabc;
+
+    #[test]
+    fn last_counter_value_still_encrypts() {
+        let mut enc =
+            SFrameEncryptor::with_counter_at(&[7u8; 32], KID, CipherSuite::Aes128Gcm, u64::MAX);
+
+        assert!(enc.encrypt(b"last frame", b"").is_ok());
+    }
+
+    #[test]
+    fn exhausted_counter_errors_instead_of_panicking() {
+        // A panic here would poison the state mutex shared by every handle.
+        let mut enc =
+            SFrameEncryptor::with_counter_at(&[7u8; 32], KID, CipherSuite::Aes128Gcm, u64::MAX);
+        enc.encrypt(b"last frame", b"").unwrap();
+
+        assert!(matches!(
+            enc.encrypt(b"one too many", b""),
+            Err(SFrameError::CounterExhausted(KID))
+        ));
+
+        // Still usable, not poisoned.
+        assert!(enc.encrypt(b"and another", b"").is_err());
     }
 }
