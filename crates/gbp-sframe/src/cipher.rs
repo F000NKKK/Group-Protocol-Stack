@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use sframe::frame::{EncryptedFrameView, MediaFrameView, MonotonicCounter, ReplayAttackProtection};
+use sframe::frame::{
+    EncryptedFrameView, FrameValidation, MediaFrameView, MonotonicCounter,
+    ReplayAttackProtectionStore,
+};
 use sframe::header::KeyId;
 use sframe::key::{DecryptionKey, EncryptionKey};
 
@@ -66,6 +69,10 @@ impl SFrameEncryptor {
             .state
             .lock()
             .expect("sframe encryptor state mutex poisoned");
+        // next() panics once exhausted, which would poison this mutex.
+        if state.counter.is_exhausted() {
+            return Err(SFrameError::CounterExhausted(self.kid));
+        }
         let frame = MediaFrameView::with_meta_data(&mut state.counter, plaintext, extra_aad);
         let encrypted = frame
             .encrypt(&state.key)
@@ -74,6 +81,15 @@ impl SFrameEncryptor {
         // sframe serialises `meta_data ‖ header ‖ ciphertext`; strip the
         // metadata prefix so `extra_aad` stays off the wire.
         Ok(encrypted.as_ref()[extra_aad.len()..].to_vec())
+    }
+
+    /// Starts the counter at `start`, to reach exhaustion without 2^64 frames.
+    #[cfg(test)]
+    fn with_counter_at(base_key: &[u8; 32], kid: u64, suite: CipherSuite, start: u64) -> Self {
+        let encryptor = Self::new(base_key, kid, suite);
+        encryptor.state.lock().unwrap().counter =
+            MonotonicCounter::with_start_value(start, u64::MAX);
+        encryptor
     }
 
     /// Current counter value (number of frames encrypted so far).
@@ -93,16 +109,6 @@ impl SFrameEncryptor {
 
 // ─── SFrameDecryptor ─────────────────────────────────────────────────────────
 
-/// Per-sender decryption state maintained inside [`SFrameDecryptor`].
-///
-/// One [`ReplayAttackProtection`] per KID: sframe's validator keys off the
-/// counter only (it ignores the KID), so a shared validator would mix
-/// interleaved senders' counters and raise false rejections.
-struct SenderState {
-    key: DecryptionKey,
-    replay: ReplayAttackProtection,
-}
-
 /// Multi-sender SFrame decryptor for one epoch.
 ///
 /// Lazily derives per-sender key material and replay state from the epoch's
@@ -113,8 +119,10 @@ pub struct SFrameDecryptor {
     base_key: [u8; 32],
     epoch: u64,
     suite: CipherSuite,
-    /// Keyed by KID.
-    senders: HashMap<KeyId, SenderState>,
+    /// Per-sender keys, keyed by KID.
+    keys: HashMap<KeyId, DecryptionKey>,
+    /// Replay windows, one per KID (sframe's own per-key-id store).
+    replay: ReplayAttackProtectionStore,
 }
 
 impl SFrameDecryptor {
@@ -123,7 +131,8 @@ impl SFrameDecryptor {
             base_key,
             epoch,
             suite,
-            senders: HashMap::new(),
+            keys: HashMap::new(),
+            replay: ReplayAttackProtectionStore::with_tolerance(REPLAY_WINDOW),
         }
     }
 
@@ -146,25 +155,62 @@ impl SFrameDecryptor {
         }
         let leaf = SFrameHeader::leaf_from_kid(kid);
 
-        let suite = self.suite;
-        let base_key = self.base_key;
-        let state = self.senders.entry(kid).or_insert_with(|| SenderState {
-            key: DecryptionKey::derive_from(suite.to_sframe(), kid, base_key)
-                .expect("key derivation from a 32-byte base key never fails"),
-            replay: ReplayAttackProtection::with_tolerance(REPLAY_WINDOW),
-        });
-
-        // Replay check before decryption (matches sframe's example flow).
-        let view = view
-            .validate(&state.replay)
+        // Screen without recording: the header is not authenticated yet.
+        self.replay
+            .inspect(view.header())
             .map_err(|_| SFrameError::Replay { kid, ctr })?;
 
-        let media = view.decrypt(&state.key).map_err(|_| SFrameError::Decrypt)?;
+        let suite = self.suite;
+        let base_key = self.base_key;
+        let key = self.keys.entry(kid).or_insert_with(|| {
+            DecryptionKey::derive_from(suite.to_sframe(), kid, base_key)
+                .expect("key derivation from a 32-byte base key never fails")
+        });
+
+        let media = view.decrypt(key).map_err(|_| SFrameError::Decrypt)?;
+
+        // Authenticated - record the counter.
+        self.replay
+            .validate(view.header())
+            .map_err(|_| SFrameError::Replay { kid, ctr })?;
+
         Ok((media.payload().to_vec(), leaf))
     }
 
     /// Drops all per-sender key + replay state (call on epoch change).
     pub fn reset(&mut self) {
-        self.senders.clear();
+        self.keys.clear();
+        self.replay = ReplayAttackProtectionStore::with_tolerance(REPLAY_WINDOW);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KID: u64 = 0xabc;
+
+    #[test]
+    fn last_counter_value_still_encrypts() {
+        let mut enc =
+            SFrameEncryptor::with_counter_at(&[7u8; 32], KID, CipherSuite::Aes128Gcm, u64::MAX);
+
+        assert!(enc.encrypt(b"last frame", b"").is_ok());
+    }
+
+    #[test]
+    fn exhausted_counter_errors_instead_of_panicking() {
+        // A panic here would poison the state mutex shared by every handle.
+        let mut enc =
+            SFrameEncryptor::with_counter_at(&[7u8; 32], KID, CipherSuite::Aes128Gcm, u64::MAX);
+        enc.encrypt(b"last frame", b"").unwrap();
+
+        assert!(matches!(
+            enc.encrypt(b"one too many", b""),
+            Err(SFrameError::CounterExhausted(KID))
+        ));
+
+        // Still usable, not poisoned.
+        assert!(enc.encrypt(b"and another", b"").is_err());
     }
 }

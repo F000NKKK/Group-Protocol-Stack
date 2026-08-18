@@ -237,6 +237,36 @@ mod tests {
     }
 
     #[test]
+    fn failed_decryption_does_not_consume_the_counter() {
+        // Window poisoning: a frame failing the AEAD check must not burn its counter.
+        let session = test_session(0);
+        let mut enc = session.encryptor(0);
+        let mut dec = session.decryptor();
+
+        let payload = enc.encrypt(b"genuine", b"rtp-header").unwrap();
+        assert!(dec.decrypt(&payload, b"forged-header").is_err());
+
+        assert_eq!(dec.decrypt(&payload, b"rtp-header").unwrap().0, b"genuine");
+    }
+
+    #[test]
+    fn senders_keep_independent_replay_windows() {
+        // With one shared window, leaf 1's first frame would come out "too old".
+        let session = test_session(2);
+        let mut busy = session.encryptor(0);
+        let mut quiet = session.encryptor(1);
+        let mut dec = session.decryptor();
+
+        let quiet_frame = quiet.encrypt(b"quiet", b"").unwrap();
+        for _ in 0..2000 {
+            let payload = busy.encrypt(b"busy", b"").unwrap();
+            dec.decrypt(&payload, b"").unwrap();
+        }
+
+        assert_eq!(dec.decrypt(&quiet_frame, b"").unwrap().1, 1);
+    }
+
+    #[test]
     fn epoch_mismatch_rejected() {
         let session_a = test_session(1);
         let session_b = test_session(2); // different epoch

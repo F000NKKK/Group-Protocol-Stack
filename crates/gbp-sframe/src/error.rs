@@ -26,6 +26,12 @@ pub enum SFrameError {
         ctr: u64,
     },
 
+    /// This sender used up every counter value for its KID. Encrypting again
+    /// would have to reuse a `(key, KID, CTR)` nonce, so the encryptor refuses;
+    /// a new epoch (and hence a new base key) is required.
+    #[error("counter exhausted for KID {0:#x}: rotate the epoch")]
+    CounterExhausted(u64),
+
     /// No key material is available for the KID carried in the frame.
     #[error("unknown KID {0:#x}: epoch or sender not registered")]
     UnknownKid(u64),
