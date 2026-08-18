@@ -1,3 +1,18 @@
+## 1.9.2-rc2 (2026-08-18)
+
+### Bug Fixes
+
+- fix(gbp-sframe): replay-window poisoning and counter-exhaustion panic (#65) (e6b3dc8)
+- fix(gbp-sframe): prevent SFrame nonce reuse when encryptors are recreated (#64) (a6b9f50)
+
+### Documentation
+
+- docs: clarify gbp-cli commands in README (ece0512)
+
+### Chores
+
+- chore(deps): bump sframe from 1.3.0 to 1.3.1 (#70) (3bdd61d)---
+
 ## 1.9.1 (2026-08-04)
 
 ### Bug Fixes
