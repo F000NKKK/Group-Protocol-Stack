@@ -47,7 +47,7 @@ gsp-protocol = { path = "crates/gsp", version = "1.9.2-rc2" }
 
 # External
 openmls                  = "0.8"
-openmls_rust_crypto      = "0.5"
+openmls_rust_crypto      = "0.6"
 openmls_basic_credential = "0.5"
 openmls_traits           = "0.5"
 
