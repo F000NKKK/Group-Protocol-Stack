@@ -3030,9 +3030,9 @@ dependencies = [
 
 [[package]]
 name = "sframe"
-version = "1.4.0"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f48ed9af9ff7d81dd7c21e0654975a4a76dee17099f6f5244cd4a3634cd28424"
+checksum = "9f2fd5ba69d8d8944c678ebc1ba9c8def537adffaacd13ecb28d1426d5516e5e"
 dependencies = [
  "bitfield",
  "cfg-if",
